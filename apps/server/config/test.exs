@@ -46,3 +46,11 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+config :tspec, :local_video, true
+
+config :tspec, TSpec.Video.LocalProvider,
+  base_url: "http://localhost:4002",
+  media_root: Path.expand("../tmp/test_media", __DIR__),
+  secret: "test-only-local-video-secret",
+  webhook: :inline

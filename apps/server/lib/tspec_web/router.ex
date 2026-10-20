@@ -48,6 +48,7 @@ defmodule TSpecWeb.Router do
     post "/auth/verify", AuthController, :verify
     get "/consent/current", ConsentController, :show
     get "/users/:handle", UserController, :show
+    get "/content/:id", ContentController, :show
   end
 
   scope "/api", TSpecWeb do
@@ -64,6 +65,28 @@ defmodule TSpecWeb.Router do
     patch "/me", MeController, :update
     post "/users/:handle/follow", UserController, :follow
     delete "/users/:handle/follow", UserController, :unfollow
+    post "/videos", ContentController, :create_video
+    post "/posts", ContentController, :create_post
+    patch "/content/:id", ContentController, :update
+    delete "/content/:id", ContentController, :delete
+  end
+
+  # Provider webhooks: signature-verified, no API auth.
+  pipeline :webhook do
+    plug :accepts, ["json"]
+  end
+
+  scope "/api/webhooks", TSpecWeb do
+    pipe_through :webhook
+
+    post "/video/:provider", VideoWebhookController, :create
+  end
+
+  # Upload endpoint of the dev/test LocalProvider (never in production).
+  if Application.compile_env(:tspec, :local_video, false) do
+    scope "/dev", TSpecWeb.Dev do
+      post "/video-uploads/:token", VideoUploadController, :create
+    end
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

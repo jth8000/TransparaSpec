@@ -11,6 +11,14 @@ defmodule TSpecWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  # First, so static media (dev HLS) and API responses both carry CORS headers
+  # for the Expo web client.
+  plug CORSPlug, origin: Application.compile_env(:tspec, :cors_origins)
+
+  socket "/socket", TSpecWeb.UserSocket,
+    websocket: true,
+    longpoll: false
+
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
@@ -27,6 +35,14 @@ defmodule TSpecWeb.Endpoint do
     only: TSpecWeb.static_paths(),
     raise_on_missing_only: code_reloading?
 
+  # Media written by the dev/test LocalProvider (HLS playlists, segments,
+  # thumbnails). Never enabled in production.
+  if Application.compile_env(:tspec, :local_video, false) do
+    plug Plug.Static,
+      at: "/dev_media",
+      from: Application.compile_env!(:tspec, [TSpec.Video.LocalProvider, :media_root])
+  end
+
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do
@@ -40,14 +56,15 @@ defmodule TSpecWeb.Endpoint do
     param_key: "request_logger",
     cookie_key: "request_logger"
 
-  plug CORSPlug, origin: Application.compile_env(:tspec, :cors_origins)
-
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
   plug Plug.Parsers,
-    parsers: [:urlencoded, :multipart, :json],
+    # Multipart is only used by the dev video-upload emulator; allow
+    # short-form-sized files there.
+    parsers: [:urlencoded, {:multipart, length: 250_000_000}, :json],
     pass: ["*/*"],
+    body_reader: {TSpecWeb.CacheBodyReader, :read_body, []},
     json_decoder: Phoenix.json_library()
 
   plug Plug.MethodOverride

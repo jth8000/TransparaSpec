@@ -47,6 +47,11 @@ config :tspec, Oban,
 # Origins allowed to call the JSON API from a browser (the Expo web client).
 config :tspec, :cors_origins, ["http://localhost:8081"]
 
+# Video providers (ADR 0005). New uploads go to `:video_provider`; existing
+# rows keep the provider they were created with.
+config :tspec, :video_providers, %{"local" => TSpec.Video.LocalProvider}
+config :tspec, :video_provider, "local"
+
 # Where magic links in sign-in emails point (the Expo web client).
 config :tspec, :client_url, "http://localhost:8081"
 

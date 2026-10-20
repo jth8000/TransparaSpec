@@ -76,3 +76,13 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# Local video provider: uploads land here, are transcoded with ffmpeg, and are
+# served at /dev_media. Webhooks are POSTed to our own endpoint.
+config :tspec, :local_video, true
+
+config :tspec, TSpec.Video.LocalProvider,
+  base_url: "http://localhost:4000",
+  media_root: Path.expand("../tmp/dev_media", __DIR__),
+  secret: "dev-only-local-video-secret",
+  webhook: :http
