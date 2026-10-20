@@ -7,6 +7,19 @@
 # General application configuration
 import Config
 
+config :tspec, :scopes,
+  user: [
+    default: true,
+    module: TSpec.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :binary_id,
+    schema_table: :users,
+    test_data_fixture: TSpec.AccountsFixtures,
+    test_setup_helper: :register_and_log_in_user
+  ]
+
 config :tspec,
   namespace: TSpec,
   ecto_repos: [TSpec.Repo],
@@ -33,6 +46,13 @@ config :tspec, Oban,
 
 # Origins allowed to call the JSON API from a browser (the Expo web client).
 config :tspec, :cors_origins, ["http://localhost:8081"]
+
+# Where magic links in sign-in emails point (the Expo web client).
+config :tspec, :client_url, "http://localhost:8081"
+
+# HMAC key for stored sign-in codes. Dev/test only; prod reads
+# LOGIN_CODE_SECRET in runtime.exs.
+config :tspec, :login_code_secret, "dev-only-login-code-secret-not-for-production"
 
 # Configure LiveView
 config :phoenix_live_view,

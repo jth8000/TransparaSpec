@@ -40,6 +40,13 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
+  config :tspec,
+    login_code_secret:
+      System.get_env("LOGIN_CODE_SECRET") ||
+        raise("environment variable LOGIN_CODE_SECRET is missing"),
+    client_url:
+      System.get_env("CLIENT_URL") || raise("environment variable CLIENT_URL is missing")
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

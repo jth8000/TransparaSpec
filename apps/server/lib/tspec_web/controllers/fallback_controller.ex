@@ -5,6 +5,18 @@ defmodule TSpecWeb.FallbackController do
   """
   use TSpecWeb, :controller
 
+  # reason => {HTTP status, message}. The reason atom becomes the `error` code.
+  @errors %{
+    not_found: {:not_found, "Not found"},
+    unauthorized: {:unauthorized, "Authentication required"},
+    forbidden: {:forbidden, "Not allowed"},
+    invalid_code: {:unauthorized, "The code or link is invalid or has expired"},
+    age_requirement: {:forbidden, "You must be at least 13 to use T-Spec"},
+    already_onboarded: {:conflict, "Onboarding is already complete"},
+    consent_required: {:unprocessable_entity, "You must accept the current terms"},
+    cannot_follow_self: {:unprocessable_entity, "You can't follow yourself"}
+  }
+
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do
     conn
     |> put_status(:unprocessable_entity)
@@ -15,19 +27,18 @@ defmodule TSpecWeb.FallbackController do
     })
   end
 
-  def call(conn, {:error, :not_found}), do: error(conn, :not_found, "not_found", "Not found")
+  def call(conn, {:error, reason}) when is_map_key(@errors, reason) do
+    {status, message} = Map.fetch!(@errors, reason)
+    error(conn, status, reason, message)
+  end
 
-  def call(conn, {:error, :unauthorized}),
-    do: error(conn, :unauthorized, "unauthorized", "Authentication required")
+  def call(conn, {:error, reason, message}) when is_atom(reason) do
+    error(conn, :unprocessable_entity, reason, message)
+  end
 
-  def call(conn, {:error, :forbidden}), do: error(conn, :forbidden, "forbidden", "Not allowed")
-
-  def call(conn, {:error, code, message}) when is_atom(code),
-    do: error(conn, :unprocessable_entity, Atom.to_string(code), message)
-
-  defp error(conn, status, code, message) do
+  defp error(conn, status, reason, message) do
     conn
     |> put_status(status)
-    |> json(%{error: code, message: message})
+    |> json(%{error: Atom.to_string(reason), message: message})
   end
 end

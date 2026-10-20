@@ -15,3 +15,6 @@ node_modules/
 # Playwright
 /e2e/test-results/
 /e2e/playwright-report/
+
+# BEAM crash dumps
+erl_crash.dump
