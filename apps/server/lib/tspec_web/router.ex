@@ -49,6 +49,7 @@ defmodule TSpecWeb.Router do
     get "/consent/current", ConsentController, :show
     get "/users/:handle", UserController, :show
     get "/content/:id", ContentController, :show
+    get "/feed/latest", FeedController, :latest
   end
 
   scope "/api", TSpecWeb do
@@ -69,6 +70,8 @@ defmodule TSpecWeb.Router do
     post "/posts", ContentController, :create_post
     patch "/content/:id", ContentController, :update
     delete "/content/:id", ContentController, :delete
+    get "/feed/following", FeedController, :following
+    post "/events", EventController, :create
   end
 
   # Provider webhooks: signature-verified, no API auth.

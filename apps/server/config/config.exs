@@ -42,7 +42,10 @@ config :tspec, Oban,
   engine: Oban.Engines.Basic,
   repo: TSpec.Repo,
   queues: [default: 10, media: 4, maintenance: 1],
-  plugins: [{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}]
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Cron, crontab: [{"15 3 * * *", TSpec.Events.PartitionWorker}]}
+  ]
 
 # Origins allowed to call the JSON API from a browser (the Expo web client).
 config :tspec, :cors_origins, ["http://localhost:8081"]

@@ -14,7 +14,8 @@ defmodule TSpecWeb.FallbackController do
     age_requirement: {:forbidden, "You must be at least 13 to use T-Spec"},
     already_onboarded: {:conflict, "Onboarding is already complete"},
     consent_required: {:unprocessable_entity, "You must accept the current terms"},
-    cannot_follow_self: {:unprocessable_entity, "You can't follow yourself"}
+    cannot_follow_self: {:unprocessable_entity, "You can't follow yourself"},
+    batch_too_large: {:unprocessable_entity, "Too many events in one batch"}
   }
 
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do

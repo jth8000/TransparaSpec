@@ -47,7 +47,6 @@ defmodule TSpec.Video.LocalPipelineTest do
     # Re-using the URL is refused.
     assert build_conn() |> post(path, %{"file" => file}) |> json_response(409)
 
-    # Transcode, then apply the webhook event it emits.
     # Two jobs: the ffmpeg transcode, then the webhook event it emits.
     assert %{success: 2, failure: 0} =
              Oban.drain_queue(queue: :media, with_recursion: true)
