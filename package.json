@@ -1,0 +1,7 @@
+{
+  "name": "tspec",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}
