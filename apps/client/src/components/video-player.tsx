@@ -1,6 +1,6 @@
 import { useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 
 export type VideoPlayerProps = {
@@ -34,7 +34,11 @@ export function VideoPlayer({ uri, active, muted, onTime, onEnded }: VideoPlayer
     player.muted = muted;
   }, [player, muted]);
 
+  // Read inside native event callbacks, which may outlive a render.
+  const activeRef = useRef(active);
+
   useEffect(() => {
+    activeRef.current = active;
     if (active) {
       player.play();
     } else {
@@ -47,8 +51,10 @@ export function VideoPlayer({ uri, active, muted, onTime, onEnded }: VideoPlayer
 
   useEventListener(player, 'playToEnd', () => {
     onEnded?.(player.duration);
-    if (active) {
-      player.currentTime = 0;
+    if (activeRef.current) {
+      // Seeking to 0 + play() doesn't restart an ended player on Android;
+      // replay() is expo-video's API for this.
+      player.replay();
       player.play();
     }
   });
