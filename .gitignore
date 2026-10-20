@@ -1,0 +1,17 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Node
+node_modules/
+
+# Playwright
+/e2e/test-results/
+/e2e/playwright-report/
