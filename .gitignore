@@ -18,3 +18,4 @@ node_modules/
 
 # BEAM crash dumps
 erl_crash.dump
+/e2e/.fixtures/

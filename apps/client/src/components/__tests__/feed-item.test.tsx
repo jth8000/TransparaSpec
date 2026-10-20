@@ -1,0 +1,87 @@
+import { render, screen } from '@testing-library/react-native';
+
+import type { Schemas } from '@/lib/api';
+
+import { FeedItem } from '../feed-item';
+
+const mockTrack = jest.fn();
+
+jest.mock('@/lib/events', () => ({ useTrack: () => mockTrack }));
+
+jest.mock('expo-router', () => {
+  const { Text: MockText } = jest.requireActual('react-native');
+  return { Link: ({ children }: { children: React.ReactNode }) => <MockText>{children}</MockText> };
+});
+
+jest.mock('../video-player', () => ({
+  VideoPlayer: ({ uri }: { uri: string | null }) => {
+    const { Text: MockText } = jest.requireActual('react-native');
+    return <MockText testID="video-player">{uri ?? 'not loaded'}</MockText>;
+  },
+}));
+
+const base: Schemas['ContentItem'] = {
+  id: '0190f3a8-0000-7000-8000-000000000001',
+  kind: 'text_post',
+  status: 'ready',
+  caption: null,
+  published_at: '2026-10-20T12:00:00Z',
+  created_at: '2026-10-20T12:00:00Z',
+  author: { id: 'a', handle: 'alice', display_name: null, avatar_url: null },
+  video: null,
+  text: { body: 'Hello T-Spec' },
+};
+
+const video: Schemas['ContentItem'] = {
+  ...base,
+  kind: 'short_video',
+  text: null,
+  caption: 'my clip',
+  video: {
+    playback_url: 'http://localhost:4000/dev_media/x/index.m3u8',
+    thumbnail_url: null,
+    duration_ms: 2000,
+    width: 360,
+    height: 640,
+    failure_reason: null,
+  },
+};
+
+describe('FeedItem', () => {
+  beforeEach(() => mockTrack.mockClear());
+
+  it('renders a text post with its author', async () => {
+    await render(<FeedItem item={base} height={800} active={false} preload={false} muted />);
+
+    expect(screen.getByText('Hello T-Spec')).toBeOnTheScreen();
+    expect(screen.getByText('@alice')).toBeOnTheScreen();
+  });
+
+  it('records view_start when it becomes active', async () => {
+    const { rerender } = await render(
+      <FeedItem item={base} height={800} active={false} preload={false} muted />,
+    );
+    expect(mockTrack).not.toHaveBeenCalled();
+
+    await rerender(<FeedItem item={base} height={800} active preload={false} muted />);
+    expect(mockTrack).toHaveBeenCalledWith(base.id, 'view_start');
+  });
+
+  it('records a skip when an unfinished video is swiped away', async () => {
+    const { rerender } = await render(<FeedItem item={video} height={800} active preload={false} muted />);
+    await rerender(<FeedItem item={video} height={800} active={false} preload={false} muted />);
+
+    expect(mockTrack).toHaveBeenCalledWith(video.id, 'view_start');
+    expect(mockTrack).toHaveBeenCalledWith(video.id, 'skip', 0);
+  });
+
+  it('only loads video when active or adjacent', async () => {
+    const { rerender } = await render(
+      <FeedItem item={video} height={800} active={false} preload={false} muted />,
+    );
+    expect(screen.getByTestId('video-player')).toHaveTextContent('not loaded');
+
+    await rerender(<FeedItem item={video} height={800} active={false} preload muted />);
+    expect(screen.getByTestId('video-player')).toHaveTextContent(video.video!.playback_url!);
+  });
+});
