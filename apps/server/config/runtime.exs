@@ -39,6 +39,25 @@ if config_env() == :dev do
     ]
 end
 
+# Video provider for new uploads (ADR 0005). Dev/test default to the local
+# ffmpeg emulator; production defaults to Cloudflare Stream. Set
+# VIDEO_PROVIDER=cloudflare plus the CF_* variables to try Cloudflare in dev.
+if provider = System.get_env("VIDEO_PROVIDER") do
+  config :tspec, :video_provider, provider
+end
+
+if config_env() == :prod do
+  config :tspec, :video_provider, System.get_env("VIDEO_PROVIDER", "cloudflare")
+end
+
+if config_env() != :test and System.get_env("CF_ACCOUNT_ID") do
+  config :tspec, TSpec.Video.CloudflareStream,
+    account_id: System.fetch_env!("CF_ACCOUNT_ID"),
+    api_token: System.fetch_env!("CF_STREAM_TOKEN"),
+    webhook_secret: System.fetch_env!("CF_WEBHOOK_SECRET"),
+    customer_subdomain: System.fetch_env!("CF_CUSTOMER_SUBDOMAIN")
+end
+
 if config_env() == :prod do
   config :tspec,
     login_code_secret:

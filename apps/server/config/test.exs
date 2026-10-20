@@ -54,3 +54,11 @@ config :tspec, TSpec.Video.LocalProvider,
   media_root: Path.expand("../tmp/test_media", __DIR__),
   secret: "test-only-local-video-secret",
   webhook: :inline
+
+# Cloudflare Stream is exercised against Req.Test stubs, never the network.
+config :tspec, TSpec.Video.CloudflareStream,
+  account_id: "test-account",
+  api_token: "test-token",
+  webhook_secret: "test-webhook-secret",
+  customer_subdomain: "customer-test.cloudflarestream.com",
+  req_options: [plug: {Req.Test, TSpec.Video.CloudflareStream}, retry: false]
