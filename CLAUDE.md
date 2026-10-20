@@ -38,3 +38,24 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user + 
 - **Decisions**: architecture-shaping decisions get a new ADR in `docs/adr/` and a row in its README. Resolve items in `docs/open-questions.md` as they're decided.
 - **Testing**: ExUnit + StreamData property tests on the server; Jest + RNTL on the client; Maestro/Playwright end-to-end.
 - **User background**: strongest in Go, some Elixir and Rust, new to recommender systems. Explain Elixir idioms and recommender concepts when introducing them.
+
+## Commands
+- `make setup` / `make dev` (API :4000) / `make web` (:8081) / `make android`
+- `make test`: `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test`, client `tsc` + `expo lint` + `jest`, and `make api-check`
+- `make e2e`: Playwright web flow. It reads sign-in codes from `GET /dev/mailbox/json`.
+- `make api-gen`: run after any API change, and commit the regenerated `packages/api-schema`
+- Shells need mise activated for Erlang/Elixir (`eval "$(mise env -s bash)"`) and Node 24 (`nvm use`).
+
+## Gotchas learned in Phase 0
+- **Server**:
+  - API controllers use `OpenApiSpex.Plug.CastAndValidate`, so request bodies arrive as schema structs. Test conns must send JSON: use `json_conn/0`.
+  - Partition DDL (`Events.PartitionWorker`) deadlocks against concurrent sandboxed tests, so its test is `async: false`.
+- **Client (Expo SDK 58 / RN 0.88 / TS 6)**:
+  - Check versioned Expo docs, not memory (see `apps/client/AGENTS.md`).
+  - TS 6 doesn't auto-include `@types/*`; `tsconfig.json` lists `types`.
+  - React Native Testing Library v14 is async: `await render(...)`, `await rerender(...)`.
+  - `expo/fetch` rejects React Native's `{ uri, name, type }` FormData parts. Use an `expo-file-system` `File`.
+  - The React Compiler is on. Components that drive `expo-video`'s imperative player opt out with `'use no memo'`.
+  - On Android, use `player.replay()` to restart an ended video.
+- **Video**: the dev/test `LocalProvider` is the only place video bytes touch Phoenix. Never enable `:local_video` in production.
+

@@ -2,7 +2,7 @@
 
 T-Spec is a social and video-sharing platform where you can see, and steer, the recommendation algorithm. It's also built to eventually pay users for the revenue their data generates.
 
-**Status:** planning complete; Phase 0 (foundations) next.
+**Status:** Phase 0 (foundations) is done. Phase 1 (transparent ranking) is next.
 
 ## Pillars
 1. **Algorithm transparency and control.** Every recommendation comes with an exact "why", and you can change the weights and watch your feed re-rank live.
@@ -25,3 +25,26 @@ T-Spec is a social and video-sharing platform where you can see, and steer, the 
 - [Decision records](docs/adr/README.md)
 - [Roadmap](docs/roadmap.md)
 - [Open questions](docs/open-questions.md)
+
+## Getting started
+
+Prerequisites:
+- **Erlang/Elixir** via [mise](https://mise.jdx.dev): `.tool-versions` pins OTP 28 + Elixir 1.20.
+- **Node 24** via nvm (`nvm use`).
+- **Docker**, for Postgres + pgvector on port 5440.
+- **ffmpeg**, for the local video provider.
+- **Android SDK + emulator** (`ANDROID_HOME`) for Android.
+
+```bash
+make setup     # start Postgres, create/migrate the DB, install deps
+make dev       # Phoenix API on :4000 (dev mailbox with sign-in codes: /dev/mailbox)
+make web       # Expo web on :8081
+make android   # build + run on a running emulator (first build ~5 min)
+
+make test      # server tests, client typecheck/lint/tests, API-client drift check
+make e2e       # Playwright: sign up → upload → follow → watch, on web
+make api-gen   # regenerate the OpenAPI spec + TS client after API changes
+```
+
+In development, videos go to a local ffmpeg-based provider (`tmp/dev_media`). To use Cloudflare Stream instead, set `VIDEO_PROVIDER=cloudflare` plus `CF_ACCOUNT_ID`, `CF_STREAM_TOKEN`, `CF_WEBHOOK_SECRET` and `CF_CUSTOMER_SUBDOMAIN`.
+

@@ -26,3 +26,12 @@ A self-hosted upload → transcode → HLS → CDN pipeline is weeks of work plu
 - Upload-to-playback in days rather than weeks. No video bytes pass through Phoenix.
 - Per-minute storage and delivery costs, which are acceptable at beta scale.
 - A later move to self-hosted (Oban + ffmpeg CLI → HLS on R2 + CDN) is a new `VideoProvider` implementation plus a backfill job.
+
+## Implementation notes (Phase 0)
+- **`TSpec.Video.Provider`** implements this behaviour, with two providers:
+  - **`CloudflareStream`**: the production default.
+  - **`LocalProvider`**: dev/test only. It mimics Cloudflare's shape: a one-time multipart upload URL, an ffmpeg HLS transcode in Oban, and a signed webhook to our own endpoint. That lets the whole pipeline run offline and in CI. It's the single sanctioned exception to "video bytes never pass through Phoenix", and its routes and media serving are compiled out of production.
+- **Webhooks**:
+  - Verified over the raw request body, then queued and applied idempotently.
+  - Upload status is pushed to the creator on their `user:<id>` channel.
+

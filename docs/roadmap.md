@@ -2,15 +2,19 @@
 
 Each phase ends with a working, demoable system. Phases are sized for a two-person team (the user + Claude).
 
-## Phase 0: Foundations
-- Monorepo scaffold: Expo client, Phoenix server, CI (format, lint, tests for both).
-- Accounts: magic link + passkeys + Apple/Google sign-in, profiles, handles, 13+ gate, consent record v1.
+## Phase 0: Foundations — done (2026-10-20)
+- Monorepo scaffold: Expo client, Phoenix server, generated API client, CI workflow (format, lint, typecheck, unit, API drift, web E2E).
+- Accounts: email sign-in (6-digit code for native, magic link for web), profiles, handles, 13+ gate (birthdate checked, never stored), consent record v1.
 - Content model (ADR 0008), with `short_video` and `text_post` kinds.
-- `VideoProvider` behaviour + Cloudflare Stream (or Mux) implementation: direct upload → webhook → Oban → ready → HLS playback in the client.
-- `Events.record/2` with mandatory consent version; client batches events.
-- Following feed and global chronological feed; vertical swipe player.
+- `Video.Provider` behaviour with a dev/test **LocalProvider** (ffmpeg → HLS, signed webhooks) and a **Cloudflare Stream** implementation: direct upload → webhook → Oban → ready → HLS playback.
+- `Events.record/2` stamps the server-side consent version; the client batches events.
+- Following and Latest (global chronological) feeds; vertical swipe player.
 - OpenAPI spec → generated TS client pipeline.
-- **Done when:** sign in on iOS sim, Android emulator and web; upload a video; see it play in another account's feed.
+- **Done when:** sign in on the Android emulator and web; upload a video; see it play in another account's feed. ✅ Verified on web (Playwright) and the Android 17 emulator.
+- **Not yet done** (carried forward):
+  - iOS has never been run. It needs an Apple Developer account and a device or Mac. Phase 2, before beta.
+  - Cloudflare Stream is only stub-tested. A live check needs an account (`VIDEO_PROVIDER=cloudflare` + `CF_*`).
+  - CI is written but has never run. There's no git remote yet.
 
 ## Phase 1: Transparent ranking
 - Topic taxonomy (IAB-seeded) and creator topic selection.
@@ -24,7 +28,9 @@ Each phase ends with a working, demoable system. Phases are sized for a two-pers
 - **Done when:** turning off "fitness" visibly re-ranks the feed within a second, and every item's explanation matches its stored trace.
 
 ## Phase 2: Social and safety → private beta
-- Threaded comments, likes, follows, blocks/mutes, share links.
+- Passkeys and Sign in with Apple / Google (deferred from Phase 0); first iOS build and run.
+- Rate limiting on sign-in requests and code attempts per IP/email (Phase 0 only caps attempts per code).
+- Threaded comments, likes, blocks/mutes, share links.
 - Real-time in-app notifications; push notifications.
 - Reporting, moderation queue/actions/audit log, ML-score routing.
 - CSAM hash matching + NCMEC reporting process; DMCA agent and flow.

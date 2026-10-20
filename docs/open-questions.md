@@ -18,11 +18,12 @@ Undecided items. When one is resolved, record the answer here and write an ADR i
 - [ ] **Beta invite mechanics**: waitlist, invite codes, or both?
 
 ## Technical
-- [ ] **Video provider final pick**: Cloudflare Stream vs Mux. Compare pricing at beta volume, webhook ergonomics and player compatibility with `expo-video`.
+- [x] ~~**Video provider pick**~~ Cloudflare Stream is implemented (Phase 0). Mux remains a drop-in alternative behind `Video.Provider`. A live check is still pending an account.
 - [ ] **Topic classification approach**: zero-shot embeddings alone, or plus an LLM pass over caption + transcript? Weigh cost per upload against accuracy.
 - [ ] **Impression retention**: how long to keep raw rows before aggregating them? Must cover any attribution and audit window.
 - [ ] **Postgres host** with pgvector: Fly managed Postgres, Neon, or Supabase.
-- [ ] **Web sessions**: cookie sessions on web vs bearer tokens everywhere.
+- [ ] **Web sessions**: Phase 0 uses bearer tokens everywhere, with web storing the token in localStorage. Before beta, decide whether web moves to an httpOnly cookie session (XSS exposure vs. one auth path).
+- [ ] **Sign-in abuse**: per-IP/email rate limits on `/api/auth/request` and verify. Phase 0 only limits attempts per code.
 
 ## Legal / compliance (needs counsel before Phase 3–4)
 - [ ] Is paying a data dividend money transmission, a securities issue, or a tax-reporting obligation? Which threshold triggers 1099 forms?

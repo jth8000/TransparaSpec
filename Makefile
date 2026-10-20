@@ -19,17 +19,19 @@ db-stop:
 dev: db
 	cd $(SERVER) && iex -S mix phx.server
 
-# Expo dev server. `android` also maps the emulator's localhost:4000 to this
-# machine so the app reaches the API at the same URL as the web build.
+# Expo dev server. `android` builds/installs the dev app on the running
+# emulator (first build takes a few minutes) and maps the emulator's
+# localhost:4000 to this machine, so the app reaches the API at the same URL
+# as the web build.
 client:
 	npm run start -w apps/client
 
 android:
 	adb reverse tcp:4000 tcp:4000
-	npm run android -w apps/client
+	cd apps/client && npx expo run:android
 
 web:
-	npm run web -w apps/client
+	npm run web -w apps/client -- --port 8081
 
 test: test-server test-client api-check
 
@@ -38,6 +40,7 @@ test-server: db
 
 test-client:
 	npm run typecheck -w apps/client
+	npm run lint -w apps/client
 	npm test -w apps/client
 
 # Regenerate the OpenAPI spec and the typed TS client from the server.
