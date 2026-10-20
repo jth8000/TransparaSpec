@@ -24,9 +24,10 @@ defmodule TSpec.Events do
   Records a batch of client events for the scope's user.
 
   Each event is a map with `:content_id`, `:type`, `:occurred_at` and optional
-  `:value` / `:session_id`. Events with an unknown type, a content id that
-  doesn't exist (or was removed), or a timestamp outside the accepted window
-  are dropped.
+  `:value` / `:session_id`. Events with an unknown type, a timestamp outside
+  the accepted window, or a content id the caller can't see (same rule as
+  `Content.get_item/2`: public and ready, or their own non-removed item) are
+  dropped.
 
   Returns `{:ok, %{accepted: n, rejected: m}}`, or `{:error, :consent_required}`
   when the caller has no consent on record.
@@ -35,7 +36,7 @@ defmodule TSpec.Events do
       when is_integer(version) and is_list(events) and length(events) <= @max_batch do
     now = DateTime.utc_now()
     {valid, invalid} = Enum.split_with(events, &well_formed?(&1, now))
-    known_ids = viewable_content_ids(valid)
+    known_ids = viewable_content_ids(scope, valid)
 
     rows =
       for event <- valid, MapSet.member?(known_ids, event.content_id) do
@@ -70,13 +71,19 @@ defmodule TSpec.Events do
 
   defp well_formed?(_event, _now), do: false
 
-  # Events may only reference content that exists and isn't removed.
-  defp viewable_content_ids([]), do: MapSet.new()
+  # Events may only reference content the caller could have been shown.
+  defp viewable_content_ids(_scope, []), do: MapSet.new()
 
-  defp viewable_content_ids(events) do
+  defp viewable_content_ids(%Scope{user: user}, events) do
     ids = events |> Enum.map(& &1.content_id) |> Enum.uniq()
 
-    from(i in Item, where: i.id in ^ids and i.status != "removed", select: i.id)
+    from(i in Item,
+      where: i.id in ^ids,
+      where:
+        (i.status == "ready" and i.visibility == "public") or
+          (i.author_id == ^user.id and i.status != "removed"),
+      select: i.id
+    )
     |> Repo.all()
     |> MapSet.new()
   end

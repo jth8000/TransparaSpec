@@ -61,6 +61,18 @@ defmodule TSpec.EventsTest do
     assert {:ok, %{accepted: 0, rejected: 1}} = Events.record(scope, [event(item)])
   end
 
+  test "ignores content the caller can't see (someone else's unprocessed upload)", %{
+    scope: scope
+  } do
+    other = Accounts.scope_for_user(onboarded_user_fixture())
+    {:ok, {processing, _upload}} = Content.create_video_upload(other, %{})
+
+    assert {:ok, %{accepted: 0, rejected: 1}} = Events.record(scope, [event(processing)])
+
+    # The author can record events on their own item while it processes.
+    assert {:ok, %{accepted: 1}} = Events.record(other, [event(processing)])
+  end
+
   test "rejects oversized batches", %{scope: scope, item: item} do
     batch = List.duplicate(event(item), Events.max_batch() + 1)
     assert {:error, :batch_too_large} = Events.record(scope, batch)

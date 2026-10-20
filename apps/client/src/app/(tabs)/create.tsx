@@ -1,20 +1,19 @@
 import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button, ErrorText, Field, Screen } from '@/components/ui';
 import { api, ApiError, unwrap } from '@/lib/api';
 import { useContentStatus, type ContentStatus } from '@/lib/socket';
 import { uploadVideo } from '@/lib/upload';
+import {
+  applyContentStatus,
+  pendingContentId,
+  uploadFinished,
+  type UploadState,
+} from '@/lib/upload-state';
 import { colors, radius, space } from '@/theme';
-
-type UploadState =
-  | { step: 'idle' }
-  | { step: 'uploading'; contentId?: string }
-  | { step: 'processing'; contentId: string }
-  | { step: 'ready' }
-  | { step: 'failed'; message: string };
 
 const STATUS_TEXT: Record<UploadState['step'], string> = {
   idle: '',
@@ -33,20 +32,36 @@ export default function Create() {
   const [postError, setPostError] = useState<string>();
   const [posted, setPosted] = useState(false);
 
-  // Processing finishes asynchronously; the server pushes the result.
+  // Read by socket/async callbacks that may run after a re-render.
+  const uploadRef = useRef(upload);
+  useEffect(() => {
+    uploadRef.current = upload;
+  }, [upload]);
+
+  // Processing finishes asynchronously and the server pushes the result.
   const onStatus = useCallback(
     (status: ContentStatus) => {
-      setUpload((current) => {
-        if (current.step !== 'processing' || current.contentId !== status.content_id) return current;
-        return status.status === 'ready'
-          ? { step: 'ready' }
-          : { step: 'failed', message: 'The video could not be processed (max 3 minutes).' };
-      });
+      setUpload((current) => applyContentStatus(current, status));
       if (status.status === 'ready') void queryClient.invalidateQueries({ queryKey: ['feed'] });
     },
     [queryClient],
   );
-  useContentStatus(onStatus);
+
+  // Pushed results aren't replayed, so ask the API directly whenever we may
+  // have missed one: right after the upload, and on every channel (re)join.
+  const reconcile = useCallback(
+    async (contentId: string | undefined) => {
+      if (!contentId) return;
+      const { data } = await api.GET('/api/content/{id}', { params: { path: { id: contentId } } });
+      if (data && (data.status === 'ready' || data.status === 'failed')) {
+        onStatus({ content_id: data.id, status: data.status });
+      }
+    },
+    [onStatus],
+  );
+
+  const onJoined = useCallback(() => void reconcile(pendingContentId(uploadRef.current)), [reconcile]);
+  useContentStatus(onStatus, onJoined);
 
   const pickAndUpload = async () => {
     const picked = await ImagePicker.launchImageLibraryAsync({
@@ -62,8 +77,9 @@ export default function Create() {
       );
       setUpload({ step: 'uploading', contentId: slot.content.id });
       await uploadVideo(picked.assets[0], slot.upload);
-      setUpload({ step: 'processing', contentId: slot.content.id });
+      setUpload((current) => uploadFinished(current, slot.content.id));
       setCaption('');
+      await reconcile(slot.content.id);
     } catch (e) {
       setUpload({ step: 'failed', message: e instanceof Error ? e.message : 'Upload failed' });
     }
