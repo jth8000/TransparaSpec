@@ -21,6 +21,14 @@ type Props = {
 const PROGRESS_EVERY_SECONDS = 5;
 
 /**
+ * Vertical (and square/unknown) videos fill the screen; landscape videos are
+ * letterboxed so nothing is cropped off the sides — like TikTok/Reels.
+ */
+export function fitFor(video: { width: number | null; height: number | null }): 'cover' | 'contain' {
+  return video.width && video.height && video.width > video.height ? 'contain' : 'cover';
+}
+
+/**
  * One full-screen feed entry. Records engagement for the active item:
  * `view_start` when it becomes visible, `watch_progress` every few seconds,
  * `complete` on the first play-through, and `skip` (with seconds watched) if
@@ -66,6 +74,7 @@ export function FeedItem({ item, height, active, preload, muted }: Props) {
           uri={preload || active ? item.video.playback_url : null}
           active={active}
           muted={muted}
+          fit={fitFor(item.video)}
           onTime={onTime}
           onEnded={onEnded}
         />

@@ -9,6 +9,8 @@ export type VideoPlayerProps = {
   /** Only the active item plays; others are paused (and preloaded if they have a uri). */
   active: boolean;
   muted: boolean;
+  /** `cover` fills the screen (vertical video); `contain` letterboxes (landscape). */
+  fit: 'cover' | 'contain';
   onTime?: (seconds: number) => void;
   /** Fires each time playback reaches the end; the player then restarts from 0. */
   onEnded?: (durationSeconds: number) => void;
@@ -23,7 +25,7 @@ export type VideoPlayerProps = {
  * rather than hide those writes.
  */
 /* eslint-disable react-hooks/immutability */
-export function VideoPlayer({ uri, active, muted, onTime, onEnded }: VideoPlayerProps) {
+export function VideoPlayer({ uri, active, muted, fit, onTime, onEnded }: VideoPlayerProps) {
   'use no memo';
   const player = useVideoPlayer(uri ? { uri, contentType: 'hls' } : null, (p) => {
     p.loop = false;
@@ -63,7 +65,7 @@ export function VideoPlayer({ uri, active, muted, onTime, onEnded }: VideoPlayer
     <VideoView
       player={player}
       style={StyleSheet.absoluteFill}
-      contentFit="cover"
+      contentFit={fit}
       nativeControls={false}
     />
   );

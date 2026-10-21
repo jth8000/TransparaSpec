@@ -1,7 +1,8 @@
 defmodule TSpec.Video.LocalTranscodeWorker do
   @moduledoc """
-  Transcodes a locally uploaded video to a single 720p-wide HLS rendition plus
-  a thumbnail, then reports the result through `LocalProvider.deliver_event/1`
+  Transcodes a locally uploaded video to a single HLS rendition (shorter side
+  capped at 1080px, so vertical and landscape videos keep the same quality)
+  plus a thumbnail, then reports the result through `LocalProvider.deliver_event/1`
   like a provider webhook. Content problems (unreadable file, too long) are
   reported as `failed` rather than retried.
   """
@@ -9,6 +10,11 @@ defmodule TSpec.Video.LocalTranscodeWorker do
 
   alias TSpec.Video
   alias TSpec.Video.LocalProvider
+
+  # Cap the *shorter* side at 1080px and keep the aspect ratio (-2 = even
+  # width/height for H.264). Capping width alone shrank landscape screen
+  # recordings to 720px wide and made text unreadable.
+  @scale_filter "scale='if(gt(iw,ih),-2,min(1080,iw))':'if(gt(iw,ih),min(1080,ih),-2)'"
 
   @impl Oban.Worker
   def timeout(_job), do: :timer.minutes(5)
@@ -63,8 +69,8 @@ defmodule TSpec.Video.LocalTranscodeWorker do
 
   defp transcode(source, dir) do
     args =
-      ["-y", "-i", source, "-vf", "scale='min(720,iw)':-2"] ++
-        ~w[-c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p] ++
+      ["-y", "-i", source, "-vf", @scale_filter] ++
+        ~w[-c:v libx264 -preset veryfast -crf 21 -pix_fmt yuv420p] ++
         ~w(-c:a aac -b:a 128k -hls_time 4 -hls_playlist_type vod) ++
         ["-hls_segment_filename", Path.join(dir, "seg_%03d.ts"), Path.join(dir, "index.m3u8")]
 

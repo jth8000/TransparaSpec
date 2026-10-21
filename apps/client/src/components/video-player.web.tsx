@@ -11,7 +11,7 @@ export type { VideoPlayerProps };
  * Web player: a plain <video>. Browsers with native HLS (Safari) get the URL
  * directly; others go through hls.js (Media Source Extensions).
  */
-export function VideoPlayer({ uri, active, muted, onTime, onEnded }: VideoPlayerProps) {
+export function VideoPlayer({ uri, active, muted, fit, onTime, onEnded }: VideoPlayerProps) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export function VideoPlayer({ uri, active, muted, onTime, onEnded }: VideoPlayer
         inset: 0,
         width: '100%',
         height: '100%',
-        objectFit: 'cover',
+        objectFit: fit,
         backgroundColor: '#000',
       }}
     />

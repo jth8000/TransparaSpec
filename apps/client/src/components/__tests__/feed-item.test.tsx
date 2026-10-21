@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react-native';
 
 import type { Schemas } from '@/lib/api';
 
-import { FeedItem } from '../feed-item';
+import { FeedItem, fitFor } from '../feed-item';
 
 const mockTrack = jest.fn();
 
@@ -46,6 +46,15 @@ const video: Schemas['ContentItem'] = {
     failure_reason: null,
   },
 };
+
+describe('fitFor', () => {
+  it('fills the screen with vertical video and letterboxes landscape', () => {
+    expect(fitFor({ width: 1080, height: 1920 })).toBe('cover');
+    expect(fitFor({ width: 1920, height: 1080 })).toBe('contain');
+    expect(fitFor({ width: 1080, height: 1080 })).toBe('cover');
+    expect(fitFor({ width: null, height: null })).toBe('cover');
+  });
+});
 
 describe('FeedItem', () => {
   beforeEach(() => mockTrack.mockClear());
