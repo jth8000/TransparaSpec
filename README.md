@@ -2,7 +2,7 @@
 
 T-Spec is a social and video-sharing platform where you can see, and steer, the recommendation algorithm. It's also built to eventually pay users for the revenue their data generates.
 
-**Status:** Phase 0 (foundations) is done. Phase 1 (transparent ranking) is next.
+**Status:** pre-beta and under active development. Expect breaking changes, and don't run it in production yet. Phase 0 (foundations) is done. Phase 1 (transparent ranking) is next.
 
 ## Pillars
 1. **Algorithm transparency and control.** Every recommendation comes with an exact "why", and you can change the weights and watch your feed re-rank live.
@@ -47,4 +47,12 @@ make api-gen   # regenerate the OpenAPI spec + TS client after API changes
 ```
 
 In development, videos go to a local ffmpeg-based provider (`tmp/dev_media`). To use Cloudflare Stream instead, set `VIDEO_PROVIDER=cloudflare` plus `CF_ACCOUNT_ID`, `CF_STREAM_TOKEN`, `CF_WEBHOOK_SECRET` and `CF_CUSTOMER_SUBDOMAIN`.
+
+## Security
+
+Please report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
+
+## License
+
+[AGPL-3.0](LICENSE). If you run a modified version as a network service, you must offer its source to that service's users.
 
