@@ -6,6 +6,8 @@ export type ClientEvent = {
   value?: number | null;
   occurred_at: string;
   session_id?: string | null;
+  /** The playback episode this event belongs to (ADR 0012). */
+  view_id?: string | null;
 };
 
 export type SendOptions = { keepalive?: boolean };
@@ -31,7 +33,7 @@ type Options = {
  */
 export class EventQueue {
   private buffer: ClientEvent[] = [];
-  private inFlight: Promise<void> | null = null;
+  private inFlight: Promise<boolean> | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly flushAt: number;
   private readonly intervalMs: number;
@@ -69,20 +71,40 @@ export class EventQueue {
     this.timer = null;
   }
 
-  /** Sends one batch. Concurrent calls share the in-flight request. */
-  flush(options: SendOptions = {}): Promise<void> {
+  /**
+   * Sends one batch. Concurrent calls share the in-flight request. Resolves
+   * whether that batch was acknowledged (`true` when there was nothing to send).
+   */
+  flush(options: SendOptions = {}): Promise<boolean> {
     if (this.inFlight) return this.inFlight;
-    if (this.buffer.length === 0) return Promise.resolve();
+    if (this.buffer.length === 0) return Promise.resolve(true);
 
     const batch = this.buffer.splice(0, this.maxBatch);
     this.inFlight = this.send(batch, options)
+      .then(() => true)
       .catch(() => {
         this.buffer.unshift(...batch);
+        return false;
       })
       .finally(() => {
         this.inFlight = null;
       });
 
     return this.inFlight;
+  }
+
+  /**
+   * Sends everything buffered, batch by batch, waiting for each to be
+   * acknowledged. Resolves `true` once the buffer is empty, or `false` if a
+   * send failed (the batch is kept for a later retry). Used before switching
+   * personalization mode, so events reach the server under the mode they
+   * were recorded in.
+   */
+  async flushAll(): Promise<boolean> {
+    if (this.inFlight && !(await this.inFlight)) return false;
+    while (this.buffer.length > 0) {
+      if (!(await this.flush())) return false;
+    }
+    return true;
   }
 }

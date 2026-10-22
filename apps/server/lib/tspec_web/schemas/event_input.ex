@@ -13,10 +13,18 @@ defmodule TSpecWeb.Schemas.EventInput do
       value: %Schema{
         type: :number,
         nullable: true,
-        description: "Seconds watched, where relevant"
+        description:
+          "Seconds played so far in this view (cumulative across loops), where relevant"
       },
       occurred_at: %Schema{type: :string, format: :"date-time"},
-      session_id: %Schema{type: :string, maxLength: 64, nullable: true}
+      session_id: %Schema{type: :string, maxLength: 64, nullable: true},
+      view_id: %Schema{
+        type: :string,
+        format: :uuid,
+        nullable: true,
+        description:
+          "Playback episode: minted by the client each time an item becomes the active item. Interests are learned per view."
+      }
     },
     required: [:content_id, :type, :occurred_at]
   })

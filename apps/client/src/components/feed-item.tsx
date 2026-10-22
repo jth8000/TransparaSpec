@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import type { Schemas } from '@/lib/api';
 import { useTrack } from '@/lib/events';
+import { ViewTracker } from '@/lib/view-tracker';
 import { colors, radius, space } from '@/theme';
 
 import { VideoPlayer } from './video-player';
@@ -18,8 +19,6 @@ type Props = {
   muted: boolean;
 };
 
-const PROGRESS_EVERY_SECONDS = 5;
-
 /**
  * Vertical (and square/unknown) videos fill the screen; landscape videos are
  * letterboxed so nothing is cropped off the sides — like TikTok/Reels.
@@ -29,43 +28,26 @@ export function fitFor(video: { width: number | null; height: number | null }): 
 }
 
 /**
- * One full-screen feed entry. Records engagement for the active item:
- * `view_start` when it becomes visible, `watch_progress` every few seconds,
- * `complete` on the first play-through, and `skip` (with seconds watched) if
- * the viewer swipes away before finishing.
+ * One full-screen feed entry. While it's the active item it records one
+ * *view* (see `ViewTracker`): `view_start`, cumulative `watch_progress`,
+ * `complete` on each loop, and `skip` if swiped away before finishing.
  */
 export function FeedItem({ item, height, active, preload, muted }: Props) {
   const track = useTrack();
-  const watched = useRef({ seconds: 0, completed: false, lastProgressBucket: 0 });
+  const view = useRef<ViewTracker | null>(null);
 
   useEffect(() => {
     if (!active) return;
-    watched.current = { seconds: 0, completed: false, lastProgressBucket: 0 };
-    track(item.id, 'view_start');
-
+    const tracker = new ViewTracker(item.id, item.kind === 'short_video', track);
+    view.current = tracker;
     return () => {
-      const w = watched.current;
-      if (item.kind === 'short_video' && !w.completed) track(item.id, 'skip', w.seconds);
+      tracker.end();
+      if (view.current === tracker) view.current = null;
     };
   }, [active, item.id, item.kind, track]);
 
-  const onTime = (seconds: number) => {
-    const w = watched.current;
-    w.seconds = Math.max(w.seconds, seconds);
-    const bucket = Math.floor(seconds / PROGRESS_EVERY_SECONDS);
-    if (bucket > w.lastProgressBucket) {
-      w.lastProgressBucket = bucket;
-      track(item.id, 'watch_progress', Math.round(seconds * 10) / 10);
-    }
-  };
-
-  const onEnded = (duration: number) => {
-    const w = watched.current;
-    if (!w.completed) {
-      w.completed = true;
-      track(item.id, 'complete', Number.isFinite(duration) ? duration : w.seconds);
-    }
-  };
+  const onTime = (seconds: number) => view.current?.time(seconds);
+  const onEnded = (duration: number) => view.current?.ended(duration);
 
   return (
     <View style={[styles.container, { height }]} testID={`feed-item-${item.id}`}>

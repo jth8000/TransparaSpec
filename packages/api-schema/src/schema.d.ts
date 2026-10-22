@@ -400,8 +400,13 @@ export interface components {
             session_id?: string | null;
             /** @enum {string} */
             type: "view_start" | "watch_progress" | "complete" | "skip";
-            /** @description Seconds watched, where relevant */
+            /** @description Seconds played so far in this view (cumulative across loops), where relevant */
             value?: number | null;
+            /**
+             * Format: uuid
+             * @description Playback episode: minted by the client each time an item becomes the active item. Interests are learned per view.
+             */
+            view_id?: string | null;
         };
         /** FeedPage */
         FeedPage: {

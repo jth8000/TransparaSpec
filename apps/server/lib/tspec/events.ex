@@ -5,13 +5,18 @@ defmodule TSpec.Events do
   `record/2` is the only way events get written. It stamps each event with the
   consent version from the caller's server-side scope — clients cannot set
   it — and refuses to record anything for a caller without consent.
+
+  Events that carry a `view_id` also update that view's aggregate state for
+  the interest model, in the same transaction (`TSpec.Feed.Interests`,
+  ADR 0012).
   """
   import Ecto.Query, warn: false
 
   alias TSpec.Repo
-  alias TSpec.Accounts.Scope
+  alias TSpec.Accounts.{Scope, User}
   alias TSpec.Content.Item
   alias TSpec.Events.Event
+  alias TSpec.Feed.Interests
 
   @max_batch 100
   # Client timestamps are accepted within this window around server time.
@@ -24,7 +29,7 @@ defmodule TSpec.Events do
   Records a batch of client events for the scope's user.
 
   Each event is a map with `:content_id`, `:type`, `:occurred_at` and optional
-  `:value` / `:session_id`. Events with an unknown type, a timestamp outside
+  `:value` / `:session_id` / `:view_id`. Events with an unknown type, a timestamp outside
   the accepted window, or a content id the caller can't see (same rule as
   `Content.get_item/2`: public and ready, or their own non-removed item) are
   dropped.
@@ -38,8 +43,10 @@ defmodule TSpec.Events do
     {valid, invalid} = Enum.split_with(events, &well_formed?(&1, now))
     known_ids = viewable_content_ids(scope, valid)
 
+    accepted = Enum.filter(valid, &MapSet.member?(known_ids, &1.content_id))
+
     rows =
-      for event <- valid, MapSet.member?(known_ids, event.content_id) do
+      for event <- accepted do
         %{
           id: UUIDv7.generate(),
           user_id: scope.user.id,
@@ -49,12 +56,26 @@ defmodule TSpec.Events do
           occurred_at: usec(event.occurred_at),
           received_at: now,
           session_id: Map.get(event, :session_id),
+          view_id: Map.get(event, :view_id),
           consent_version: version
         }
       end
 
-    {inserted, _} = Repo.insert_all(Event, rows)
-    {:ok, %{accepted: inserted, rejected: length(invalid) + length(valid) - inserted}}
+    Repo.transact(fn ->
+      # FOR SHARE on the user row: switching personalization takes FOR UPDATE
+      # on it, so a view can't be created as learnable from a mode read that
+      # the switch has already made stale (ADR 0012).
+      personalized? = not lock_mode(scope.user.id)
+
+      {inserted, _} = Repo.insert_all(Event, rows)
+
+      if Interests.track_views(scope.user.id, accepted, personalized?, now) > 0 do
+        # Queued in this transaction: a job exists iff the view state committed.
+        Interests.enqueue_apply(scope.user.id)
+      end
+
+      {:ok, %{accepted: inserted, rejected: length(invalid) + length(valid) - inserted}}
+    end)
   end
 
   def record(%Scope{}, events) when is_list(events) and length(events) > @max_batch,
@@ -62,14 +83,23 @@ defmodule TSpec.Events do
 
   def record(_scope, _events), do: {:error, :consent_required}
 
-  defp well_formed?(%{content_id: id, type: type, occurred_at: %DateTime{} = at}, now)
+  defp lock_mode(user_id) do
+    from(u in User, where: u.id == ^user_id, select: u.non_personalized, lock: "FOR SHARE")
+    |> Repo.one!()
+  end
+
+  defp well_formed?(%{content_id: id, type: type, occurred_at: %DateTime{} = at} = event, now)
        when is_binary(id) and is_binary(type) do
-    type in Event.types() and match?({:ok, _}, Ecto.UUID.cast(id)) and
+    type in Event.types() and uuid?(id) and optional_uuid?(Map.get(event, :view_id)) and
       DateTime.diff(now, at) <= @max_age_seconds and
       DateTime.diff(at, now) <= @max_skew_seconds
   end
 
   defp well_formed?(_event, _now), do: false
+
+  defp uuid?(id), do: is_binary(id) and match?({:ok, _}, Ecto.UUID.cast(id))
+  defp optional_uuid?(nil), do: true
+  defp optional_uuid?(id), do: uuid?(id)
 
   # Events may only reference content the caller could have been shown.
   defp viewable_content_ids(_scope, []), do: MapSet.new()

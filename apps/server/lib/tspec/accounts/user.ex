@@ -13,6 +13,8 @@ defmodule TSpec.Accounts.User do
     field :handle, :string
     field :age_attested_at, :utc_datetime
     field :onboarded_at, :utc_datetime
+    # Non-personalized mode (ADR 0012): no inferred signals used or learned.
+    field :non_personalized, :boolean, default: false
 
     has_one :profile, TSpec.Accounts.Profile
 

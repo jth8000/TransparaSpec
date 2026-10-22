@@ -2,16 +2,26 @@ import { createContext, use, useEffect, useMemo, type ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
 
 import { api } from './api';
-import { EventQueue, type EngagementType } from './event-queue';
+import { EventQueue } from './event-queue';
 import { useSession } from './session';
+import type { Track } from './view-tracker';
 
-type Track = (contentId: string, type: EngagementType, value?: number) => void;
+type Events = { track: Track; flushAll: () => Promise<boolean> };
 
-const EventsContext = createContext<Track>(() => {});
+const EventsContext = createContext<Events>({ track: () => {}, flushAll: async () => true });
 
-/** Returns `track(contentId, type, value?)` for recording engagement. */
+/** Returns `track(contentId, type, { value?, viewId? })` for recording engagement. */
 export function useTrack(): Track {
-  return use(EventsContext);
+  return use(EventsContext).track;
+}
+
+/**
+ * Returns `flushAll()`: sends every queued event and resolves `true` once the
+ * server has acknowledged them all. Call it before changing personalization
+ * mode (ADR 0012).
+ */
+export function useFlushEvents(): () => Promise<boolean> {
+  return use(EventsContext).flushAll;
 }
 
 // One id per app launch, to group a viewing session's events.
@@ -51,19 +61,23 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     };
   }, [enabled, queue]);
 
-  const track = useMemo<Track>(
-    () => (contentId, type, value) => {
-      if (!enabled) return;
-      queue.push({
-        content_id: contentId,
-        type,
-        value: value ?? null,
-        occurred_at: new Date().toISOString(),
-        session_id: SESSION_ID,
-      });
-    },
+  const events = useMemo<Events>(
+    () => ({
+      track: (contentId, type, options = {}) => {
+        if (!enabled) return;
+        queue.push({
+          content_id: contentId,
+          type,
+          value: options.value ?? null,
+          occurred_at: new Date().toISOString(),
+          session_id: SESSION_ID,
+          view_id: options.viewId ?? null,
+        });
+      },
+      flushAll: () => queue.flushAll(),
+    }),
     [enabled, queue],
   );
 
-  return <EventsContext value={track}>{children}</EventsContext>;
+  return <EventsContext value={events}>{children}</EventsContext>;
 }

@@ -378,9 +378,17 @@
             "x-validate": null
           },
           "value": {
-            "description": "Seconds watched, where relevant",
+            "description": "Seconds played so far in this view (cumulative across loops), where relevant",
             "nullable": true,
             "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "view_id": {
+            "description": "Playback episode: minted by the client each time an item becomes the active item. Interests are learned per view.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string",
             "x-struct": null,
             "x-validate": null
           }

@@ -1,5 +1,6 @@
 defmodule TSpecWeb.FeedAndEventsControllerTest do
   use TSpecWeb.ConnCase, async: true
+  use Oban.Testing, repo: TSpec.Repo
 
   import OpenApiSpex.TestAssertions
   import TSpec.AccountsFixtures
@@ -63,6 +64,45 @@ defmodule TSpecWeb.FeedAndEventsControllerTest do
 
     assert_schema(body, "EventBatchResult", spec())
     assert body == %{"accepted" => 2, "rejected" => 0}
+  end
+
+  test "POST /api/events with a view_id tracks the view and queues the affinity worker" do
+    me = onboarded_user_fixture()
+    item = ready_video_fixture(onboarded_user_fixture(), topics: ["cooking"])
+    view_id = Ecto.UUID.generate()
+    now = DateTime.utc_now() |> DateTime.to_iso8601()
+
+    assert %{"accepted" => 2} =
+             json_conn()
+             |> api_auth(me)
+             |> post(~p"/api/events", %{
+               events: [
+                 %{content_id: item.id, view_id: view_id, type: "view_start", occurred_at: now},
+                 %{
+                   content_id: item.id,
+                   view_id: view_id,
+                   type: "complete",
+                   occurred_at: now,
+                   value: 2.0
+                 }
+               ]
+             })
+             |> json_response(202)
+
+    assert %{completed: true, target_delta: 1.0, dirty: true} =
+             TSpec.Repo.get!(TSpec.Feed.ViewEngagement, view_id)
+
+    assert_enqueued(worker: TSpec.Feed.AffinityWorker, args: %{user_id: me.id})
+
+    # A malformed view_id fails schema validation.
+    assert json_conn()
+           |> api_auth(me)
+           |> post(~p"/api/events", %{
+             events: [
+               %{content_id: item.id, view_id: "nope", type: "view_start", occurred_at: now}
+             ]
+           })
+           |> json_response(422)
   end
 
   test "POST /api/events validates against the schema" do
