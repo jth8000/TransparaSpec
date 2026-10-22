@@ -41,13 +41,14 @@ config :tspec, TSpecWeb.Endpoint,
 config :tspec, Oban,
   engine: Oban.Engines.Basic,
   repo: TSpec.Repo,
-  queues: [default: 10, media: 4, affinity: 5, maintenance: 1],
+  queues: [default: 10, media: 4, affinity: 5, ranking: 2, maintenance: 1],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Cron,
      crontab: [
        {"15 3 * * *", TSpec.Events.PartitionWorker},
-       {"*/10 * * * *", TSpec.Feed.AffinitySweepWorker}
+       {"*/10 * * * *", TSpec.Feed.AffinitySweepWorker},
+       {"*/5 * * * *", TSpec.Feed.TrendingWorker}
      ]}
   ]
 

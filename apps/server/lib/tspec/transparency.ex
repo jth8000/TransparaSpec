@@ -8,7 +8,8 @@ defmodule TSpec.Transparency do
 
   alias TSpec.Repo
   alias TSpec.Accounts.{Scope, User}
-  alias TSpec.Feed.ViewEngagement
+  alias TSpec.Feed.{Settings, ViewEngagement}
+  alias TSpec.Transparency.SettingsSnapshot
 
   # Events up to 7 days old are accepted (Events.record/2), so a view can
   # still change for about that long. Views older than this can't.
@@ -44,4 +45,35 @@ defmodule TSpec.Transparency do
       {:ok, user}
     end)
   end
+
+  @doc """
+  The id of a snapshot of `settings` for `user_id`, creating it if this
+  exact combination (settings + version) hasn't been stored before.
+  """
+  def snapshot_settings(user_id, %Settings{} = settings) do
+    hash = :crypto.hash(:sha256, [Settings.hash(settings), <<settings.version::64>>])
+
+    Repo.insert_all(
+      SettingsSnapshot,
+      [
+        %{
+          id: UUIDv7.generate(),
+          user_id: user_id,
+          settings_version: settings.version,
+          settings: Settings.to_snapshot(settings),
+          hash: hash,
+          inserted_at: DateTime.utc_now()
+        }
+      ],
+      on_conflict: :nothing,
+      conflict_target: [:user_id, :hash]
+    )
+
+    Repo.one!(
+      from s in SettingsSnapshot, where: s.user_id == ^user_id and s.hash == ^hash, select: s.id
+    )
+  end
+
+  @doc "A stored settings snapshot by id."
+  def get_snapshot!(id), do: Repo.get!(SettingsSnapshot, id)
 end

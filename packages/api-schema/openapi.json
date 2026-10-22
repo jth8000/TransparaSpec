@@ -353,6 +353,14 @@
             "x-struct": null,
             "x-validate": null
           },
+          "impression_id": {
+            "description": "The served impression this item came from (For You), marking it as actually shown. Ignored unless it's the caller's impression of this content.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
           "occurred_at": {
             "format": "date-time",
             "type": "string",

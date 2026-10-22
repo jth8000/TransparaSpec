@@ -15,7 +15,7 @@ defmodule TSpec.Events do
   alias TSpec.Repo
   alias TSpec.Accounts.{Scope, User}
   alias TSpec.Content.Item
-  alias TSpec.Events.Event
+  alias TSpec.Events.{Event, Impression}
   alias TSpec.Feed.Interests
 
   @max_batch 100
@@ -43,7 +43,10 @@ defmodule TSpec.Events do
     {valid, invalid} = Enum.split_with(events, &well_formed?(&1, now))
     known_ids = viewable_content_ids(scope, valid)
 
-    accepted = Enum.filter(valid, &MapSet.member?(known_ids, &1.content_id))
+    accepted =
+      valid
+      |> Enum.filter(&MapSet.member?(known_ids, &1.content_id))
+      |> verify_impressions(scope)
 
     rows =
       for event <- accepted do
@@ -57,6 +60,7 @@ defmodule TSpec.Events do
           received_at: now,
           session_id: Map.get(event, :session_id),
           view_id: Map.get(event, :view_id),
+          impression_id: Map.get(event, :impression_id),
           consent_version: version
         }
       end
@@ -83,6 +87,67 @@ defmodule TSpec.Events do
 
   def record(_scope, _events), do: {:error, :consent_required}
 
+  ## Impressions
+
+  @doc """
+  Records served impressions for the scope's user, stamped with the consent
+  version from the server-side scope (pillar 2). Each entry needs
+  `:content_id`, `:feed_session_id`, `:rev`, `:position`, `:ranker_version`,
+  `:candidate_source`, `:sources`, `:final_score`, `:contributions`,
+  `:settings_version` and `:settings_snapshot_id`.
+
+  Returns `{:ok, ids}` in entry order. Each id is a UUIDv7 whose embedded
+  timestamp is the row's `served_at` (the partition key), so
+  `get_impression/2` can find a row from its id alone.
+  """
+  def record_impressions(%Scope{consent_version: version, user: user}, entries)
+      when is_integer(version) and is_list(entries) do
+    rows =
+      for entry <- entries do
+        id = UUIDv7.generate()
+
+        entry
+        |> Map.take(~w(content_id feed_session_id rev position ranker_version candidate_source
+                       sources final_score contributions settings_version settings_snapshot_id)a)
+        |> Map.merge(%{
+          id: id,
+          served_at: Impression.served_at_for(id),
+          user_id: user.id,
+          consent_version: version
+        })
+      end
+
+    {_, _} = Repo.insert_all(Impression, rows)
+    {:ok, Enum.map(rows, & &1.id)}
+  end
+
+  def record_impressions(_scope, _entries), do: {:error, :consent_required}
+
+  @doc """
+  The scope user's impression by id, or `{:error, :not_found}` (also for
+  someone else's). Hits exactly one partition.
+  """
+  def get_impression(%Scope{user: user}, id) do
+    with {:ok, id} <- Ecto.UUID.cast(id),
+         {:ok, served_at} <- served_at(id),
+         %Impression{} = impression <-
+           Repo.one(
+             from i in Impression,
+               where: i.id == ^id and i.served_at == ^served_at and i.user_id == ^user.id
+           ) do
+      {:ok, impression}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp served_at(id) do
+    case safe_served_at(id) do
+      nil -> :error
+      served_at -> {:ok, served_at}
+    end
+  end
+
   defp lock_mode(user_id) do
     from(u in User, where: u.id == ^user_id, select: u.non_personalized, lock: "FOR SHARE")
     |> Repo.one!()
@@ -91,6 +156,7 @@ defmodule TSpec.Events do
   defp well_formed?(%{content_id: id, type: type, occurred_at: %DateTime{} = at} = event, now)
        when is_binary(id) and is_binary(type) do
     type in Event.types() and uuid?(id) and optional_uuid?(Map.get(event, :view_id)) and
+      optional_uuid?(Map.get(event, :impression_id)) and
       DateTime.diff(now, at) <= @max_age_seconds and
       DateTime.diff(at, now) <= @max_skew_seconds
   end
@@ -116,6 +182,42 @@ defmodule TSpec.Events do
     )
     |> Repo.all()
     |> MapSet.new()
+  end
+
+  # An event's impression_id must be the caller's impression of that same
+  # content; otherwise it's dropped (the event itself is still valid).
+  defp verify_impressions(events, %Scope{user: user}) do
+    ids = for %{impression_id: id} <- events, is_binary(id), uniq: true, do: id
+
+    owned =
+      if ids == [] do
+        %{}
+      else
+        served_ats = Enum.flat_map(ids, &List.wrap(safe_served_at(&1)))
+
+        from(i in Impression,
+          where: i.id in ^ids and i.served_at in ^served_ats and i.user_id == ^user.id,
+          select: {i.id, i.content_id}
+        )
+        |> Repo.all()
+        |> Map.new()
+      end
+
+    for event <- events do
+      case Map.get(event, :impression_id) do
+        nil ->
+          event
+
+        id ->
+          if owned[id] == event.content_id, do: event, else: Map.put(event, :impression_id, nil)
+      end
+    end
+  end
+
+  defp safe_served_at(id) do
+    Impression.served_at_for(id)
+  rescue
+    _ -> nil
   end
 
   # utc_datetime_usec columns need microsecond precision.

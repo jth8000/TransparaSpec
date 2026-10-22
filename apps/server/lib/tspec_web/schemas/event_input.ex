@@ -24,6 +24,13 @@ defmodule TSpecWeb.Schemas.EventInput do
         nullable: true,
         description:
           "Playback episode: minted by the client each time an item becomes the active item. Interests are learned per view."
+      },
+      impression_id: %Schema{
+        type: :string,
+        format: :uuid,
+        nullable: true,
+        description:
+          "The served impression this item came from (For You), marking it as actually shown. Ignored unless it's the caller's impression of this content."
       }
     },
     required: [:content_id, :type, :occurred_at]

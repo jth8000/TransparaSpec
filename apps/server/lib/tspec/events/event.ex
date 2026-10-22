@@ -11,6 +11,7 @@ defmodule TSpec.Events.Event do
     field :received_at, :utc_datetime_usec
     field :session_id, :string
     field :view_id, :binary_id
+    field :impression_id, :binary_id
     field :consent_version, :integer
     belongs_to :user, TSpec.Accounts.User
     belongs_to :content, TSpec.Content.Item
@@ -28,7 +29,8 @@ defmodule TSpec.Events.Event do
 
   Events of one playback episode share a client-minted `view_id`; the
   interest model learns per view (ADR 0012). `session_id` is the app-level
-  session and is unrelated.
+  session and is unrelated. A `view_start` may carry the `impression_id` it
+  came from: that's what makes a served impression *exposed* (ADR 0011).
 
   `like` etc. arrive with the social features in Phase 2.
   """

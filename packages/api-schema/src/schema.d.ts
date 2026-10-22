@@ -395,6 +395,11 @@ export interface components {
         EventInput: {
             /** Format: uuid */
             content_id: string;
+            /**
+             * Format: uuid
+             * @description The served impression this item came from (For You), marking it as actually shown. Ignored unless it's the caller's impression of this content.
+             */
+            impression_id?: string | null;
             /** Format: date-time */
             occurred_at: string;
             session_id?: string | null;
