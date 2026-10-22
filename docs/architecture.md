@@ -145,6 +145,30 @@ When the user changes a weight, every one of their sessions re-scores its cache 
 - Topic sliders add an explicit `topic_preference` contribution as well as scaling the learned affinity, and are monotonic by construction. Non-personalized mode turns off every inferred signal (ADR 0012).
 - Users can see the evidence count and recent contributing events for each affinity, and edit or delete it.
 
+### Ranker v1 as built (Phase 1a)
+- **Features and default weights** (`Feed.Ranker.Defaults`):
+
+  | Feature | Weight |
+  |---|---|
+  | `topic_affinity` | 1.0 × slider |
+  | `topic_preference` | 1.5 × (slider − 1) |
+  | `creator_affinity` | 0.6 |
+  | `following` | 0.5 |
+  | `source_prior` | 0.1–0.3 per source × source slider |
+  | `freshness` | 0.4 × 0.5^(age h / 24) |
+  | `quality` | 0.3 × smoothed completion rate |
+  | `diversity` | 0.5 × (−1 per repeat creator in the last 5, −0.5 per repeat topic in the last 3) |
+
+  `topic_preference > topic_affinity` is a compile-time requirement, because it is what makes sliders monotonic.
+- **Candidate pool:** up to about 700 per session (following 150, topic 150, trending 150, co-engagement 100, fresh 100, explore 50). Seen items (viewed in the last 48 h) and items already served in the session are excluded.
+- **The trace:** each contribution is stored as `{feature, topic?, label_sources?, source?, default_weight, user_multiplier, weight, value, contribution}`, and `final_score` is their sum in list order.
+- **Endpoints:**
+  - `GET /api/feed/for-you`, plus channel `feed_session:<id>`
+  - `GET /api/impressions/:id`
+  - `GET/PUT /api/algorithm/settings`
+  - `GET /api/me/interests`
+  - `GET /api/algorithm/dashboard`
+
 ### Evolution
 1. **v1**: hand-tuned default weights.
 2. **v2**: learned weights (logistic regression or GBDT), still decomposable into per-feature contributions.

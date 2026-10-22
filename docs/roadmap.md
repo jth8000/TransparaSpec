@@ -19,7 +19,7 @@ Each phase ends with a working, demoable system. Phases are sized for a two-pers
 ## Phase 1: Transparent ranking
 Split into two parts. 1a uses creator-picked topics and must meet the "done when" test on its own. 1b adds model topics through the same `content_topics` table.
 
-### 1a: Ranker, explanations and live controls
+### 1a: Ranker, explanations and live controls — done (2026-10-21)
 - Topic taxonomy: IAB Content Taxonomy tiers 1–2, plus creator topic selection (up to 3).
 - Interest model ([ADR 0012](adr/0012-interest-model-and-controls.md)):
   - per-view deltas;
@@ -31,7 +31,14 @@ Split into two parts. 1a uses creator-picked topics and must meet the "done when
 - Per-feed-session `Feed.Session` processes; live re-rank and refill over Channels ([ADR 0011](adr/0011-feed-sessions-and-live-rerank.md)).
 - Topic sliders (preference + affinity), hard-off toggles, source weights, a non-personalized mode.
 - "Why am I seeing this?" sheet; Algorithm Dashboard.
-- **Done when:** turning off "fitness" visibly re-ranks the feed within a second, and every item's explanation matches its stored trace.
+- **Done when:** turning off "fitness" visibly re-ranks the feed within a second, and every item's explanation matches its stored trace. ✅
+  - **Web:** Playwright (`e2e/tests/transparent-ranking.spec.ts`). The tap reaches a pushed, re-ranked feed in about 230 ms, including the 150 ms debounce, with no reload and no fitness item after the current one. Every new explanation sums exactly to its stored score. A second device re-ranks its own session. After a further settings change, an item still explains itself with the settings it was served under.
+  - **Android 17 emulator:** For You, the Why sheet, and Tune → Fitness off, with the following items free of fitness.
+  - **Server timing:** ranking 500 candidates takes about 15 ms; a settings change reaches the client in about 6 ms.
+- **Known limits:**
+  - Hard-off covers creator labels only until 1b adds model labels.
+  - Ranker weights and affinity deltas are hand-tuned (open questions).
+  - iOS still not run (Phase 2).
 
 ### 1b: Content understanding (Python ML service)
 - `services/ml` (FastAPI), called from Oban jobs (ADR 0003). The default pipeline is multimodal:
