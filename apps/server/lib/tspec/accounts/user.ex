@@ -15,6 +15,8 @@ defmodule TSpec.Accounts.User do
     field :onboarded_at, :utc_datetime
     # Non-personalized mode (ADR 0012): no inferred signals used or learned.
     field :non_personalized, :boolean, default: false
+    # Bumped on every algorithm settings change (ADR 0011).
+    field :settings_version, :integer, default: 0
 
     has_one :profile, TSpec.Accounts.Profile
 

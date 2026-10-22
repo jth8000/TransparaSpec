@@ -241,9 +241,11 @@ defmodule TSpec.Feed.Candidates do
 
   ## Hydration
 
-  defp hydrate(sources_by_id, _user_id) when sources_by_id == %{}, do: []
+  @doc false
+  # %{content_id => [source]} -> [%Candidate{}]. Public for tests.
+  def hydrate(sources_by_id, _user_id) when sources_by_id == %{}, do: []
 
-  defp hydrate(sources_by_id, user_id) do
+  def hydrate(sources_by_id, user_id) do
     ids = Map.keys(sources_by_id)
     labels = labels(ids)
     quality = quality(ids)

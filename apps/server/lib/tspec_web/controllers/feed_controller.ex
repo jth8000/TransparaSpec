@@ -3,7 +3,7 @@ defmodule TSpecWeb.FeedController do
   use OpenApiSpex.ControllerSpecs
 
   alias TSpec.Feed
-  alias TSpecWeb.{ContentJSON, Schemas}
+  alias TSpecWeb.{ContentJSON, FeedJSON, Schemas}
 
   plug OpenApiSpex.Plug.CastAndValidate, render_error: TSpecWeb.CastErrorRenderer
   action_fallback TSpecWeb.FallbackController
@@ -37,6 +37,30 @@ defmodule TSpecWeb.FeedController do
 
   def following(conn, params),
     do: render_page(conn, Feed.following(conn.assigns.current_scope, opts(params)))
+
+  operation :for_you,
+    summary: "Your ranked feed, with an explanation for every item",
+    parameters: [
+      session: [
+        in: :query,
+        type: %OpenApiSpex.Schema{type: :string, format: :uuid},
+        description: "The feed session from the previous page; omit to start a new feed"
+      ],
+      limit: [in: :query, type: %OpenApiSpex.Schema{type: :integer, minimum: 1, maximum: 50}]
+    ],
+    security: [%{"bearer" => []}],
+    responses: [
+      ok: {"Page", "application/json", Schemas.ForYouPage},
+      unprocessable_entity: {"Bad session", "application/json", Schemas.Error}
+    ]
+
+  def for_you(conn, params) do
+    opts = params |> Map.take([:limit]) |> Enum.to_list()
+
+    with {:ok, page} <- Feed.for_you(conn.assigns.current_scope, params[:session], opts) do
+      json(conn, FeedJSON.for_you_page(page))
+    end
+  end
 
   defp opts(params), do: params |> Map.take([:cursor, :limit]) |> Enum.to_list()
 

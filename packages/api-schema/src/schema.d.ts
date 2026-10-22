@@ -128,6 +128,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/feed/for-you": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your ranked feed, with an explanation for every item */
+        get: operations["TSpecWeb.FeedController.for_you"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/feed/latest": {
         parameters: {
             query?: never;
@@ -418,6 +435,33 @@ export interface components {
             items: components["schemas"]["ContentItem"][];
             /** @description Pass as `cursor` to get the next page; null at the end */
             next_cursor: string | null;
+        };
+        /**
+         * ForYouItem
+         * @description A ranked item. `impression_id` identifies this serving of it: "Why am I
+         *     seeing this?" is `GET /api/impressions/{impression_id}`, and the client
+         *     sends it with `view_start` when the item is actually shown.
+         */
+        ForYouItem: components["schemas"]["ContentItem"] & {
+            /**
+             * @description The candidate source that ranked it highest
+             * @enum {string}
+             */
+            candidate_source: "following" | "topic" | "co_engagement" | "trending" | "explore" | "fresh";
+            /** Format: uuid */
+            impression_id: string;
+        };
+        /**
+         * ForYouPage
+         * @description A page of the For You feed. Pass `session_id` back for the next page and
+         *     join channel `feed_session:{session_id}` for live re-ranks. `rev`
+         *     increases with every re-rank of this feed.
+         */
+        ForYouPage: {
+            items: components["schemas"]["ForYouItem"][];
+            rev: number;
+            /** Format: uuid */
+            session_id: string;
         };
         /** Health */
         Health: {
@@ -854,6 +898,39 @@ export interface operations {
                 };
             };
             /** @description Bad cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.FeedController.for_you": {
+        parameters: {
+            query?: {
+                /** @description The feed session from the previous page; omit to start a new feed */
+                session?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForYouPage"];
+                };
+            };
+            /** @description Bad session */
             422: {
                 headers: {
                     [name: string]: unknown;

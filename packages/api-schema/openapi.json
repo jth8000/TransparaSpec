@@ -438,6 +438,82 @@
         "x-struct": "Elixir.TSpecWeb.Schemas.FeedPage",
         "x-validate": null
       },
+      "ForYouItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ContentItem"
+          },
+          {
+            "properties": {
+              "candidate_source": {
+                "description": "The candidate source that ranked it highest",
+                "enum": [
+                  "following",
+                  "topic",
+                  "co_engagement",
+                  "trending",
+                  "explore",
+                  "fresh"
+                ],
+                "type": "string",
+                "x-struct": null,
+                "x-validate": null
+              },
+              "impression_id": {
+                "format": "uuid",
+                "type": "string",
+                "x-struct": null,
+                "x-validate": null
+              }
+            },
+            "required": [
+              "impression_id",
+              "candidate_source"
+            ],
+            "type": "object",
+            "x-struct": null,
+            "x-validate": null
+          }
+        ],
+        "description": "A ranked item. `impression_id` identifies this serving of it: \"Why am I\nseeing this?\" is `GET /api/impressions/{impression_id}`, and the client\nsends it with `view_start` when the item is actually shown.\n",
+        "title": "ForYouItem",
+        "x-struct": "Elixir.TSpecWeb.Schemas.ForYouItem",
+        "x-validate": null
+      },
+      "ForYouPage": {
+        "description": "A page of the For You feed. Pass `session_id` back for the next page and\njoin channel `feed_session:{session_id}` for live re-ranks. `rev`\nincreases with every re-rank of this feed.\n",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ForYouItem"
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "rev": {
+            "minimum": 0,
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "session_id": {
+            "format": "uuid",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "session_id",
+          "rev",
+          "items"
+        ],
+        "title": "ForYouPage",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.ForYouPage",
+        "x-validate": null
+      },
       "Health": {
         "properties": {
           "status": {
@@ -1385,6 +1461,70 @@
           }
         ],
         "summary": "Newest public items from accounts you follow",
+        "tags": [
+          "feed"
+        ]
+      }
+    },
+    "/api/feed/for-you": {
+      "get": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.FeedController.for_you",
+        "parameters": [
+          {
+            "description": "The feed session from the previous page; omit to start a new feed",
+            "in": "query",
+            "name": "session",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "x-struct": null,
+              "x-validate": null
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForYouPage"
+                }
+              }
+            },
+            "description": "Page"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad session"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Your ranked feed, with an explanation for every item",
         "tags": [
           "feed"
         ]

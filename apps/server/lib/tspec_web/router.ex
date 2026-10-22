@@ -72,6 +72,7 @@ defmodule TSpecWeb.Router do
     patch "/content/:id", ContentController, :update
     delete "/content/:id", ContentController, :delete
     get "/feed/following", FeedController, :following
+    get "/feed/for-you", FeedController, :for_you
     post "/events", EventController, :create
   end
 

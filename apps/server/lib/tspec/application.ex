@@ -13,6 +13,10 @@ defmodule TSpec.Application do
       {DNSCluster, query: Application.get_env(:tspec, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TSpec.PubSub},
       {Oban, Application.fetch_env!(:tspec, Oban)},
+      # Per-feed-session ranking caches (ADR 0011).
+      {Registry, keys: :unique, name: TSpec.Feed.SessionRegistry},
+      {DynamicSupervisor, name: TSpec.Feed.SessionSupervisor, strategy: :one_for_one},
+      {Task.Supervisor, name: TSpec.TaskSupervisor},
       # Start to serve requests, typically the last entry
       TSpecWeb.Endpoint
     ]
