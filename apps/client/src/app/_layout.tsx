@@ -64,6 +64,10 @@ function RootStack() {
           name="u/[handle]"
           options={{ headerShown: true, title: '', headerTransparent: true }}
         />
+        <Stack.Screen
+          name="why/[impressionId]"
+          options={{ presentation: 'modal', headerShown: true, title: 'Why you’re seeing this' }}
+        />
       </Stack.Protected>
     </Stack>
   );

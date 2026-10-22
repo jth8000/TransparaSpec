@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Schemas } from '@/lib/api';
 import { useTrack } from '@/lib/events';
@@ -17,6 +17,8 @@ type Props = {
   /** Near the visible item: preloads its video. */
   preload: boolean;
   muted: boolean;
+  /** Shows a "Why?" button (For You items, which carry an impression). */
+  onWhy?: () => void;
 };
 
 /**
@@ -32,19 +34,20 @@ export function fitFor(video: { width: number | null; height: number | null }): 
  * *view* (see `ViewTracker`): `view_start`, cumulative `watch_progress`,
  * `complete` on each loop, and `skip` if swiped away before finishing.
  */
-export function FeedItem({ item, height, active, preload, muted }: Props) {
+export function FeedItem({ item, height, active, preload, muted, onWhy }: Props) {
   const track = useTrack();
   const view = useRef<ViewTracker | null>(null);
+  const impressionId = 'impression_id' in item ? (item.impression_id as string) : undefined;
 
   useEffect(() => {
     if (!active) return;
-    const tracker = new ViewTracker(item.id, item.kind === 'short_video', track);
+    const tracker = new ViewTracker(item.id, item.kind === 'short_video', track, { impressionId });
     view.current = tracker;
     return () => {
       tracker.end();
       if (view.current === tracker) view.current = null;
     };
-  }, [active, item.id, item.kind, track]);
+  }, [active, item.id, item.kind, impressionId, track]);
 
   const onTime = (seconds: number) => view.current?.time(seconds);
   const onEnded = (duration: number) => view.current?.ended(duration);
@@ -71,7 +74,23 @@ export function FeedItem({ item, height, active, preload, muted }: Props) {
           @{item.author.handle}
         </Link>
         {item.caption ? <Text style={styles.caption}>{item.caption}</Text> : null}
+        {item.topics.length > 0 && (
+          <Text style={styles.topics} numberOfLines={1}>
+            {item.topics.map((t) => `#${t.name}`).join('  ')}
+          </Text>
+        )}
       </View>
+
+      {onWhy && (
+        <Pressable
+          onPress={onWhy}
+          style={styles.why}
+          accessibilityRole="button"
+          accessibilityLabel="Why am I seeing this?"
+          testID="why-button">
+          <Text style={styles.whyText}>Why?</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -103,6 +122,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
     overflow: 'hidden',
   },
+  topics: { color: colors.textMuted, fontSize: 13 },
+  why: {
+    position: 'absolute',
+    right: space.lg,
+    bottom: space.xl,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  whyText: { color: colors.text, fontWeight: '700', fontSize: 14 },
   caption: {
     color: colors.text,
     fontSize: 15,

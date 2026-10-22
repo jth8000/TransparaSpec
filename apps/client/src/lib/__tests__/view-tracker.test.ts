@@ -5,7 +5,7 @@ jest.mock('expo-crypto', () => ({ randomUUID: () => 'default-id' }));
 const setup = (isVideo = true) => {
   const track = jest.fn();
   let n = 0;
-  const tracker = new ViewTracker('item-1', isVideo, track, () => `view-${++n}`);
+  const tracker = new ViewTracker('item-1', isVideo, track, { newId: () => `view-${++n}` });
   return { track, tracker };
 };
 
@@ -17,6 +17,14 @@ describe('ViewTracker', () => {
 
     tracker.time(5.2);
     expect(track).toHaveBeenLastCalledWith('item-1', 'watch_progress', { value: 5.2, viewId: 'view-1' });
+  });
+
+  it('marks the served impression as shown on view_start only', () => {
+    const track = jest.fn();
+    const tracker = new ViewTracker('item-1', true, track, { newId: () => 'v', impressionId: 'imp-1' });
+    expect(track).toHaveBeenCalledWith('item-1', 'view_start', { viewId: 'v', impressionId: 'imp-1' });
+    tracker.time(5);
+    expect(track).toHaveBeenLastCalledWith('item-1', 'watch_progress', { value: 5, viewId: 'v' });
   });
 
   it('reports seconds cumulatively across loops', () => {

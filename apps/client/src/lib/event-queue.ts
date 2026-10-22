@@ -8,6 +8,8 @@ export type ClientEvent = {
   session_id?: string | null;
   /** The playback episode this event belongs to (ADR 0012). */
   view_id?: string | null;
+  /** On view_start: the served For You impression now shown (ADR 0011). */
+  impression_id?: string | null;
 };
 
 export type SendOptions = { keepalive?: boolean };

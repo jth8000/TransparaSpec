@@ -2,7 +2,7 @@ import { randomUUID } from 'expo-crypto';
 
 import type { EngagementType } from './event-queue';
 
-export type TrackOptions = { value?: number; viewId?: string };
+export type TrackOptions = { value?: number; viewId?: string; impressionId?: string };
 export type Track = (contentId: string, type: EngagementType, options?: TrackOptions) => void;
 
 const PROGRESS_EVERY_SECONDS = 5;
@@ -28,14 +28,21 @@ export class ViewTracker {
   private completed = false;
   private lastBucket = 0;
 
+  /**
+   * `impressionId` (For You items) marks the served impression as actually
+   * shown — exposure (ADR 0011).
+   */
   constructor(
     private readonly contentId: string,
     private readonly isVideo: boolean,
     private readonly track: Track,
-    newId: () => string = randomUUID,
+    options: { impressionId?: string; newId?: () => string } = {},
   ) {
-    this.viewId = newId();
-    this.track(contentId, 'view_start', { viewId: this.viewId });
+    this.viewId = (options.newId ?? randomUUID)();
+    this.track(contentId, 'view_start', {
+      viewId: this.viewId,
+      ...(options.impressionId ? { impressionId: options.impressionId } : {}),
+    });
   }
 
   /** Seconds played so far in this view, across loops. */

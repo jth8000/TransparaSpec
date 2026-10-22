@@ -10,7 +10,7 @@ type Events = { track: Track; flushAll: () => Promise<boolean> };
 
 const EventsContext = createContext<Events>({ track: () => {}, flushAll: async () => true });
 
-/** Returns `track(contentId, type, { value?, viewId? })` for recording engagement. */
+/** Returns `track(contentId, type, { value?, viewId?, impressionId? })` for recording engagement. */
 export function useTrack(): Track {
   return use(EventsContext).track;
 }
@@ -72,6 +72,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
           occurred_at: new Date().toISOString(),
           session_id: SESSION_ID,
           view_id: options.viewId ?? null,
+          ...(options.impressionId ? { impression_id: options.impressionId } : {}),
         });
       },
       flushAll: () => queue.flushAll(),
