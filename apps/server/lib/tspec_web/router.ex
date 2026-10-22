@@ -73,6 +73,15 @@ defmodule TSpecWeb.Router do
     delete "/content/:id", ContentController, :delete
     get "/feed/following", FeedController, :following
     get "/feed/for-you", FeedController, :for_you
+    get "/impressions/:id", TransparencyController, :explain
+    get "/algorithm/settings", TransparencyController, :settings
+    put "/algorithm/settings", TransparencyController, :update_settings
+    post "/algorithm/settings/reset", TransparencyController, :reset_settings
+    get "/algorithm/dashboard", TransparencyController, :dashboard
+    get "/me/interests", TransparencyController, :interests
+    get "/me/interests/topics/:slug/evidence", TransparencyController, :interest_evidence
+    delete "/me/interests/topics/:slug", TransparencyController, :forget_interest
+    delete "/me/interests/creators/:id", TransparencyController, :forget_creator_interest
     post "/events", EventController, :create
   end
 

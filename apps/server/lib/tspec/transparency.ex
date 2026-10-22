@@ -18,9 +18,9 @@ defmodule TSpec.Transparency do
   """
   import Ecto.Query, warn: false
 
-  alias TSpec.{Content, Repo}
+  alias TSpec.{Content, Events, Repo}
   alias TSpec.Accounts.{Scope, User}
-  alias TSpec.Feed.{Settings, ViewEngagement}
+  alias TSpec.Feed.{CreatorAffinity, Interests, Settings, TopicAffinity, ViewEngagement}
   alias TSpec.Transparency.{SettingsSnapshot, UserSetting}
 
   # Events up to 7 days old are accepted (Events.record/2), so a view can
@@ -259,4 +259,211 @@ defmodule TSpec.Transparency do
 
   @doc "A stored settings snapshot by id."
   def get_snapshot!(id), do: Repo.get!(SettingsSnapshot, id)
+
+  ## Explanations
+
+  @doc """
+  "Why am I seeing this?": the stored impression — trace, sources, ranker
+  version and the settings snapshot it was ranked under. Read back exactly
+  as served; nothing is recomputed (ADR 0006).
+  """
+  def explain(%Scope{} = scope, impression_id) do
+    with {:ok, impression} <- Events.get_impression(scope, impression_id) do
+      {:ok, %{impression: impression, settings: get_snapshot!(impression.settings_snapshot_id)}}
+    end
+  end
+
+  ## Interests
+
+  @doc """
+  The user's learned interests, decayed to now, strongest first:
+  `%{topics: [...], creators: [...]}`. Each has the raw `score`, the ranking
+  feature `value` in (-1, 1) and how many views it was learned from.
+  """
+  def interests(%Scope{user: %User{id: user_id}}, now \\ DateTime.utc_now()) do
+    topics_by_id = Content.topics_by_id()
+    w = Interests.Weights.get()
+
+    topics =
+      for {id, a} <- Interests.topic_affinities(user_id, now), t = topics_by_id[id] do
+        %{
+          topic: t,
+          score: a.score,
+          value: Interests.feature_value(a.score, w),
+          evidence_count: a.evidence_count
+        }
+      end
+
+    creators =
+      for {id, a} <- Interests.creator_affinities(user_id, now) do
+        %{
+          creator_id: id,
+          score: a.score,
+          value: Interests.feature_value(a.score, w),
+          evidence_count: a.evidence_count
+        }
+      end
+
+    handles =
+      Repo.all(
+        from u in User,
+          where: u.id in ^Enum.map(creators, & &1.creator_id),
+          select: {u.id, u.handle}
+      )
+      |> Map.new()
+
+    %{
+      topics: Enum.sort_by(topics, &{-abs(&1.score), &1.topic.slug}),
+      creators:
+        creators
+        |> Enum.map(&Map.put(&1, :handle, handles[&1.creator_id]))
+        |> Enum.sort_by(&{-abs(&1.score), &1.creator_id})
+    }
+  end
+
+  @doc """
+  The views a topic interest was learned from, newest first: the item, how
+  it was watched, and how much it moved this topic (`delta`).
+  """
+  def interest_evidence(%Scope{user: %User{id: user_id}}, slug, limit \\ 20) do
+    with %{id: topic_id} <- Content.topics_by_slug()[slug] do
+      views =
+        from(v in ViewEngagement,
+          where: v.user_id == ^user_id and v.learnable and not is_nil(v.applied_at),
+          where: fragment("? \\? ?", v.topic_snapshot, ^topic_id),
+          order_by: [desc: v.inserted_at],
+          limit: ^limit
+        )
+        |> Repo.all()
+
+      items =
+        from(i in Content.Item, where: i.id in ^Enum.map(views, & &1.content_id))
+        |> Repo.all()
+        |> Content.preload_for_render()
+        |> Map.new(&{&1.id, &1})
+
+      {:ok,
+       for v <- views do
+         %{
+           item: items[v.content_id],
+           viewed_at: v.inserted_at,
+           watched_ms: v.watched_ms,
+           duration_ms: v.duration_ms,
+           completed: v.completed,
+           delta: v.applied_delta * v.topic_snapshot[topic_id]
+         }
+       end}
+    else
+      nil -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Forgets a learned topic interest: removes the score and evidence count.
+  New views of the topic are learned again (turn the topic down or off to
+  stop that).
+  """
+  def forget_interest(%Scope{user: %User{id: user_id}}, slug) do
+    with %{id: topic_id} <- Content.topics_by_slug()[slug] do
+      Repo.delete_all(
+        from a in TopicAffinity, where: a.user_id == ^user_id and a.topic_id == ^topic_id
+      )
+
+      :ok
+    else
+      nil -> {:error, :not_found}
+    end
+  end
+
+  @doc "Forgets a learned creator interest (following is separate)."
+  def forget_creator_interest(%Scope{user: %User{id: user_id}}, creator_id) do
+    with {:ok, creator_id} <- Ecto.UUID.cast(creator_id) do
+      Repo.delete_all(
+        from a in CreatorAffinity, where: a.user_id == ^user_id and a.creator_id == ^creator_id
+      )
+
+      :ok
+    else
+      :error -> {:error, :not_found}
+    end
+  end
+
+  ## Dashboard
+
+  @doc """
+  Algorithm Dashboard aggregates over the last `days` days, from impressions
+  the user was actually *shown* (a `view_start` carried the impression id):
+
+    * `topic_mix` — per day, how many shown items had each tier-1 topic
+    * `top_drivers` — the features (per topic, for topic features) that
+      contributed most to what was shown, summed from the stored traces
+  """
+  def dashboard(%Scope{user: %User{id: user_id}}, days) when days in [7, 30] do
+    since = DateTime.add(DateTime.utc_now(), -days, :day)
+    uid = Ecto.UUID.dump!(user_id)
+
+    exposed = """
+    SELECT DISTINCT ON (i.id) i.id, i.served_at, i.content_id, i.contributions, e.received_at AS shown_at
+    FROM engagement_events e
+    JOIN impressions i
+      ON i.id = e.impression_id AND i.user_id = e.user_id
+     AND i.served_at >= $2::timestamptz - interval '1 day'
+    WHERE e.user_id = $1 AND e.type = 'view_start' AND e.impression_id IS NOT NULL
+      AND e.received_at >= $2
+    """
+
+    %{rows: mix} =
+      Repo.query!(
+        """
+        WITH shown AS (#{exposed})
+        SELECT (s.shown_at AT TIME ZONE 'UTC')::date AS day,
+               COALESCE(p.slug, t.slug) AS topic,
+               count(DISTINCT s.id)::int
+        FROM shown s
+        JOIN content_topics ct ON ct.content_id = s.content_id AND ct.confidence >= 0.5
+        JOIN topics t ON t.id = ct.topic_id
+        LEFT JOIN topics p ON p.id = t.parent_id
+        GROUP BY 1, 2
+        ORDER BY 1, 3 DESC, 2
+        """,
+        [uid, since]
+      )
+
+    %{rows: drivers} =
+      Repo.query!(
+        """
+        WITH shown AS (#{exposed})
+        SELECT c->>'feature' AS feature,
+               COALESCE(c->>'topic', c->>'source') AS detail,
+               sum((c->>'contribution')::float8) AS total,
+               count(*)::int AS items
+        FROM shown s, jsonb_array_elements(s.contributions) c
+        GROUP BY 1, 2
+        ORDER BY abs(sum((c->>'contribution')::float8)) DESC, 1, 2
+        LIMIT 12
+        """,
+        [uid, since]
+      )
+
+    %{
+      days: days,
+      shown: shown_count(uid, since, exposed),
+      topic_mix:
+        mix
+        |> Enum.group_by(fn [day, _, _] -> day end, fn [_, topic, n] ->
+          %{topic: topic, count: n}
+        end)
+        |> Enum.sort_by(fn {day, _} -> day end, Date)
+        |> Enum.map(fn {day, topics} -> %{date: day, topics: topics} end),
+      top_drivers:
+        for [feature, detail, total, items] <- drivers do
+          %{feature: feature, detail: detail, total: total, items: items}
+        end
+    }
+  end
+
+  defp shown_count(uid, since, exposed) do
+    %{rows: [[n]]} = Repo.query!("SELECT count(*)::int FROM (#{exposed}) s", [uid, since])
+    n
+  end
 end

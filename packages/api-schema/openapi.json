@@ -2,44 +2,57 @@
   "components": {
     "responses": {},
     "schemas": {
-      "AuthRequest": {
-        "description": "Start email sign-in (also creates the account on first use).",
+      "OnboardingRequest": {
+        "description": "Choose a handle, confirm age (the birthdate is checked and discarded, never stored) and accept the current consent document.",
         "properties": {
-          "email": {
-            "format": "email",
-            "maxLength": 160,
-            "type": "string",
+          "accept_consent_version": {
+            "type": "integer",
             "x-struct": null,
             "x-validate": null
-          }
-        },
-        "required": [
-          "email"
-        ],
-        "title": "AuthRequest",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.AuthRequest",
-        "x-validate": null
-      },
-      "AuthSession": {
-        "description": "A new API session. Send `token` as `Authorization: Bearer <token>`.",
-        "properties": {
-          "token": {
+          },
+          "birthdate": {
+            "format": "date",
             "type": "string",
             "x-struct": null,
             "x-validate": null
           },
-          "user": {
-            "$ref": "#/components/schemas/Me"
+          "display_name": {
+            "maxLength": 50,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "handle": {
+            "pattern": "^[a-zA-Z0-9_]{3,30}$",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
           }
         },
         "required": [
-          "token",
-          "user"
+          "handle",
+          "birthdate",
+          "accept_consent_version"
         ],
-        "title": "AuthSession",
+        "title": "OnboardingRequest",
         "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.AuthSession",
+        "x-struct": "Elixir.TSpecWeb.Schemas.OnboardingRequest",
+        "x-validate": null
+      },
+      "StatusResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "StatusResponse",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.StatusResponse",
         "x-validate": null
       },
       "AuthVerify": {
@@ -68,11 +81,89 @@
         "x-struct": "Elixir.TSpecWeb.Schemas.AuthVerify",
         "x-validate": null
       },
-      "Author": {
+      "SettingsChange": {
+        "description": "Changes to apply; anything omitted stays as it is.",
+        "properties": {
+          "non_personalized": {
+            "type": "boolean",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "sources": {
+            "additionalProperties": {
+              "maximum": 2,
+              "minimum": 0,
+              "type": "number",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "description": "By candidate source",
+            "type": "object",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topics": {
+            "additionalProperties": {
+              "properties": {
+                "hard_off": {
+                  "type": "boolean",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "multiplier": {
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                  "x-struct": null,
+                  "x-validate": null
+                }
+              },
+              "type": "object",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "description": "By topic slug",
+            "type": "object",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "title": "SettingsChange",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.SettingsChange",
+        "x-validate": null
+      },
+      "CreatorTopics": {
+        "description": "Topic slugs picked by the creator (see `GET /api/topics`), at most 3.",
+        "items": {
+          "type": "string",
+          "x-struct": null,
+          "x-validate": null
+        },
+        "maxItems": 3,
+        "title": "CreatorTopics",
+        "type": "array",
+        "x-struct": "Elixir.TSpecWeb.Schemas.CreatorTopics",
+        "x-validate": null
+      },
+      "Me": {
+        "description": "The signed-in user, including private fields.",
         "properties": {
           "avatar_url": {
             "nullable": true,
             "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "bio": {
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "consent_version": {
+            "nullable": true,
+            "type": "integer",
             "x-struct": null,
             "x-validate": null
           },
@@ -82,7 +173,14 @@
             "x-struct": null,
             "x-validate": null
           },
+          "email": {
+            "format": "email",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
           "handle": {
+            "nullable": true,
             "type": "string",
             "x-struct": null,
             "x-validate": null
@@ -92,46 +190,26 @@
             "type": "string",
             "x-struct": null,
             "x-validate": null
+          },
+          "onboarded": {
+            "type": "boolean",
+            "x-struct": null,
+            "x-validate": null
           }
         },
         "required": [
           "id",
+          "email",
           "handle",
           "display_name",
-          "avatar_url"
+          "bio",
+          "avatar_url",
+          "onboarded",
+          "consent_version"
         ],
-        "title": "Author",
+        "title": "Me",
         "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.Author",
-        "x-validate": null
-      },
-      "ConsentDocument": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "published_at": {
-            "format": "date-time",
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "version": {
-            "type": "integer",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "version",
-          "kind",
-          "published_at"
-        ],
-        "title": "ConsentDocument",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.ConsentDocument",
+        "x-struct": "Elixir.TSpecWeb.Schemas.Me",
         "x-validate": null
       },
       "ContentItem": {
@@ -231,36 +309,232 @@
         "x-struct": "Elixir.TSpecWeb.Schemas.ContentItem",
         "x-validate": null
       },
-      "ContentUpdate": {
-        "description": "Fields to change; omitted or null fields stay as they are. An empty\n`caption` (\"\") clears it. `topics` replaces the creator's topic labels\n(`[]` removes them).\n",
+      "Interests": {
+        "description": "What the algorithm has learned about you from what you watched. `score`\nfades with a 14-day half-life unless renewed; `value` is the score as\nthe ranker uses it, between -1 and 1.\n",
         "properties": {
-          "caption": {
-            "maxLength": 2200,
+          "creators": {
+            "items": {
+              "properties": {
+                "creator_id": {
+                  "format": "uuid",
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "evidence_count": {
+                  "type": "integer",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "handle": {
+                  "nullable": true,
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "score": {
+                  "type": "number",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "value": {
+                  "type": "number",
+                  "x-struct": null,
+                  "x-validate": null
+                }
+              },
+              "required": [
+                "creator_id",
+                "handle",
+                "score",
+                "value",
+                "evidence_count"
+              ],
+              "type": "object",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topics": {
+            "items": {
+              "properties": {
+                "evidence_count": {
+                  "type": "integer",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "name": {
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "parent": {
+                  "nullable": true,
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "score": {
+                  "type": "number",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "slug": {
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "tier": {
+                  "type": "integer",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "value": {
+                  "type": "number",
+                  "x-struct": null,
+                  "x-validate": null
+                }
+              },
+              "required": [
+                "slug",
+                "name",
+                "tier",
+                "parent",
+                "score",
+                "value",
+                "evidence_count"
+              ],
+              "type": "object",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "topics",
+          "creators"
+        ],
+        "title": "Interests",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.Interests",
+        "x-validate": null
+      },
+      "TopicList": {
+        "properties": {
+          "max_creator_topics": {
+            "description": "How many topics a creator may pick",
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/Topic"
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "topics",
+          "max_creator_topics"
+        ],
+        "title": "TopicList",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.TopicList",
+        "x-validate": null
+      },
+      "TextPayload": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "TextPayload",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.TextPayload",
+        "x-validate": null
+      },
+      "FeedPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ContentItem"
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to get the next page; null at the end",
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "FeedPage",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.FeedPage",
+        "x-validate": null
+      },
+      "Topic": {
+        "description": "A taxonomy topic (IAB Content Taxonomy 3.1, tiers 1–2).",
+        "properties": {
+          "name": {
+            "example": "Fitness and Exercise",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "parent": {
+            "description": "Parent slug (tier 2 only)",
             "nullable": true,
             "type": "string",
             "x-struct": null,
             "x-validate": null
           },
-          "topics": {
-            "$ref": "#/components/schemas/CreatorTopics"
+          "slug": {
+            "example": "fitness-and-exercise",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "tier": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
           }
         },
-        "title": "ContentUpdate",
+        "required": [
+          "slug",
+          "name",
+          "tier",
+          "parent"
+        ],
+        "title": "Topic",
         "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.ContentUpdate",
-        "x-validate": null
-      },
-      "CreatorTopics": {
-        "description": "Topic slugs picked by the creator (see `GET /api/topics`), at most 3.",
-        "items": {
-          "type": "string",
-          "x-struct": null,
-          "x-validate": null
-        },
-        "maxItems": 3,
-        "title": "CreatorTopics",
-        "type": "array",
-        "x-struct": "Elixir.TSpecWeb.Schemas.CreatorTopics",
+        "x-struct": "Elixir.TSpecWeb.Schemas.Topic",
         "x-validate": null
       },
       "Error": {
@@ -301,27 +575,6 @@
         "x-struct": "Elixir.TSpecWeb.Schemas.Error",
         "x-validate": null
       },
-      "EventBatch": {
-        "properties": {
-          "events": {
-            "items": {
-              "$ref": "#/components/schemas/EventInput"
-            },
-            "maxItems": 100,
-            "minItems": 1,
-            "type": "array",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "events"
-        ],
-        "title": "EventBatch",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.EventBatch",
-        "x-validate": null
-      },
       "EventBatchResult": {
         "properties": {
           "accepted": {
@@ -342,6 +595,226 @@
         "title": "EventBatchResult",
         "type": "object",
         "x-struct": "Elixir.TSpecWeb.Schemas.EventBatchResult",
+        "x-validate": null
+      },
+      "ForYouItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ContentItem"
+          },
+          {
+            "properties": {
+              "candidate_source": {
+                "description": "The candidate source that ranked it highest",
+                "enum": [
+                  "following",
+                  "topic",
+                  "co_engagement",
+                  "trending",
+                  "explore",
+                  "fresh"
+                ],
+                "type": "string",
+                "x-struct": null,
+                "x-validate": null
+              },
+              "impression_id": {
+                "format": "uuid",
+                "type": "string",
+                "x-struct": null,
+                "x-validate": null
+              }
+            },
+            "required": [
+              "impression_id",
+              "candidate_source"
+            ],
+            "type": "object",
+            "x-struct": null,
+            "x-validate": null
+          }
+        ],
+        "description": "A ranked item. `impression_id` identifies this serving of it: \"Why am I\nseeing this?\" is `GET /api/impressions/{impression_id}`, and the client\nsends it with `view_start` when the item is actually shown.\n",
+        "title": "ForYouItem",
+        "x-struct": "Elixir.TSpecWeb.Schemas.ForYouItem",
+        "x-validate": null
+      },
+      "InterestEvidence": {
+        "description": "The views an interest was learned from, newest first.",
+        "properties": {
+          "views": {
+            "items": {
+              "properties": {
+                "completed": {
+                  "type": "boolean",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "delta": {
+                  "description": "How much this view moved the topic",
+                  "type": "number",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "duration_ms": {
+                  "nullable": true,
+                  "type": "integer",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "item": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ContentItem"
+                    }
+                  ],
+                  "nullable": true,
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "viewed_at": {
+                  "format": "date-time",
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "watched_ms": {
+                  "type": "integer",
+                  "x-struct": null,
+                  "x-validate": null
+                }
+              },
+              "required": [
+                "item",
+                "viewed_at",
+                "watched_ms",
+                "duration_ms",
+                "completed",
+                "delta"
+              ],
+              "type": "object",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "views"
+        ],
+        "title": "InterestEvidence",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.InterestEvidence",
+        "x-validate": null
+      },
+      "VideoUpload": {
+        "description": "The new item (status `processing`) and where to send the file: an HTTP `method` request to `url` with the file in multipart field `form_field`. The file goes straight to the video provider.",
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/ContentItem"
+          },
+          "upload": {
+            "properties": {
+              "form_field": {
+                "type": "string",
+                "x-struct": null,
+                "x-validate": null
+              },
+              "method": {
+                "enum": [
+                  "POST"
+                ],
+                "type": "string",
+                "x-struct": null,
+                "x-validate": null
+              },
+              "url": {
+                "type": "string",
+                "x-struct": null,
+                "x-validate": null
+              }
+            },
+            "required": [
+              "url",
+              "method",
+              "form_field"
+            ],
+            "type": "object",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "content",
+          "upload"
+        ],
+        "title": "VideoUpload",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.VideoUpload",
+        "x-validate": null
+      },
+      "PublicProfile": {
+        "properties": {
+          "avatar_url": {
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "bio": {
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "display_name": {
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "followed_by_me": {
+            "type": "boolean",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "followers_count": {
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "following_count": {
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "handle": {
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "id",
+          "handle",
+          "display_name",
+          "bio",
+          "avatar_url",
+          "followers_count",
+          "following_count",
+          "followed_by_me"
+        ],
+        "title": "PublicProfile",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.PublicProfile",
         "x-validate": null
       },
       "EventInput": {
@@ -411,107 +884,73 @@
         "x-struct": "Elixir.TSpecWeb.Schemas.EventInput",
         "x-validate": null
       },
-      "FeedPage": {
+      "AuthSession": {
+        "description": "A new API session. Send `token` as `Authorization: Bearer <token>`.",
         "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ContentItem"
-            },
-            "type": "array",
+          "token": {
+            "type": "string",
             "x-struct": null,
             "x-validate": null
           },
-          "next_cursor": {
-            "description": "Pass as `cursor` to get the next page; null at the end",
+          "user": {
+            "$ref": "#/components/schemas/Me"
+          }
+        },
+        "required": [
+          "token",
+          "user"
+        ],
+        "title": "AuthSession",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.AuthSession",
+        "x-validate": null
+      },
+      "ConsentDocument": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "published_at": {
+            "format": "date-time",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "version": {
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "version",
+          "kind",
+          "published_at"
+        ],
+        "title": "ConsentDocument",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.ConsentDocument",
+        "x-validate": null
+      },
+      "ContentUpdate": {
+        "description": "Fields to change; omitted or null fields stay as they are. An empty\n`caption` (\"\") clears it. `topics` replaces the creator's topic labels\n(`[]` removes them).\n",
+        "properties": {
+          "caption": {
+            "maxLength": 2200,
             "nullable": true,
             "type": "string",
             "x-struct": null,
             "x-validate": null
+          },
+          "topics": {
+            "$ref": "#/components/schemas/CreatorTopics"
           }
         },
-        "required": [
-          "items",
-          "next_cursor"
-        ],
-        "title": "FeedPage",
+        "title": "ContentUpdate",
         "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.FeedPage",
-        "x-validate": null
-      },
-      "ForYouItem": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ContentItem"
-          },
-          {
-            "properties": {
-              "candidate_source": {
-                "description": "The candidate source that ranked it highest",
-                "enum": [
-                  "following",
-                  "topic",
-                  "co_engagement",
-                  "trending",
-                  "explore",
-                  "fresh"
-                ],
-                "type": "string",
-                "x-struct": null,
-                "x-validate": null
-              },
-              "impression_id": {
-                "format": "uuid",
-                "type": "string",
-                "x-struct": null,
-                "x-validate": null
-              }
-            },
-            "required": [
-              "impression_id",
-              "candidate_source"
-            ],
-            "type": "object",
-            "x-struct": null,
-            "x-validate": null
-          }
-        ],
-        "description": "A ranked item. `impression_id` identifies this serving of it: \"Why am I\nseeing this?\" is `GET /api/impressions/{impression_id}`, and the client\nsends it with `view_start` when the item is actually shown.\n",
-        "title": "ForYouItem",
-        "x-struct": "Elixir.TSpecWeb.Schemas.ForYouItem",
-        "x-validate": null
-      },
-      "ForYouPage": {
-        "description": "A page of the For You feed. Pass `session_id` back for the next page and\njoin channel `feed_session:{session_id}` for live re-ranks. `rev`\nincreases with every re-rank of this feed.\n",
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ForYouItem"
-            },
-            "type": "array",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "rev": {
-            "minimum": 0,
-            "type": "integer",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "session_id": {
-            "format": "uuid",
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "session_id",
-          "rev",
-          "items"
-        ],
-        "title": "ForYouPage",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.ForYouPage",
+        "x-struct": "Elixir.TSpecWeb.Schemas.ContentUpdate",
         "x-validate": null
       },
       "Health": {
@@ -531,295 +970,6 @@
         "title": "Health",
         "type": "object",
         "x-struct": "Elixir.TSpecWeb.Schemas.Health",
-        "x-validate": null
-      },
-      "Me": {
-        "description": "The signed-in user, including private fields.",
-        "properties": {
-          "avatar_url": {
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "bio": {
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "consent_version": {
-            "nullable": true,
-            "type": "integer",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "display_name": {
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "email": {
-            "format": "email",
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "handle": {
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "id": {
-            "format": "uuid",
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "onboarded": {
-            "type": "boolean",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "id",
-          "email",
-          "handle",
-          "display_name",
-          "bio",
-          "avatar_url",
-          "onboarded",
-          "consent_version"
-        ],
-        "title": "Me",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.Me",
-        "x-validate": null
-      },
-      "OnboardingRequest": {
-        "description": "Choose a handle, confirm age (the birthdate is checked and discarded, never stored) and accept the current consent document.",
-        "properties": {
-          "accept_consent_version": {
-            "type": "integer",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "birthdate": {
-            "format": "date",
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "display_name": {
-            "maxLength": 50,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "handle": {
-            "pattern": "^[a-zA-Z0-9_]{3,30}$",
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "handle",
-          "birthdate",
-          "accept_consent_version"
-        ],
-        "title": "OnboardingRequest",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.OnboardingRequest",
-        "x-validate": null
-      },
-      "ProfileUpdate": {
-        "properties": {
-          "bio": {
-            "maxLength": 300,
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "display_name": {
-            "maxLength": 50,
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "title": "ProfileUpdate",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.ProfileUpdate",
-        "x-validate": null
-      },
-      "PublicProfile": {
-        "properties": {
-          "avatar_url": {
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "bio": {
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "display_name": {
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "followed_by_me": {
-            "type": "boolean",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "followers_count": {
-            "type": "integer",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "following_count": {
-            "type": "integer",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "handle": {
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "id": {
-            "format": "uuid",
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "id",
-          "handle",
-          "display_name",
-          "bio",
-          "avatar_url",
-          "followers_count",
-          "following_count",
-          "followed_by_me"
-        ],
-        "title": "PublicProfile",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.PublicProfile",
-        "x-validate": null
-      },
-      "StatusResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "StatusResponse",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.StatusResponse",
-        "x-validate": null
-      },
-      "TextPayload": {
-        "properties": {
-          "body": {
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "body"
-        ],
-        "title": "TextPayload",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.TextPayload",
-        "x-validate": null
-      },
-      "TextPostRequest": {
-        "properties": {
-          "body": {
-            "maxLength": 2000,
-            "minLength": 1,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "caption": {
-            "maxLength": 2200,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "topics": {
-            "$ref": "#/components/schemas/CreatorTopics"
-          }
-        },
-        "required": [
-          "body"
-        ],
-        "title": "TextPostRequest",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.TextPostRequest",
-        "x-validate": null
-      },
-      "Topic": {
-        "description": "A taxonomy topic (IAB Content Taxonomy 3.1, tiers 1–2).",
-        "properties": {
-          "name": {
-            "example": "Fitness and Exercise",
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "parent": {
-            "description": "Parent slug (tier 2 only)",
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "slug": {
-            "example": "fitness-and-exercise",
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "tier": {
-            "enum": [
-              1,
-              2
-            ],
-            "type": "integer",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "slug",
-          "name",
-          "tier",
-          "parent"
-        ],
-        "title": "Topic",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.Topic",
         "x-validate": null
       },
       "TopicLabel": {
@@ -879,17 +1029,485 @@
         "x-struct": "Elixir.TSpecWeb.Schemas.TopicLabel",
         "x-validate": null
       },
-      "TopicList": {
+      "Contribution": {
+        "description": "One line of a ranking trace: `contribution = weight × value`, where\n`weight = default_weight × user_multiplier` (for `topic_preference`,\n`weight = default_weight × (user_multiplier − 1)`). An item's score is\nthe sum of its contributions, in order.\n",
         "properties": {
-          "max_creator_topics": {
-            "description": "How many topics a creator may pick",
-            "type": "integer",
+          "contribution": {
+            "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "default_weight": {
+            "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "feature": {
+            "enum": [
+              "topic_affinity",
+              "topic_preference",
+              "creator_affinity",
+              "following",
+              "source_prior",
+              "freshness",
+              "quality",
+              "diversity"
+            ],
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "label_sources": {
+            "description": "Who labeled the item with this topic",
+            "items": {
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "nullable": true,
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "source": {
+            "description": "Candidate source, for source_prior",
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topic": {
+            "description": "Topic slug, for topic features",
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "user_multiplier": {
+            "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "value": {
+            "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "weight": {
+            "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "feature",
+          "default_weight",
+          "user_multiplier",
+          "weight",
+          "value",
+          "contribution"
+        ],
+        "title": "Contribution",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.Contribution",
+        "x-validate": null
+      },
+      "VideoUploadRequest": {
+        "properties": {
+          "caption": {
+            "maxLength": 2200,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topics": {
+            "$ref": "#/components/schemas/CreatorTopics"
+          }
+        },
+        "title": "VideoUploadRequest",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.VideoUploadRequest",
+        "x-validate": null
+      },
+      "EventBatch": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventInput"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "title": "EventBatch",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.EventBatch",
+        "x-validate": null
+      },
+      "AlgorithmSettings": {
+        "description": "Your algorithm controls. Only non-default entries are listed (multiplier\n1 and not hard-off is the default). A tier-2 topic without its own entry\nfollows its tier-1 parent.\n",
+        "properties": {
+          "available_sources": {
+            "items": {
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "hard_off_threshold": {
+            "description": "Hard-off hides items labeled with the topic at this confidence or more",
+            "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "non_personalized": {
+            "type": "boolean",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "sources": {
+            "items": {
+              "properties": {
+                "multiplier": {
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "source": {
+                  "enum": [
+                    "following",
+                    "topic",
+                    "co_engagement",
+                    "trending",
+                    "explore",
+                    "fresh"
+                  ],
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                }
+              },
+              "required": [
+                "source",
+                "multiplier"
+              ],
+              "type": "object",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "type": "array",
             "x-struct": null,
             "x-validate": null
           },
           "topics": {
             "items": {
-              "$ref": "#/components/schemas/Topic"
+              "properties": {
+                "hard_off": {
+                  "type": "boolean",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "multiplier": {
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "slug": {
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                }
+              },
+              "required": [
+                "slug",
+                "multiplier",
+                "hard_off"
+              ],
+              "type": "object",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "version": {
+            "minimum": 0,
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "version",
+          "non_personalized",
+          "topics",
+          "sources",
+          "available_sources",
+          "hard_off_threshold"
+        ],
+        "title": "AlgorithmSettings",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.AlgorithmSettings",
+        "x-validate": null
+      },
+      "AuthRequest": {
+        "description": "Start email sign-in (also creates the account on first use).",
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 160,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "AuthRequest",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.AuthRequest",
+        "x-validate": null
+      },
+      "Explanation": {
+        "description": "Why an item was shown: the exact trace stored when it was served, with\nthe settings as they were then (not your current ones). `final_score`\nis the sum of `contributions`.\n",
+        "properties": {
+          "candidate_source": {
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "content_id": {
+            "format": "uuid",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "contributions": {
+            "items": {
+              "$ref": "#/components/schemas/Contribution"
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "final_score": {
+            "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "impression_id": {
+            "format": "uuid",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "position": {
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "ranker_version": {
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "served_at": {
+            "format": "date-time",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "settings": {
+            "$ref": "#/components/schemas/AlgorithmSettings"
+          },
+          "settings_version": {
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "sources": {
+            "items": {
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topic_names": {
+            "additionalProperties": {
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "description": "Display names for the topic slugs in the trace",
+            "type": "object",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "impression_id",
+          "content_id",
+          "served_at",
+          "ranker_version",
+          "candidate_source",
+          "sources",
+          "position",
+          "final_score",
+          "contributions",
+          "settings_version",
+          "settings",
+          "topic_names"
+        ],
+        "title": "Explanation",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.Explanation",
+        "x-validate": null
+      },
+      "TextPostRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "caption": {
+            "maxLength": 2200,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topics": {
+            "$ref": "#/components/schemas/CreatorTopics"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "TextPostRequest",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.TextPostRequest",
+        "x-validate": null
+      },
+      "Dashboard": {
+        "description": "Aggregates over items you were actually shown in your For You feed.",
+        "properties": {
+          "days": {
+            "enum": [
+              7,
+              30
+            ],
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "shown": {
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "top_drivers": {
+            "items": {
+              "properties": {
+                "detail": {
+                  "description": "Topic or source",
+                  "nullable": true,
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "feature": {
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "items": {
+                  "type": "integer",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "total": {
+                  "type": "number",
+                  "x-struct": null,
+                  "x-validate": null
+                }
+              },
+              "required": [
+                "feature",
+                "detail",
+                "total",
+                "items"
+              ],
+              "type": "object",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topic_mix": {
+            "items": {
+              "properties": {
+                "date": {
+                  "format": "date",
+                  "type": "string",
+                  "x-struct": null,
+                  "x-validate": null
+                },
+                "topics": {
+                  "items": {
+                    "properties": {
+                      "count": {
+                        "type": "integer",
+                        "x-struct": null,
+                        "x-validate": null
+                      },
+                      "topic": {
+                        "type": "string",
+                        "x-struct": null,
+                        "x-validate": null
+                      }
+                    },
+                    "required": [
+                      "topic",
+                      "count"
+                    ],
+                    "type": "object",
+                    "x-struct": null,
+                    "x-validate": null
+                  },
+                  "type": "array",
+                  "x-struct": null,
+                  "x-validate": null
+                }
+              },
+              "required": [
+                "date",
+                "topics"
+              ],
+              "type": "object",
+              "x-struct": null,
+              "x-validate": null
             },
             "type": "array",
             "x-struct": null,
@@ -897,12 +1515,70 @@
           }
         },
         "required": [
-          "topics",
-          "max_creator_topics"
+          "days",
+          "shown",
+          "topic_mix",
+          "top_drivers"
         ],
-        "title": "TopicList",
+        "title": "Dashboard",
         "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.TopicList",
+        "x-struct": "Elixir.TSpecWeb.Schemas.Dashboard",
+        "x-validate": null
+      },
+      "ForYouPage": {
+        "description": "A page of the For You feed. Pass `session_id` back for the next page and\njoin channel `feed_session:{session_id}` for live re-ranks. `rev`\nincreases with every re-rank of this feed.\n",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ForYouItem"
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "rev": {
+            "minimum": 0,
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "session_id": {
+            "format": "uuid",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "session_id",
+          "rev",
+          "items"
+        ],
+        "title": "ForYouPage",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.ForYouPage",
+        "x-validate": null
+      },
+      "ProfileUpdate": {
+        "properties": {
+          "bio": {
+            "maxLength": 300,
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "display_name": {
+            "maxLength": 50,
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "title": "ProfileUpdate",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.ProfileUpdate",
         "x-validate": null
       },
       "VideoPayload": {
@@ -959,67 +1635,41 @@
         "x-struct": "Elixir.TSpecWeb.Schemas.VideoPayload",
         "x-validate": null
       },
-      "VideoUpload": {
-        "description": "The new item (status `processing`) and where to send the file: an HTTP `method` request to `url` with the file in multipart field `form_field`. The file goes straight to the video provider.",
+      "Author": {
         "properties": {
-          "content": {
-            "$ref": "#/components/schemas/ContentItem"
+          "avatar_url": {
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
           },
-          "upload": {
-            "properties": {
-              "form_field": {
-                "type": "string",
-                "x-struct": null,
-                "x-validate": null
-              },
-              "method": {
-                "enum": [
-                  "POST"
-                ],
-                "type": "string",
-                "x-struct": null,
-                "x-validate": null
-              },
-              "url": {
-                "type": "string",
-                "x-struct": null,
-                "x-validate": null
-              }
-            },
-            "required": [
-              "url",
-              "method",
-              "form_field"
-            ],
-            "type": "object",
+          "display_name": {
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "handle": {
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string",
             "x-struct": null,
             "x-validate": null
           }
         },
         "required": [
-          "content",
-          "upload"
+          "id",
+          "handle",
+          "display_name",
+          "avatar_url"
         ],
-        "title": "VideoUpload",
+        "title": "Author",
         "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.VideoUpload",
-        "x-validate": null
-      },
-      "VideoUploadRequest": {
-        "properties": {
-          "caption": {
-            "maxLength": 2200,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          },
-          "topics": {
-            "$ref": "#/components/schemas/CreatorTopics"
-          }
-        },
-        "title": "VideoUploadRequest",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.VideoUploadRequest",
+        "x-struct": "Elixir.TSpecWeb.Schemas.Author",
         "x-validate": null
       }
     },
@@ -1036,6 +1686,153 @@
   },
   "openapi": "3.0.0",
   "paths": {
+    "/api/algorithm/dashboard": {
+      "get": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TransparencyController.dashboard",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "enum": [
+                7,
+                30
+              ],
+              "type": "integer",
+              "x-struct": null,
+              "x-validate": null
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            },
+            "description": "Dashboard"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Algorithm Dashboard: topic mix and top drivers of what you were shown",
+        "tags": [
+          "transparency"
+        ]
+      }
+    },
+    "/api/algorithm/settings": {
+      "get": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TransparencyController.settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlgorithmSettings"
+                }
+              }
+            },
+            "description": "Settings"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Your algorithm controls",
+        "tags": [
+          "transparency"
+        ]
+      },
+      "put": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TransparencyController.update_settings",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsChange"
+              }
+            }
+          },
+          "description": "Changes",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlgorithmSettings"
+                }
+              }
+            },
+            "description": "Settings"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change algorithm controls (your open feeds re-rank live)",
+        "tags": [
+          "transparency"
+        ]
+      }
+    },
+    "/api/algorithm/settings/reset": {
+      "post": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TransparencyController.reset_settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlgorithmSettings"
+                }
+              }
+            },
+            "description": "Settings"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reset topic and source controls to the defaults",
+        "tags": [
+          "transparency"
+        ]
+      }
+    },
     "/api/auth/request": {
       "post": {
         "callbacks": {},
@@ -1611,6 +2408,56 @@
         ]
       }
     },
+    "/api/impressions/{id}": {
+      "get": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TransparencyController.explain",
+        "parameters": [
+          {
+            "description": "Impression id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Explanation"
+                }
+              }
+            },
+            "description": "Explanation"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Why am I seeing this? (the stored trace of one served item)",
+        "tags": [
+          "transparency"
+        ]
+      }
+    },
     "/api/me": {
       "get": {
         "callbacks": {},
@@ -1683,6 +2530,170 @@
         "summary": "Update profile fields",
         "tags": [
           "me"
+        ]
+      }
+    },
+    "/api/me/interests": {
+      "get": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TransparencyController.interests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Interests"
+                }
+              }
+            },
+            "description": "Interests"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "What the algorithm has learned about you",
+        "tags": [
+          "transparency"
+        ]
+      }
+    },
+    "/api/me/interests/creators/{id}": {
+      "delete": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TransparencyController.forget_creator_interest",
+        "parameters": [
+          {
+            "description": "Creator user id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Forgotten"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Forget a learned creator interest (following is unaffected)",
+        "tags": [
+          "transparency"
+        ]
+      }
+    },
+    "/api/me/interests/topics/{slug}": {
+      "delete": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TransparencyController.forget_interest",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Forgotten"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Forget a learned topic interest",
+        "tags": [
+          "transparency"
+        ]
+      }
+    },
+    "/api/me/interests/topics/{slug}/evidence": {
+      "get": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TransparencyController.interest_evidence",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterestEvidence"
+                }
+              }
+            },
+            "description": "Evidence"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The views a topic interest was learned from",
+        "tags": [
+          "transparency"
         ]
       }
     },
