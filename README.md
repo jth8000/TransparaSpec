@@ -56,3 +56,5 @@ Please report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
 
 [AGPL-3.0](LICENSE). If you run a modified version as a network service, you must offer its source to that service's users.
 
+Topics come from the [IAB Tech Lab Content Taxonomy](https://github.com/InteractiveAdvertisingBureau/Taxonomies) v3.1 (CC BY 3.0); see [NOTICE](NOTICE).
+

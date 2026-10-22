@@ -105,24 +105,6 @@
         "x-struct": "Elixir.TSpecWeb.Schemas.Author",
         "x-validate": null
       },
-      "CaptionUpdate": {
-        "properties": {
-          "caption": {
-            "maxLength": 2200,
-            "nullable": true,
-            "type": "string",
-            "x-struct": null,
-            "x-validate": null
-          }
-        },
-        "required": [
-          "caption"
-        ],
-        "title": "CaptionUpdate",
-        "type": "object",
-        "x-struct": "Elixir.TSpecWeb.Schemas.CaptionUpdate",
-        "x-validate": null
-      },
       "ConsentDocument": {
         "properties": {
           "kind": {
@@ -213,6 +195,14 @@
             "x-struct": null,
             "x-validate": null
           },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicLabel"
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
           "video": {
             "allOf": [
               {
@@ -233,11 +223,44 @@
           "created_at",
           "author",
           "video",
-          "text"
+          "text",
+          "topics"
         ],
         "title": "ContentItem",
         "type": "object",
         "x-struct": "Elixir.TSpecWeb.Schemas.ContentItem",
+        "x-validate": null
+      },
+      "ContentUpdate": {
+        "description": "Fields to change; omitted or null fields stay as they are. An empty\n`caption` (\"\") clears it. `topics` replaces the creator's topic labels\n(`[]` removes them).\n",
+        "properties": {
+          "caption": {
+            "maxLength": 2200,
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topics": {
+            "$ref": "#/components/schemas/CreatorTopics"
+          }
+        },
+        "title": "ContentUpdate",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.ContentUpdate",
+        "x-validate": null
+      },
+      "CreatorTopics": {
+        "description": "Topic slugs picked by the creator (see `GET /api/topics`), at most 3.",
+        "items": {
+          "type": "string",
+          "x-struct": null,
+          "x-validate": null
+        },
+        "maxItems": 3,
+        "title": "CreatorTopics",
+        "type": "array",
+        "x-struct": "Elixir.TSpecWeb.Schemas.CreatorTopics",
         "x-validate": null
       },
       "Error": {
@@ -651,6 +674,9 @@
             "type": "string",
             "x-struct": null,
             "x-validate": null
+          },
+          "topics": {
+            "$ref": "#/components/schemas/CreatorTopics"
           }
         },
         "required": [
@@ -659,6 +685,132 @@
         "title": "TextPostRequest",
         "type": "object",
         "x-struct": "Elixir.TSpecWeb.Schemas.TextPostRequest",
+        "x-validate": null
+      },
+      "Topic": {
+        "description": "A taxonomy topic (IAB Content Taxonomy 3.1, tiers 1–2).",
+        "properties": {
+          "name": {
+            "example": "Fitness and Exercise",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "parent": {
+            "description": "Parent slug (tier 2 only)",
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "slug": {
+            "example": "fitness-and-exercise",
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "tier": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "tier",
+          "parent"
+        ],
+        "title": "Topic",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.Topic",
+        "x-validate": null
+      },
+      "TopicLabel": {
+        "description": "A topic on a content item. `confidence` is the max over label sources;\n`sources` says who labeled it. A creator label has confidence 1.0 because\nit is a deliberate declaration, not because it is certainly right.\n",
+        "properties": {
+          "confidence": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "name": {
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "slug": {
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "sources": {
+            "items": {
+              "enum": [
+                "creator",
+                "model",
+                "moderator"
+              ],
+              "type": "string",
+              "x-struct": null,
+              "x-validate": null
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "tier": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "tier",
+          "confidence",
+          "sources"
+        ],
+        "title": "TopicLabel",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.TopicLabel",
+        "x-validate": null
+      },
+      "TopicList": {
+        "properties": {
+          "max_creator_topics": {
+            "description": "How many topics a creator may pick",
+            "type": "integer",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/Topic"
+            },
+            "type": "array",
+            "x-struct": null,
+            "x-validate": null
+          }
+        },
+        "required": [
+          "topics",
+          "max_creator_topics"
+        ],
+        "title": "TopicList",
+        "type": "object",
+        "x-struct": "Elixir.TSpecWeb.Schemas.TopicList",
         "x-validate": null
       },
       "VideoPayload": {
@@ -768,6 +920,9 @@
             "type": "string",
             "x-struct": null,
             "x-validate": null
+          },
+          "topics": {
+            "$ref": "#/components/schemas/CreatorTopics"
           }
         },
         "title": "VideoUploadRequest",
@@ -1047,11 +1202,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CaptionUpdate"
+                "$ref": "#/components/schemas/ContentUpdate"
               }
             }
           },
-          "description": "Caption",
+          "description": "Changes",
           "required": false
         },
         "responses": {
@@ -1084,6 +1239,16 @@
               }
             },
             "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid"
           }
         },
         "security": [
@@ -1091,7 +1256,7 @@
             "bearer": []
           }
         ],
-        "summary": "Edit a caption",
+        "summary": "Edit a caption and/or creator topics",
         "tags": [
           "content"
         ]
@@ -1481,6 +1646,29 @@
         "summary": "Create a text post",
         "tags": [
           "content"
+        ]
+      }
+    },
+    "/api/topics": {
+      "get": {
+        "callbacks": {},
+        "operationId": "TSpecWeb.TopicController.index",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicList"
+                }
+              }
+            },
+            "description": "Topics, tier 1 first"
+          }
+        },
+        "summary": "The topic taxonomy (IAB Content Taxonomy 3.1, tiers 1–2)",
+        "tags": [
+          "topics"
         ]
       }
     },

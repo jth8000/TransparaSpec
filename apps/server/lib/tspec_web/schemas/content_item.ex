@@ -15,8 +15,20 @@ defmodule TSpecWeb.Schemas.ContentItem do
       created_at: %Schema{type: :string, format: :"date-time"},
       author: TSpecWeb.Schemas.Author,
       video: %Schema{allOf: [TSpecWeb.Schemas.VideoPayload], nullable: true},
-      text: %Schema{allOf: [TSpecWeb.Schemas.TextPayload], nullable: true}
+      text: %Schema{allOf: [TSpecWeb.Schemas.TextPayload], nullable: true},
+      topics: %Schema{type: :array, items: TSpecWeb.Schemas.TopicLabel}
     },
-    required: [:id, :kind, :status, :caption, :published_at, :created_at, :author, :video, :text]
+    required: [
+      :id,
+      :kind,
+      :status,
+      :caption,
+      :published_at,
+      :created_at,
+      :author,
+      :video,
+      :text,
+      :topics
+    ]
   })
 end

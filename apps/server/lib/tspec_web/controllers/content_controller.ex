@@ -65,20 +65,22 @@ defmodule TSpecWeb.ContentController do
   end
 
   operation :update,
-    summary: "Edit a caption",
+    summary: "Edit a caption and/or creator topics",
     parameters: @id_param,
     security: [%{"bearer" => []}],
-    request_body: {"Caption", "application/json", Schemas.CaptionUpdate},
+    request_body: {"Changes", "application/json", Schemas.ContentUpdate},
     responses: [
       ok: {"Item", "application/json", Schemas.ContentItem},
       forbidden: {"Not yours", "application/json", Schemas.Error},
-      not_found: {"Not found", "application/json", Schemas.Error}
+      not_found: {"Not found", "application/json", Schemas.Error},
+      unprocessable_entity: {"Invalid", "application/json", Schemas.Error}
     ]
 
   def update(conn, %{id: id}) do
-    attrs = %{caption: conn.body_params.caption}
+    # Omitted (or null) fields stay unchanged; `caption: ""` clears it.
+    attrs = compact(conn.body_params)
 
-    with {:ok, item} <- Content.update_caption(conn.assigns.current_scope, id, attrs) do
+    with {:ok, item} <- Content.update_item(conn.assigns.current_scope, id, attrs) do
       json(conn, ContentJSON.item(item))
     end
   end

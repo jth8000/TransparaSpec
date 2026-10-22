@@ -47,6 +47,7 @@ defmodule TSpecWeb.Router do
     post "/auth/request", AuthController, :request
     post "/auth/verify", AuthController, :verify
     get "/consent/current", ConsentController, :show
+    get "/topics", TopicController, :index
     get "/users/:handle", UserController, :show
     get "/content/:id", ContentController, :show
     get "/feed/latest", FeedController, :latest

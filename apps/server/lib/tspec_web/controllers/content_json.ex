@@ -14,8 +14,28 @@ defmodule TSpecWeb.ContentJSON do
       created_at: item.inserted_at,
       author: author(item.author),
       video: video(item.short_video, item.status),
-      text: text(item.text_post)
+      text: text(item.text_post),
+      topics: topics(item.content_topics)
     }
+  end
+
+  @doc """
+  One entry per topic: its effective confidence (max over label sources) and
+  which sources labeled it. Highest confidence first, then by name.
+  """
+  def topics(content_topics) do
+    content_topics
+    |> Enum.group_by(& &1.topic_id)
+    |> Enum.map(fn {_id, [%{topic: topic} | _] = labels} ->
+      %{
+        slug: topic.slug,
+        name: topic.name,
+        tier: topic.tier,
+        confidence: labels |> Enum.map(& &1.confidence) |> Enum.max(),
+        sources: labels |> Enum.map(& &1.source) |> Enum.sort()
+      }
+    end)
+    |> Enum.sort_by(&{-&1.confidence, &1.name})
   end
 
   defp author(user) do

@@ -90,7 +90,7 @@ export interface paths {
         delete: operations["TSpecWeb.ContentController.delete"];
         options?: never;
         head?: never;
-        /** Edit a caption */
+        /** Edit a caption and/or creator topics */
         patch: operations["TSpecWeb.ContentController.update"];
         trace?: never;
     };
@@ -217,6 +217,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The topic taxonomy (IAB Content Taxonomy 3.1, tiers 1–2) */
+        get: operations["TSpecWeb.TopicController.index"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users/{handle}": {
         parameters: {
             query?: never;
@@ -307,10 +324,6 @@ export interface components {
             /** Format: uuid */
             id: string;
         };
-        /** CaptionUpdate */
-        CaptionUpdate: {
-            caption: string | null;
-        };
         /** ConsentDocument */
         ConsentDocument: {
             kind: string;
@@ -336,8 +349,24 @@ export interface components {
             /** @enum {string} */
             status: "processing" | "ready" | "failed" | "removed";
             text: components["schemas"]["TextPayload"] | null;
+            topics: components["schemas"]["TopicLabel"][];
             video: components["schemas"]["VideoPayload"] | null;
         };
+        /**
+         * ContentUpdate
+         * @description Fields to change; omitted or null fields stay as they are. An empty
+         *     `caption` ("") clears it. `topics` replaces the creator's topic labels
+         *     (`[]` removes them).
+         */
+        ContentUpdate: {
+            caption?: string | null;
+            topics?: components["schemas"]["CreatorTopics"];
+        };
+        /**
+         * CreatorTopics
+         * @description Topic slugs picked by the creator (see `GET /api/topics`), at most 3.
+         */
+        CreatorTopics: string[];
         /**
          * Error
          * @description Error response. `fields` maps a field name to its validation messages.
@@ -441,6 +470,41 @@ export interface components {
         TextPostRequest: {
             body: string;
             caption?: string;
+            topics?: components["schemas"]["CreatorTopics"];
+        };
+        /**
+         * Topic
+         * @description A taxonomy topic (IAB Content Taxonomy 3.1, tiers 1–2).
+         */
+        Topic: {
+            /** @example Fitness and Exercise */
+            name: string;
+            /** @description Parent slug (tier 2 only) */
+            parent: string | null;
+            /** @example fitness-and-exercise */
+            slug: string;
+            /** @enum {integer} */
+            tier: 1 | 2;
+        };
+        /**
+         * TopicLabel
+         * @description A topic on a content item. `confidence` is the max over label sources;
+         *     `sources` says who labeled it. A creator label has confidence 1.0 because
+         *     it is a deliberate declaration, not because it is certainly right.
+         */
+        TopicLabel: {
+            confidence: number;
+            name: string;
+            slug: string;
+            sources: ("creator" | "model" | "moderator")[];
+            /** @enum {integer} */
+            tier: 1 | 2;
+        };
+        /** TopicList */
+        TopicList: {
+            /** @description How many topics a creator may pick */
+            max_creator_topics: number;
+            topics: components["schemas"]["Topic"][];
         };
         /**
          * VideoPayload
@@ -471,6 +535,7 @@ export interface components {
         /** VideoUploadRequest */
         VideoUploadRequest: {
             caption?: string;
+            topics?: components["schemas"]["CreatorTopics"];
         };
     };
     responses: never;
@@ -677,10 +742,10 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description Caption */
+        /** @description Changes */
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["CaptionUpdate"];
+                "application/json": components["schemas"]["ContentUpdate"];
             };
         };
         responses: {
@@ -704,6 +769,15 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -969,6 +1043,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.TopicController.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Topics, tier 1 first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicList"];
                 };
             };
         };

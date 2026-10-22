@@ -28,6 +28,7 @@ const base: Schemas['ContentItem'] = {
   published_at: '2026-10-20T12:00:00Z',
   created_at: '2026-10-20T12:00:00Z',
   author: { id: 'a', handle: 'alice', display_name: null, avatar_url: null },
+  topics: [],
   video: null,
   text: { body: 'Hello T-Spec' },
 };
