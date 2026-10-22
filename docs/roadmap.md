@@ -14,18 +14,36 @@ Each phase ends with a working, demoable system. Phases are sized for a two-pers
 - **Not yet done** (carried forward):
   - iOS has never been run. It needs an Apple Developer account and a device or Mac. Phase 2, before beta.
   - Cloudflare Stream is only stub-tested. A live check needs an account (`VIDEO_PROVIDER=cloudflare` + `CF_*`).
-  - CI is written but has never run. There's no git remote yet.
+  - ~~CI is written but has never run.~~ CI first ran green on GitHub on 2026-10-21 (all four jobs).
 
 ## Phase 1: Transparent ranking
-- Topic taxonomy (IAB-seeded) and creator topic selection.
-- Python ML service: transcript, embeddings, topic classification, moderation scores, called via Oban.
-- Interest model: topic affinities with decay, plus an evidence view.
-- Candidate sources: following, topic, trending, explore, and co-engagement (SQL v1).
-- Explainable ranker with contribution traces; `impressions` logging; property tests.
+Split into two parts. 1a uses creator-picked topics and must meet the "done when" test on its own. 1b adds model topics through the same `content_topics` table.
+
+### 1a: Ranker, explanations and live controls
+- Topic taxonomy: IAB Content Taxonomy tiers 1–2, plus creator topic selection (up to 3).
+- Interest model ([ADR 0012](adr/0012-interest-model-and-controls.md)):
+  - per-view deltas;
+  - decay;
+  - exactly-once application;
+  - an evidence view.
+- Candidate sources (SQL v1): following, topic, trending, explore, co-engagement, fresh.
+- Explainable ranker with contribution traces; `impressions` logging (served vs exposed); property tests.
+- Per-feed-session `Feed.Session` processes; live re-rank and refill over Channels ([ADR 0011](adr/0011-feed-sessions-and-live-rerank.md)).
+- Topic sliders (preference + affinity), hard-off toggles, source weights, a non-personalized mode.
 - "Why am I seeing this?" sheet; Algorithm Dashboard.
-- Per-user `Feed` process; weight sliders and hard-off toggles; live re-rank over Channels.
-- Non-personalized feed toggle.
 - **Done when:** turning off "fitness" visibly re-ranks the feed within a second, and every item's explanation matches its stored trace.
+
+### 1b: Content understanding (Python ML service)
+- `services/ml` (FastAPI), called from Oban jobs (ADR 0003). The default pipeline is multimodal:
+  - a Whisper transcript;
+  - CLIP/SigLIP embeddings of about 8 frames;
+  - caption text;
+  - zero-shot scoring against the taxonomy.
+
+  Frames matter because many short videos have no speech or caption.
+- Writes `content_topics` with `source = model`, and adds `content_embeddings` (pgvector) and moderation scores (scores only, never approve/reject).
+- Hard-off coverage widens to model labels, with the same meaning.
+- An optional LLM pass over the caption and transcript, behind the same output contract, if accuracy needs it.
 
 ## Phase 2: Social and safety → private beta
 - Passkeys and Sign in with Apple / Google (deferred from Phase 0); first iOS build and run.

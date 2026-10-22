@@ -12,15 +12,17 @@ Undecided items. When one is resolved, record the answer here and write an ADR i
 - [ ] **Subscriber-count bucket threshold** in creator analytics (default: show "fewer than 10").
 - [ ] **Qualified watch time rules**: minimum seconds per view, cap per subscriber–creator pair (to blunt loop-watching), and bot-session heuristics.
 - [ ] **Refund window** (default 30 days), **click window** (default 7 days), and **minimum payout balance**.
-- [ ] **Topic taxonomy granularity**: how many top-level topics the controls UI shows, and how deep the sliders go.
-- [ ] **Hard-off semantics**: does turning a topic off hide items that are *partially* about it (e.g. confidence > 0.5) or only items where it's the primary topic?
+- [x] ~~**Topic taxonomy granularity**~~ IAB Content Taxonomy tiers 1 + 2. The controls show tier 1, and each expands to tier 2. A tier-2 slider overrides its parent's ([ADR 0012](adr/0012-interest-model-and-controls.md)).
+- [x] ~~**Hard-off semantics**~~ Hides items labeled with the topic or a descendant at confidence ≥ 0.5. In Phase 1a labels come from creators only, so the guarantee is "nothing *labeled* X", and the UI says so ([ADR 0012](adr/0012-interest-model-and-controls.md)).
+- [ ] **Affinity weight calibration**: the per-view deltas (completed +1.0, early skip −0.5, partial +0.8 × fraction), the 14-day half-life and the `tanh(s/3)` squash are hand-tuned guesses. Calibrate them from beta data.
+- [ ] **Default ranker weights**: the v1 feature weights in `Feed.Ranker.Defaults` are hand-tuned. Revisit them once there's engagement data (ranker v2 learns them).
 - [x] ~~**Creator side**: do creators get a revenue share?~~ Yes: per-subscriber subscription split, a share of all ad revenue, tap-only attribution ([ADR 0009](adr/0009-creator-monetization.md)).
 - [ ] **Beta invite mechanics**: waitlist, invite codes, or both?
 
 ## Technical
 - [x] ~~**Video provider pick**~~ Cloudflare Stream is implemented (Phase 0). Mux remains a drop-in alternative behind `Video.Provider`. A live check is still pending an account.
 - [ ] **Topic classification approach**: zero-shot embeddings alone, or plus an LLM pass over caption + transcript? Weigh cost per upload against accuracy.
-- [ ] **Impression retention**: how long to keep raw rows before aggregating them? Must cover any attribution and audit window.
+- [ ] **Impression retention**: how long to keep raw *exposed* impressions before aggregating them? It must cover any attribution and audit window. Served-but-never-exposed impressions are pruned after 30 days ([ADR 0011](adr/0011-feed-sessions-and-live-rerank.md)).
 - [ ] **Postgres host** with pgvector: Fly managed Postgres, Neon, or Supabase.
 - [ ] **Web sessions**: Phase 0 uses bearer tokens everywhere, with web storing the token in localStorage. Before beta, decide whether web moves to an httpOnly cookie session (XSS exposure vs. one auth path).
 - [ ] **Sign-in abuse**: per-IP/email rate limits on `/api/auth/request` and verify. Phase 0 only limits attempts per code.

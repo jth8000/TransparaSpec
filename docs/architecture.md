@@ -11,7 +11,7 @@ Expo clients (iOS / Android / Web)            ── one TypeScript codebase (AD
 Elixir / Phoenix core                          ── monolith, Phoenix contexts (ADR 0002)
   │  Accounts · Content · Social · Feed/Ranking · Transparency · Moderation · Ledger · Billing
   │  Oban (Postgres-backed durable jobs)
-  │  per-active-user Feed process (Registry + DynamicSupervisor)
+  │  per-feed-session Feed process (Registry + DynamicSupervisor, ADR 0011)
   │
   ├── Postgres + pgvector     relational data, events, impressions, ledger, Oban jobs
   ├── VideoProvider           Cloudflare Stream or Mux: direct upload, HLS, webhooks (ADR 0005)
@@ -30,7 +30,7 @@ Elixir / Phoenix core                          ── monolith, Phoenix contexts
 - **Expo + Expo Router**: file-based routes shared by native and web.
 - **Video**: `expo-video` (HLS) for playback; a feed list with preload and recycling for vertical swipe.
 - **Data**: TanStack Query on top of a typed client generated from the server's OpenAPI spec (`packages/api-schema`, via `openapi-typescript` + `openapi-fetch`).
-- **Real time**: the `phoenix` npm client joins `feed:<user_id>` and `notifications:<user_id>` channels.
+- **Real time**: the `phoenix` npm client joins `feed_session:<session_id>` (live re-rank, ADR 0011), `user:<user_id>` (upload status) and later `notifications:<user_id>` channels.
 - **Auth storage**: bearer token in `expo-secure-store` on native; httpOnly cookie session on web.
 - **Video uploads**: the client asks the server for a one-time direct-upload URL and uploads straight to the provider. Video bytes never pass through Phoenix.
 
@@ -136,10 +136,13 @@ Comments and replies are `content_items` with `parent_id` set and `root_id` poin
 5. **Impression logging.** Each item served is written to `impressions` along with its contributions, the `ranker_version` and a pointer to a snapshot of the user's settings.
 
 ### Live control
-Each active user gets a lightweight `Feed` process (started on demand, shut down when idle) that caches ~500 scored candidates and their raw feature values. When the user changes a weight, the process re-scores the cache (multiply and sum, which takes microseconds), re-sorts it and pushes the new page over `feed:<user_id>`. Nothing has to be re-fetched from the database.
+Each open For You feed gets a lightweight `Feed.Session` process: one per client feed, not per user, so a phone and a browser rank independently. It starts on demand and shuts down when idle, and caches about 500 scored candidates and their raw feature values.
+
+When the user changes a weight, every one of their sessions re-scores its cache (multiply and sum, which takes microseconds), replaces the items after the client's current position, and pushes them over `feed_session:<session_id>`. A background refill fetches more candidates when filters drain the cache or a boosted topic is missing. The process is only a cache, and what's been seen comes from `impressions`. The protocol, the revision and settings-version counters, and the handling of stale refills are in [ADR 0011](adr/0011-feed-sessions-and-live-rerank.md).
 
 ### Interest model
-- `user_topic_affinity.score` is updated from engagement events with weights (complete > rewatch > like > view; skip and not-interested are negative) and exponential time decay.
+- Affinities learn from **views** (one playback episode, `view_id`), not raw events. Each view has one target delta: completed +1.0, early skip −0.5, otherwise +0.8 × fraction watched. That delta is applied exactly once to the topics snapshotted when the view started, with a 14-day half-life decay. See [ADR 0012](adr/0012-interest-model-and-controls.md).
+- Topic sliders add an explicit `topic_preference` contribution as well as scaling the learned affinity, and are monotonic by construction. Non-personalized mode turns off every inferred signal (ADR 0012).
 - Users can see the evidence count and recent contributing events for each affinity, and edit or delete it.
 
 ### Evolution
