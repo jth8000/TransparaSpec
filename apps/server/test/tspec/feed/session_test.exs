@@ -214,6 +214,36 @@ defmodule TSpec.Feed.SessionTest do
     assert Session.state(pid2).settings.version == 1
   end
 
+  test "a refill that finishes instantly isn't mistaken for a crash", %{
+    scope: scope,
+    items: items
+  } do
+    # Refills that return at once (here: a canned, non-empty list) can finish
+    # before the session would get to monitor them. That must not look like
+    # a failure and trigger the 60 s back-off.
+    canned =
+      Candidates.gather(
+        scope.user.id,
+        %Settings{},
+        TSpec.Feed.Ranking.features(scope.user.id, %Settings{})
+      )
+
+    for round <- 1..30 do
+      extra = Enum.at(canned, 3 + round)
+
+      gather = fn _user_id, _settings, _features, opts ->
+        if opts[:refill], do: [extra], else: Enum.take(canned, 3)
+      end
+
+      {_sid, pid} = start!(scope, gather: gather)
+      {:ok, _} = Session.next_page(pid, 1)
+      settle(pid)
+      _ = Session.state(pid)
+      assert Session.state(pid).empty_refill_at == nil, "round #{round}: spurious back-off"
+      GenServer.stop(pid)
+    end
+  end
+
   test "a refill task that crashes doesn't stall future refills", %{scope: scope} do
     test = self()
     {:ok, attempts} = Agent.start_link(fn -> 0 end)

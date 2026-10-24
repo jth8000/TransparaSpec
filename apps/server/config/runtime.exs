@@ -99,6 +99,17 @@ if config_env() == :prod do
 
   config :tspec, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # Feed sessions have one owner per cluster via :global (ADR 0011), which
+  # only spans nodes that are actually connected. Without clustering, run a
+  # single machine, or two machines may each own the same feed session.
+  unless System.get_env("DNS_CLUSTER_QUERY") do
+    IO.puts(
+      :stderr,
+      "warning: DNS_CLUSTER_QUERY is not set; nodes won't cluster. Run one machine, " <>
+        "or set it (e.g. <app>.internal on Fly) so feed sessions have a single owner."
+    )
+  end
+
   config :tspec, TSpecWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [

@@ -62,7 +62,7 @@ Split into two parts. 1a uses creator-picked topics and must meet the "done when
 - CSAM hash matching + NCMEC reporting process; DMCA agent and flow.
 - Data export and account deletion.
 - ToS and privacy policy; beta invite system; basic admin tools.
-- Fly.io production deploy, backups, monitoring.
+- Fly.io production deploy, backups, monitoring. Set `DNS_CLUSTER_QUERY` so nodes cluster (feed sessions rely on `:global`, ADR 0011), and verify on two machines that a feed session keeps one owner.
 - **Done when:** invite-only US beta is live.
 
 ## Phase 3: Monetization (creators first)

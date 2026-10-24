@@ -124,7 +124,7 @@ Events are still recorded. What a view may be used for is decided per view:
 
 Fabricated engagement from many accounts (sybils) and rate limits on events are Phase 2 work (see open questions).
 
-The Algorithm tab's description of non-personalized mode says exactly this: what you watch isn't used to learn about you or to recommend anything to anyone, and it only counts in anonymous totals like trending and completion rates.
+The Algorithm tab describes non-personalized mode as exactly this: what you watch doesn't build your interest profile or feed "people like you" recommendations, but it still counts toward anonymous totals like trending and completion rates, which shape what everyone sees.
 
 ### Creator signals are split
 - `creator_affinity` is inferred from behavior.

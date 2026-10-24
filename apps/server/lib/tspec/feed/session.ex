@@ -288,47 +288,24 @@ defmodule TSpec.Feed.Session do
 
   def handle_info({:settings_changed, _stale}, state), do: {:noreply, state, @idle_ms}
 
-  # A refill for the settings still in force: merge, and push if the tail
-  # changed. It's no longer in flight, so pages may trigger the next one.
-  def handle_info({:refill, version, candidates}, %{settings: %{version: version}} = state) do
-    new = Enum.reject(candidates, &Map.has_key?(state.cache, &1.content_id))
-
-    state = %{
-      state
-      | cache: Map.merge(state.cache, Map.new(new, &{&1.content_id, &1})),
-        refilling: nil,
-        empty_refill_at: if(new == [], do: System.monotonic_time(:millisecond))
-    }
-
-    # Push only if the refill brought something new that would change the
-    # client's tail — re-ranked, or topped up to a full page when filters
-    # left it short.
-    tail_ids = Enum.map(tail(state), & &1.content_id)
-    kept = Enum.take(state.served, kept_count(state))
-
-    would_be =
-      %{state | served: kept}
-      |> next_items(max(length(tail_ids), @page_size))
-      |> Enum.map(& &1.content_id)
-
-    state = if new != [] and would_be != tail_ids, do: rerank_tail(state), else: state
-    {:noreply, state, @idle_ms}
+  # A refill task's reply (async_nolink). Its monitor is dropped with any
+  # pending DOWN, so only a task that crashed ever produces one.
+  def handle_info({ref, {:refill, version, candidates}}, state) when is_reference(ref) do
+    Process.demonitor(ref, [:flush])
+    state = if ref == state.refill_ref, do: %{state | refill_ref: nil}, else: state
+    {:noreply, apply_refill(state, version, candidates), @idle_ms}
   end
 
-  # A refill started under older settings: discard it. (The settings change
-  # that made it stale started its own refill if one was needed.)
-  def handle_info({:refill, _stale_version, _candidates}, state), do: {:noreply, state, @idle_ms}
-
-  # A refill task that finished normally already reported (its message
-  # arrives before its exit). One that died didn't: stop waiting for it and
-  # back off before retrying.
-  def handle_info({:DOWN, ref, :process, _pid, reason}, %{refill_ref: ref} = state) do
-    state = %{state | refill_ref: nil}
-
-    state =
-      if reason == :normal,
-        do: state,
-        else: %{state | refilling: nil, empty_refill_at: System.monotonic_time(:millisecond)}
+  # The current refill task died without replying (a database timeout, a
+  # crash): stop waiting for it and back off before retrying. A crash of an
+  # older task (its ref no longer current) changes nothing.
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, %{refill_ref: ref} = state) do
+    state = %{
+      state
+      | refill_ref: nil,
+        refilling: nil,
+        empty_refill_at: System.monotonic_time(:millisecond)
+    }
 
     {:noreply, state, @idle_ms}
   end
@@ -450,6 +427,36 @@ defmodule TSpec.Feed.Session do
     {pairs, %{state | served: state.served ++ served}}
   end
 
+  # A refill for the settings still in force: merge, and push if the tail
+  # changed. It's no longer in flight, so pages may trigger the next one.
+  # One started under older settings is discarded (the settings change that
+  # made it stale started its own refill if one was needed).
+  defp apply_refill(%{settings: %{version: version}} = state, version, candidates) do
+    new = Enum.reject(candidates, &Map.has_key?(state.cache, &1.content_id))
+
+    state = %{
+      state
+      | cache: Map.merge(state.cache, Map.new(new, &{&1.content_id, &1})),
+        refilling: nil,
+        empty_refill_at: if(new == [], do: System.monotonic_time(:millisecond))
+    }
+
+    # Push only if the refill brought something new that would change the
+    # client's tail — re-ranked, or topped up to a full page when filters
+    # left it short.
+    tail_ids = Enum.map(tail(state), & &1.content_id)
+    kept = Enum.take(state.served, kept_count(state))
+
+    would_be =
+      %{state | served: kept}
+      |> next_items(max(length(tail_ids), @page_size))
+      |> Enum.map(& &1.content_id)
+
+    if new != [] and would_be != tail_ids, do: rerank_tail(state), else: state
+  end
+
+  defp apply_refill(state, _stale_version, _candidates), do: state
+
   ## Refill
 
   # Refills run in the background, tagged with the settings version they
@@ -502,16 +509,15 @@ defmodule TSpec.Feed.Session do
     end)
   end
 
-  # The task is monitored: if it dies before reporting (a database timeout,
-  # a crash), the session clears `refilling` and backs off instead of
-  # waiting forever.
+  # Started with async_nolink, which monitors the task as it starts it: a
+  # task that finishes instantly can't be mistaken for one that crashed, and
+  # one that dies before replying is noticed (see the DOWN handler).
   defp start_refill(state, topic_slugs) do
     %{scope: scope, settings: settings, features: features, gather: gather} = state
-    pid = self()
     exclude = Map.keys(state.cache)
 
-    {:ok, task} =
-      Task.Supervisor.start_child(TSpec.TaskSupervisor, fn ->
+    task =
+      Task.Supervisor.async_nolink(TSpec.TaskSupervisor, fn ->
         candidates =
           gather.(scope.user.id, settings, features,
             exclude: exclude,
@@ -519,9 +525,9 @@ defmodule TSpec.Feed.Session do
             refill: true
           )
 
-        send(pid, {:refill, settings.version, candidates})
+        {:refill, settings.version, candidates}
       end)
 
-    %{state | refilling: settings.version, refill_ref: Process.monitor(task)}
+    %{state | refilling: settings.version, refill_ref: task.ref}
   end
 end

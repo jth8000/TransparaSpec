@@ -1,7 +1,7 @@
 # ADR 0011: Feed sessions and live re-rank
 
 - **Status:** Accepted
-- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: cluster-wide ownership, rebuild on start, client keeps the on-screen item, pruning, position reports by impression id, re-rank on start after missed settings, monitored refills)
+- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: cluster-wide ownership, rebuild on start, client keeps the on-screen item, pruning, position reports by impression id, re-rank on start after missed settings, monitored refills via async_nolink, clustering requirement)
 
 ## Context
 Changing a control must re-rank the feed **live**: the re-ranked feed should be pushed over WebSocket within 500 ms (requirements), and Phase 1's "done when" allows 1 s. Rebuilding every candidate source from SQL on each slider move is too slow and wasteful. The architecture therefore calls for a per-user `Feed` process that caches scored candidates and re-scores them in memory.
@@ -83,6 +83,7 @@ Joining sends `{rev}` (the revision the client holds); see "The process is a cac
 - Multiple devices work independently, while sharing one set of preferences.
 - A process crash, idle timeout or deploy costs a cache rebuild from Postgres, never correctness.
 - A session's calls may cross nodes to reach its owner (one extra hop at most).
+- **Deployment requirement:** `:global` only spans nodes that are connected. In production that means `DNS_CLUSTER_QUERY` must be set (on Fly, `<app>.internal`), or the app must run on one machine. The server warns at boot when it's unset. The two-node behavior is covered by `session_cluster_test.exs` locally and in CI; a live multi-machine check belongs to the Phase 2 deploy.
 - Per-session processes use more memory than per-user ones. At about 500 candidates per session, that's acceptable at beta scale.
 - The client has to track `rev` and its position, which adds a little protocol complexity in exchange for never interrupting the current video.
 
