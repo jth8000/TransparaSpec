@@ -215,6 +215,28 @@ defmodule TSpec.Feed.RankingTest do
     end
   end
 
+  test "a forgotten sub-topic gets no learned credit, not even half its parent's",
+       %{viewer: viewer, scope: scope} do
+    creator = onboarded_user_fixture()
+    watch!(scope, ready_video_fixture(creator, topics: ["fitness-and-exercise"]))
+    fitness = text_post_fixture(onboarded_user_fixture(), topics: ["fitness-and-exercise"])
+
+    learned = fn ->
+      Ranking.rank(viewer.id, %Settings{})
+      |> Enum.find(&(&1.content_id == fitness.id))
+      |> Map.fetch!(:contributions)
+      |> Enum.filter(&(&1.feature == "topic_affinity"))
+    end
+
+    assert [%{topic: "fitness-and-exercise"}] = learned.()
+
+    # Forget fitness; its parent (healthy living) keeps its learned interest.
+    :ok = Transparency.forget_interest(scope, "fitness-and-exercise")
+    healthy = Content.topics_by_slug()["healthy-living"].id
+    assert Map.has_key?(Interests.topic_affinities(viewer.id), healthy)
+    assert learned.() == []
+  end
+
   describe "impressions" do
     defp serve!(scope, scored, settings \\ %Settings{version: 3}) do
       {:ok, served} =

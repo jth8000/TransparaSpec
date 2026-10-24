@@ -59,7 +59,13 @@ defmodule TSpec.Feed.Session do
     position: -1,
     rev: 0,
     refilling: nil,
-    empty_refill_at: nil
+    refill_ref: nil,
+    empty_refill_at: nil,
+    # The settings version the client's list was last ranked under.
+    served_settings_version: nil,
+    # Content the client kept on screen after the session re-ranked it away
+    # (the client never drops its current item); never served again.
+    client_kept: MapSet.new()
   ]
 
   ## API
@@ -161,8 +167,17 @@ defmodule TSpec.Feed.Session do
     features = Ranking.features(state.scope.user.id, state.settings)
     candidates = state.gather.(state.scope.user.id, state.settings, features, [])
 
-    {:noreply, %{state | features: features, cache: Map.new(candidates, &{&1.content_id, &1})},
-     @idle_ms}
+    state = %{state | features: features, cache: Map.new(candidates, &{&1.content_id, &1})}
+
+    # Settings changed while no process was listening (it had idled out, or
+    # the change came from the Algorithm tab): the client's list was ranked
+    # under older settings, so re-rank its tail now.
+    state =
+      if state.served != [] and state.served_settings_version < state.settings.version,
+        do: rerank_tail(state),
+        else: state
+
+    {:noreply, state, @idle_ms}
   end
 
   # Restores what the client holds from this session's impressions: replay
@@ -183,7 +198,8 @@ defmodule TSpec.Feed.Session do
           content_id: i.content_id,
           author_id: c.author_id,
           rev: i.rev,
-          position: i.position
+          position: i.position,
+          settings_version: i.settings_version
         }
       )
       |> Repo.all()
@@ -207,7 +223,13 @@ defmodule TSpec.Feed.Session do
         |> Enum.map(&elem(&1, 1))
         |> Enum.max(fn -> -1 end)
 
-      %{state | served: served, rev: rows |> Enum.map(& &1.rev) |> Enum.max(), position: position}
+      %{
+        state
+        | served: served,
+          rev: rows |> Enum.map(& &1.rev) |> Enum.max(),
+          position: position,
+          served_settings_version: rows |> Enum.map(& &1.settings_version) |> Enum.max()
+      }
     end
   end
 
@@ -297,6 +319,22 @@ defmodule TSpec.Feed.Session do
   # that made it stale started its own refill if one was needed.)
   def handle_info({:refill, _stale_version, _candidates}, state), do: {:noreply, state, @idle_ms}
 
+  # A refill task that finished normally already reported (its message
+  # arrives before its exit). One that died didn't: stop waiting for it and
+  # back off before retrying.
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %{refill_ref: ref} = state) do
+    state = %{state | refill_ref: nil}
+
+    state =
+      if reason == :normal,
+        do: state,
+        else: %{state | refilling: nil, empty_refill_at: System.monotonic_time(:millisecond)}
+
+    {:noreply, state, @idle_ms}
+  end
+
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state), do: {:noreply, state, @idle_ms}
+
   ## Calls
 
   @impl true
@@ -308,28 +346,49 @@ defmodule TSpec.Feed.Session do
   end
 
   @impl true
-  def handle_cast({:at, impression_id, rev}, state) when rev >= state.rev do
-    state = %{state | rev: rev}
+  # Impression ids are unique, so a position report is valid whatever rev
+  # it carries (channel messages arrive in order). A higher rev is adopted.
+  # An impression the session no longer lists is one the client kept on
+  # screen through a re-rank: remember its content so it isn't served again.
+  def handle_cast({:at, impression_id, rev}, state) do
+    state = %{state | rev: max(state.rev, rev)}
 
     case Enum.find_index(state.served, &(&1.impression_id == impression_id)) do
-      nil -> {:noreply, state, @idle_ms}
+      nil -> {:noreply, remember_kept(state, impression_id), @idle_ms}
       index -> {:noreply, %{state | position: index}, @idle_ms}
     end
   end
-
-  def handle_cast({:at, _impression_id, _stale_rev}, state), do: {:noreply, state, @idle_ms}
 
   def handle_cast({:sync_rev, rev}, state) when is_integer(rev) and rev > state.rev,
     do: {:noreply, %{state | rev: rev}, @idle_ms}
 
   def handle_cast({:sync_rev, _rev}, state), do: {:noreply, state, @idle_ms}
 
+  defp remember_kept(%{scope: %{user: %{id: user_id}}, id: session_id} = state, impression_id) do
+    with {:ok, id} <- Ecto.UUID.cast(impression_id),
+         %{content_id: content_id} <-
+           Repo.one(
+             from i in Impression,
+               where:
+                 i.id == ^id and i.served_at == ^Impression.served_at_for(id) and
+                   i.user_id == ^user_id and i.feed_session_id == ^session_id,
+               select: %{content_id: i.content_id}
+           ) do
+      %{state | client_kept: MapSet.put(state.client_kept, content_id)}
+    else
+      _ -> state
+    end
+  rescue
+    # Not a UUIDv7: not one of ours.
+    _ -> state
+  end
+
   ## Ranking
 
   # The best `limit` unserved candidates, with diversity continuing from
   # what's already been served.
   defp next_items(state, limit) do
-    served_ids = MapSet.new(state.served, & &1.content_id)
+    served_ids = state.served |> MapSet.new(& &1.content_id) |> MapSet.union(state.client_kept)
 
     state.cache
     |> Map.values()
@@ -443,12 +502,15 @@ defmodule TSpec.Feed.Session do
     end)
   end
 
+  # The task is monitored: if it dies before reporting (a database timeout,
+  # a crash), the session clears `refilling` and backs off instead of
+  # waiting forever.
   defp start_refill(state, topic_slugs) do
     %{scope: scope, settings: settings, features: features, gather: gather} = state
     pid = self()
     exclude = Map.keys(state.cache)
 
-    {:ok, _} =
+    {:ok, task} =
       Task.Supervisor.start_child(TSpec.TaskSupervisor, fn ->
         candidates =
           gather.(scope.user.id, settings, features,
@@ -460,6 +522,6 @@ defmodule TSpec.Feed.Session do
         send(pid, {:refill, settings.version, candidates})
       end)
 
-    %{state | refilling: settings.version}
+    %{state | refilling: settings.version, refill_ref: Process.monitor(task)}
   end
 end

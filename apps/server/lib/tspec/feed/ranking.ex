@@ -32,7 +32,12 @@ defmodule TSpec.Feed.Ranking do
       %{
         now: now,
         personalized: true,
-        topic_affinity: squash.(Interests.topic_affinities(user_id, now)),
+        # Forgotten topics are a known zero: no parent fallback.
+        topic_affinity:
+          Map.merge(
+            Map.new(Interests.forgotten_topic_ids(user_id), &{&1, 0.0}),
+            squash.(Interests.topic_affinities(user_id, now))
+          ),
         creator_affinity: squash.(Interests.creator_affinities(user_id, now))
       }
     end

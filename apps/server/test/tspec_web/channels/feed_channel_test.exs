@@ -54,6 +54,21 @@ defmodule TSpecWeb.FeedChannelTest do
     assert Transparency.get_settings(scope.user.id).topics["fitness-and-exercise"].hard_off
   end
 
+  test "a slider change still re-ranks after the session idled out under a live channel",
+       %{socket: socket, scope: scope} do
+    page = first_page(scope)
+
+    {:ok, _, socket} =
+      subscribe_and_join(socket, "feed_session:#{page.session_id}", %{"rev" => 0})
+
+    # Ten idle minutes later the process is gone, but the channel is still up.
+    :ok = GenServer.stop(TSpec.Feed.Session.whereis(scope.user.id, page.session_id))
+
+    ref = push(socket, "update_settings", %{"sources" => %{"fresh" => 2.0}})
+    assert_reply ref, :ok, %{settings_version: 1}
+    assert_push "feed_reranked", %{rev: 1, items: [_ | _]}, 2_000
+  end
+
   test "invalid settings are rejected in the reply", %{socket: socket, scope: scope} do
     page = first_page(scope)
     {:ok, _, socket} = subscribe_and_join(socket, "feed_session:#{page.session_id}", %{})

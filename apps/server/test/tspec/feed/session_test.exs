@@ -134,7 +134,8 @@ defmodule TSpec.Feed.SessionTest do
     end
   end
 
-  test "a stale `at` (older rev) doesn't move the position", %{scope: scope} do
+  test "position reports are matched by impression id, whatever rev they carry",
+       %{scope: scope} do
     {sid, pid} = start!(scope)
     {:ok, %{items: page}} = Session.next_page(pid, 10)
     Session.at(pid, Enum.at(imps(page), 1), 0)
@@ -143,11 +144,105 @@ defmodule TSpec.Feed.SessionTest do
     {:ok, _} = Transparency.update_settings(scope, %{sources: %{"fresh" => 2.0}})
     assert_receive {:feed_reranked, %{rev: 1, items: new}}, 2_000
 
-    Session.at(pid, List.last(imps(page)), 0)
-    assert Session.state(pid).position == 1
+    # A kept item reported with the old rev still sets the position.
+    Session.at(pid, Enum.at(imps(page), 0), 0)
+    assert Session.state(pid).position == 0
 
     Session.at(pid, hd(imps(new)), 1)
     assert Session.state(pid).position == 2
+  end
+
+  test "an item the client kept on screen through a re-rank is never served again",
+       %{scope: scope} do
+    {sid, pid} = start!(scope)
+    {:ok, %{items: page}} = Session.next_page(pid, 10)
+    Session.at(pid, Enum.at(imps(page), 0), 0)
+    sub(scope, sid)
+
+    # The server re-ranks after item 0, but the client had already moved on
+    # (its `at` crossed the push) and keeps that item on screen. Pick one the
+    # re-rank removed and didn't push again (boosting travel pushes travel).
+    {:ok, _} = Transparency.update_settings(scope, %{topics: %{"travel" => %{multiplier: 2.0}}})
+    assert_receive {:feed_reranked, %{rev: 1, items: tail}}, 2_000
+
+    {kept_content, kept_imp} =
+      page
+      |> Enum.drop(1)
+      |> Enum.map(fn {s, i} -> {s.content_id, i} end)
+      |> Enum.find(fn {c, _} -> c not in ids(tail) end)
+
+    refute Enum.any?(Session.state(pid).served, &(&1.content_id == kept_content))
+
+    Session.at(pid, kept_imp, 0)
+    assert MapSet.member?(Session.state(pid).client_kept, kept_content)
+
+    {:ok, %{items: more}} = Session.next_page(pid, 100)
+    refute kept_content in ids(more)
+  end
+
+  test "settings changed while the session was down: it re-ranks the client's tail on start",
+       %{scope: scope} do
+    {sid, pid} = start!(scope)
+    {:ok, %{items: page}} = Session.next_page(pid, 10)
+
+    # The client showed the first three items (exposures are recorded).
+    now = DateTime.utc_now()
+
+    {:ok, _} =
+      Events.record(
+        scope,
+        for {s, imp} <- Enum.take(page, 3) do
+          %{content_id: s.content_id, type: "view_start", occurred_at: now, impression_id: imp}
+        end
+      )
+
+    # The process idles out; meanwhile a change is saved (e.g. from the
+    # Algorithm tab), with nothing listening.
+    :ok = GenServer.stop(pid)
+    {:ok, %{version: 1}} = Transparency.update_settings(scope, %{sources: %{"fresh" => 2.0}})
+
+    # The client comes back: subscribe (as the channel join does), then start.
+    sub(scope, sid)
+    {:ok, pid2} = Session.ensure(scope, sid)
+
+    assert_receive {:feed_reranked, %{rev: 1, after_impression_id: anchor, items: tail}}, 2_000
+    assert anchor == Enum.at(imps(page), 2)
+
+    for {_s, imp} <- tail,
+        do: assert({:ok, %{settings_version: 1}} = Events.get_impression(scope, imp))
+
+    assert Session.state(pid2).settings.version == 1
+  end
+
+  test "a refill task that crashes doesn't stall future refills", %{scope: scope} do
+    test = self()
+    {:ok, attempts} = Agent.start_link(fn -> 0 end)
+
+    # The first refill blows up (say, a database timeout); later ones work.
+    gather = fn user_id, settings, features, opts ->
+      if opts[:refill] && Agent.get_and_update(attempts, &{&1, &1 + 1}) == 0 do
+        send(test, :refill_crashed)
+        raise "simulated database timeout"
+      end
+
+      found = Candidates.gather(user_id, settings, features, opts)
+      if opts[:refill], do: found, else: Enum.take(found, 12)
+    end
+
+    {sid, pid} = start!(scope, gather: gather)
+    {:ok, _} = Session.next_page(pid, 5)
+    assert_receive :refill_crashed, 2_000
+    settle(pid)
+
+    state = Session.state(pid)
+    assert state.refilling == nil
+    assert is_integer(state.empty_refill_at)
+
+    # The next refill (here, from a settings change) runs and lands.
+    sub(scope, sid)
+    {:ok, _} = Transparency.update_settings(scope, %{topics: %{"travel" => %{multiplier: 2.0}}})
+    settle(pid)
+    assert map_size(Session.state(pid).cache) > 12
   end
 
   test "a settings broadcast older than the session's version is ignored", %{scope: scope} do

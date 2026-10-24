@@ -7,7 +7,8 @@ defmodule TSpecWeb.FeedChannel do
 
   Client → server:
 
-    * `at` `{impression_id, rev}` — the visible item changed
+    * `at` `{impression_id, rev}` — the visible item changed (any rev: the
+      impression id identifies the item)
     * `update_settings` `{topics?, sources?, non_personalized?}` — the fast
       path for sliders: saves the change (bumping `settings_version`) and
       replies; every session of the user, this one included, then re-ranks
@@ -32,12 +33,14 @@ defmodule TSpecWeb.FeedChannel do
     scope = socket.assigns.current_scope
 
     with {:ok, session_id} <- Ecto.UUID.cast(session_id),
+         # Subscribe before the session (re)starts: a starting session may
+         # push at once (its list was ranked under older settings).
+         :ok <- Phoenix.PubSub.subscribe(TSpec.PubSub, Session.topic(scope.user.id, session_id)),
          {:ok, pid} <- Session.ensure(scope, session_id) do
       # On a rejoin the client may hold a newer revision than a session
       # process that restarted meanwhile; the session adopts it.
       with %{"rev" => rev} when is_integer(rev) <- payload, do: Session.sync_rev(pid, rev)
 
-      :ok = Phoenix.PubSub.subscribe(TSpec.PubSub, Session.topic(scope.user.id, session_id))
       {:ok, assign(socket, session_id: session_id, session: pid)}
     else
       _ -> {:error, %{reason: "invalid_session"}}
@@ -52,6 +55,10 @@ defmodule TSpecWeb.FeedChannel do
   end
 
   def handle_in("update_settings", payload, socket) when is_map(payload) do
+    # Make sure this feed's session is running *before* the change is saved,
+    # so it hears the broadcast and re-ranks (it may have idled out).
+    _ = session(socket)
+
     case Transparency.update_settings(socket.assigns.current_scope, parse_changes(payload)) do
       {:ok, settings} -> {:reply, {:ok, %{settings_version: settings.version}}, socket}
       {:error, reason, message} -> {:reply, {:error, %{error: reason, message: message}}, socket}

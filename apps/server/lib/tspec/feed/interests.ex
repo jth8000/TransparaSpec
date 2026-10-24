@@ -462,6 +462,19 @@ defmodule TSpec.Feed.Interests do
     )
   end
 
+  @doc """
+  Topics the user forgot and hasn't re-learned since (zeroed, no evidence).
+  The ranker treats these as a known zero, so a forgotten tier-2 topic
+  doesn't fall back to half its parent's affinity either.
+  """
+  def forgotten_topic_ids(user_id) do
+    from(a in TopicAffinity,
+      where: a.user_id == ^user_id and not is_nil(a.reset_at) and a.evidence_count == 0,
+      select: a.topic_id
+    )
+    |> Repo.all()
+  end
+
   @doc "Decayed creator affinities: `%{creator_id => %{score, evidence_count}}`."
   def creator_affinities(user_id, now \\ DateTime.utc_now()) do
     w = Weights.get()
