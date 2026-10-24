@@ -30,15 +30,31 @@ export function appendPage(state: ForYouState, page: Schemas['ForYouPage']): For
 
 /**
  * Applies a pushed re-rank: keeps the list up to and including the item the
- * server re-ranked after (the one being watched is never taken away) and
- * replaces the rest. Pushes for another session, or no newer than the
- * revision already held, are stale and ignored.
+ * server re-ranked after, and replaces the rest. The item on screen is never
+ * taken away: if the server hasn't heard yet that the client moved further
+ * (a push from a refill or another device can cross an `at` message in
+ * flight), everything through `currentImpressionId` is kept too, and pushed
+ * items already kept are dropped. Pushes for another session, or no newer
+ * than the revision already held, are stale and ignored.
  */
-export function applyRerank(state: ForYouState, push: Rerank): ForYouState {
+export function applyRerank(
+  state: ForYouState,
+  push: Rerank,
+  currentImpressionId?: string | null,
+): ForYouState {
   if (push.session_id !== state.sessionId || push.rev <= state.rev) return state;
-  if (push.after_impression_id === null) return { ...state, rev: push.rev, items: push.items };
 
-  const index = state.items.findIndex((i) => i.impression_id === push.after_impression_id);
-  if (index < 0) return state;
-  return { ...state, rev: push.rev, items: [...state.items.slice(0, index + 1), ...push.items] };
+  const anchor =
+    push.after_impression_id === null
+      ? -1
+      : state.items.findIndex((i) => i.impression_id === push.after_impression_id);
+  if (push.after_impression_id !== null && anchor < 0) return state;
+
+  const current = currentImpressionId
+    ? state.items.findIndex((i) => i.impression_id === currentImpressionId)
+    : -1;
+  const kept = state.items.slice(0, Math.max(anchor, current) + 1);
+  const keptContent = new Set(kept.map((i) => i.id));
+
+  return { ...state, rev: push.rev, items: [...kept, ...push.items.filter((i) => !keptContent.has(i.id))] };
 }

@@ -17,7 +17,7 @@ import type { SettingsChange } from './settings-batch';
 type Action =
   | { type: 'page'; page: Schemas['ForYouPage'] }
   | { type: 'reset'; page: Schemas['ForYouPage'] }
-  | { type: 'rerank'; push: Rerank };
+  | { type: 'rerank'; push: Rerank; current: string | null };
 
 function reducer(state: ForYouState, action: Action): ForYouState {
   switch (action.type) {
@@ -26,7 +26,7 @@ function reducer(state: ForYouState, action: Action): ForYouState {
     case 'reset':
       return appendPage(initialForYou, action.page);
     case 'rerank':
-      return applyRerank(state, action.push);
+      return applyRerank(state, action.push, action.current);
   }
 }
 
@@ -53,6 +53,8 @@ export function useForYouFeed(enabled: boolean) {
   const stateRef = useRef(state);
   const loadingRef = useRef(false);
   const channelRef = useRef<Channel | null>(null);
+  // The impression on screen: a push never replaces it.
+  const currentRef = useRef<string | null>(null);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -87,8 +89,12 @@ export function useForYouFeed(enabled: boolean) {
     if (!enabled || !token || !sessionId) return;
     const socket = new Socket(SOCKET_URL, { params: { token } });
     socket.connect();
-    const channel = socket.channel(`feed_session:${sessionId}`);
-    channel.on('feed_reranked', (push: Rerank) => dispatch({ type: 'rerank', push }));
+    // The params are re-read on every (re)join: a session process that
+    // restarted meanwhile adopts the revision we hold.
+    const channel = socket.channel(`feed_session:${sessionId}`, () => ({ rev: stateRef.current.rev }));
+    channel.on('feed_reranked', (push: Rerank) =>
+      dispatch({ type: 'rerank', push, current: currentRef.current }),
+    );
     channel.join();
     channelRef.current = channel;
     return () => {
@@ -99,6 +105,7 @@ export function useForYouFeed(enabled: boolean) {
   }, [enabled, token, sessionId]);
 
   const at = useCallback((item: ForYouItem) => {
+    currentRef.current = item.impression_id;
     channelRef.current?.push('at', { impression_id: item.impression_id, rev: stateRef.current.rev });
   }, []);
 

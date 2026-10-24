@@ -13,10 +13,17 @@ defmodule TSpec.Feed.Session do
       boosted topic is missing, and merges the result only if the settings
       haven't changed since the refill started
 
-  "Already seen" lives in Postgres (views/impressions), so losing this
-  process — idle timeout, crash, another node — costs a rebuild, never
-  correctness. One process per `{user_id, session_id}`; a user's phone and
-  browser rank independently but share settings.
+  One process per `{user_id, session_id}` **cluster-wide**: it's registered
+  with `:global`, so a request that lands on another node reaches the same
+  process instead of starting a second one. A user's phone and browser rank
+  independently but share settings.
+
+  The process is a cache. When it starts — first use, or after an idle
+  timeout, crash or deploy — it rebuilds the client's list, `rev` and
+  position from the session's stored impressions and exposures, so it never
+  re-serves what the client already has and the client's revision stays
+  valid. A client that reports a higher `rev` than the process knows (an
+  empty re-rank leaves no impressions) is adopted.
 
   Pushes go to `"feed_session:<user_id>:<session_id>"` on `TSpec.PubSub`
   (the channel relays them); the user id in the topic keeps one user's
@@ -24,14 +31,22 @@ defmodule TSpec.Feed.Session do
   """
   use GenServer, restart: :temporary
 
-  alias TSpec.{Content, Transparency}
+  import Ecto.Query, warn: false
+
+  alias TSpec.{Content, Repo, Transparency}
   alias TSpec.Accounts.Scope
+  alias TSpec.Events.{Event, Impression}
   alias TSpec.Feed.{Candidates, Ranker, Ranking, Settings}
 
   @page_size 10
   @idle_ms :timer.minutes(10)
   @refill_below 30
   @boost_min 5
+  # After a refill comes back empty (the pool is genuinely exhausted), wait
+  # this long before a page may trigger another.
+  @empty_refill_cooldown_ms :timer.seconds(60)
+  # How far back to look for a session's impressions when rebuilding.
+  @rebuild_window_hours 24
 
   defstruct [
     :scope,
@@ -43,26 +58,28 @@ defmodule TSpec.Feed.Session do
     served: [],
     position: -1,
     rev: 0,
-    refilling: nil
+    refilling: nil,
+    empty_refill_at: nil
   ]
 
   ## API
 
   @doc """
-  The session's process, started if needed. Options (tests): `:gather` — a
-  `Candidates.gather/4`-compatible function.
+  The session's process (on whichever node owns it), started here if no
+  node has it. Options (tests): `:gather` — a `Candidates.gather/4`-compatible
+  function.
   """
   def ensure(%Scope{} = scope, session_id, opts \\ []), do: ensure(scope, session_id, opts, 20)
 
-  # A process that just died can linger in the Registry for a moment (it's
-  # cleaned up asynchronously), so don't hand out a dead pid: retry briefly.
+  # A process that just died can stay registered for a moment (`:global`
+  # cleans up asynchronously), so don't hand out a dead local pid: retry.
   defp ensure(scope, session_id, opts, tries) do
     result =
-      case Registry.lookup(TSpec.Feed.SessionRegistry, {scope.user.id, session_id}) do
-        [{pid, _}] ->
+      case :global.whereis_name(name(scope.user.id, session_id)) do
+        pid when is_pid(pid) ->
           {:ok, pid}
 
-        [] ->
+        :undefined ->
           case DynamicSupervisor.start_child(
                  TSpec.Feed.SessionSupervisor,
                  {__MODULE__, {scope, session_id, opts}}
@@ -74,7 +91,7 @@ defmodule TSpec.Feed.Session do
       end
 
     case result do
-      {:ok, pid} when tries > 0 ->
+      {:ok, pid} when tries > 0 and node(pid) == node() ->
         if Process.alive?(pid) do
           result
         else
@@ -87,14 +104,21 @@ defmodule TSpec.Feed.Session do
     end
   end
 
+  @doc "The live session's pid, on any node, or nil."
+  def whereis(user_id, session_id) do
+    case :global.whereis_name(name(user_id, session_id)) do
+      pid when is_pid(pid) -> pid
+      :undefined -> nil
+    end
+  end
+
   def start_link({%Scope{} = scope, session_id, opts}) do
     GenServer.start_link(__MODULE__, {scope, session_id, opts},
-      name: via(scope.user.id, session_id)
+      name: {:global, name(scope.user.id, session_id)}
     )
   end
 
-  defp via(user_id, session_id),
-    do: {:via, Registry, {TSpec.Feed.SessionRegistry, {user_id, session_id}}}
+  defp name(user_id, session_id), do: {__MODULE__, user_id, session_id}
 
   @doc "The PubSub topic a session's pushes go to."
   def topic(user_id, session_id), do: "feed_session:#{user_id}:#{session_id}"
@@ -102,8 +126,14 @@ defmodule TSpec.Feed.Session do
   @doc "Ranks and serves the next page: `{:ok, %{rev, items: [{%Scored{}, impression_id}]}}`."
   def next_page(pid, limit \\ @page_size), do: GenServer.call(pid, {:next_page, limit}, 15_000)
 
-  @doc "The client's current item. Ignored unless `rev` is the session's current one."
+  @doc """
+  The client's current item. Ignored if `rev` is older than the session's;
+  a newer `rev` (the session restarted) is adopted.
+  """
   def at(pid, impression_id, rev), do: GenServer.cast(pid, {:at, impression_id, rev})
+
+  @doc "The client's revision on (re)joining; adopted if it's ahead of the session's."
+  def sync_rev(pid, rev), do: GenServer.cast(pid, {:sync_rev, rev})
 
   @doc false
   def state(pid), do: :sys.get_state(pid)
@@ -127,11 +157,95 @@ defmodule TSpec.Feed.Session do
 
   @impl true
   def handle_continue(:load, state) do
+    state = rebuild(state)
     features = Ranking.features(state.scope.user.id, state.settings)
     candidates = state.gather.(state.scope.user.id, state.settings, features, [])
 
     {:noreply, %{state | features: features, cache: Map.new(candidates, &{&1.content_id, &1})},
      @idle_ms}
+  end
+
+  # Restores what the client holds from this session's impressions: replay
+  # them in (rev, position) order — a new rev's first impression truncates
+  # the list to its position (that's what a re-rank did), then appends.
+  # The position is the furthest item the client reported actually showing.
+  defp rebuild(%{scope: %{user: %{id: user_id}}, id: session_id} = state) do
+    since = DateTime.add(DateTime.utc_now(), -@rebuild_window_hours, :hour)
+
+    rows =
+      from(i in Impression,
+        where:
+          i.user_id == ^user_id and i.feed_session_id == ^session_id and i.served_at > ^since,
+        join: c in assoc(i, :content),
+        order_by: [asc: i.rev, asc: i.position],
+        select: %{
+          impression_id: i.id,
+          content_id: i.content_id,
+          author_id: c.author_id,
+          rev: i.rev,
+          position: i.position
+        }
+      )
+      |> Repo.all()
+
+    if rows == [] do
+      state
+    else
+      {served, _rev} =
+        Enum.reduce(rows, {[], -1}, fn row, {list, rev} ->
+          list = if row.rev != rev, do: Enum.take(list, row.position), else: list
+          {list ++ [row], row.rev}
+        end)
+
+      served = with_primary_topics(served)
+      shown = shown_impressions(user_id, Enum.map(served, & &1.impression_id))
+
+      position =
+        served
+        |> Enum.with_index()
+        |> Enum.filter(fn {s, _} -> MapSet.member?(shown, s.impression_id) end)
+        |> Enum.map(&elem(&1, 1))
+        |> Enum.max(fn -> -1 end)
+
+      %{state | served: served, rev: rows |> Enum.map(& &1.rev) |> Enum.max(), position: position}
+    end
+  end
+
+  defp with_primary_topics(served) do
+    taxonomy = Content.topics_by_id()
+    labels = Candidates.labels(Enum.map(served, & &1.content_id))
+
+    for s <- served do
+      primary =
+        case Map.get(labels, s.content_id, []) do
+          [] ->
+            nil
+
+          ls ->
+            ls
+            |> Enum.min_by(&{-&1.confidence, taxonomy[&1.topic_id].slug})
+            |> then(&taxonomy[&1.topic_id].slug)
+        end
+
+      %{
+        content_id: s.content_id,
+        impression_id: s.impression_id,
+        author_id: s.author_id,
+        primary_topic: primary
+      }
+    end
+  end
+
+  defp shown_impressions(_user_id, []), do: MapSet.new()
+
+  defp shown_impressions(user_id, impression_ids) do
+    from(e in Event,
+      where:
+        e.user_id == ^user_id and e.type == "view_start" and e.impression_id in ^impression_ids,
+      select: e.impression_id
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   @impl true
@@ -152,10 +266,17 @@ defmodule TSpec.Feed.Session do
 
   def handle_info({:settings_changed, _stale}, state), do: {:noreply, state, @idle_ms}
 
-  # A refill for the settings still in force: merge, and push if the tail changed.
+  # A refill for the settings still in force: merge, and push if the tail
+  # changed. It's no longer in flight, so pages may trigger the next one.
   def handle_info({:refill, version, candidates}, %{settings: %{version: version}} = state) do
     new = Enum.reject(candidates, &Map.has_key?(state.cache, &1.content_id))
-    state = %{state | cache: Map.merge(state.cache, Map.new(new, &{&1.content_id, &1}))}
+
+    state = %{
+      state
+      | cache: Map.merge(state.cache, Map.new(new, &{&1.content_id, &1})),
+        refilling: nil,
+        empty_refill_at: if(new == [], do: System.monotonic_time(:millisecond))
+    }
 
     # Push only if the refill brought something new that would change the
     # client's tail — re-ranked, or topped up to a full page when filters
@@ -187,7 +308,9 @@ defmodule TSpec.Feed.Session do
   end
 
   @impl true
-  def handle_cast({:at, impression_id, rev}, %{rev: rev} = state) do
+  def handle_cast({:at, impression_id, rev}, state) when rev >= state.rev do
+    state = %{state | rev: rev}
+
     case Enum.find_index(state.served, &(&1.impression_id == impression_id)) do
       nil -> {:noreply, state, @idle_ms}
       index -> {:noreply, %{state | position: index}, @idle_ms}
@@ -195,6 +318,11 @@ defmodule TSpec.Feed.Session do
   end
 
   def handle_cast({:at, _impression_id, _stale_rev}, state), do: {:noreply, state, @idle_ms}
+
+  def handle_cast({:sync_rev, rev}, state) when is_integer(rev) and rev > state.rev,
+    do: {:noreply, %{state | rev: rev}, @idle_ms}
+
+  def handle_cast({:sync_rev, _rev}, state), do: {:noreply, state, @idle_ms}
 
   ## Ranking
 
@@ -271,6 +399,12 @@ defmodule TSpec.Feed.Session do
   # topic that's barely in the cache gets a targeted query.
   defp maybe_refill(%{refilling: version, settings: %{version: version}} = state, :page),
     do: state
+
+  defp maybe_refill(%{empty_refill_at: at} = state, :page) when is_integer(at) do
+    if System.monotonic_time(:millisecond) - at < @empty_refill_cooldown_ms,
+      do: state,
+      else: maybe_refill(%{state | empty_refill_at: nil}, :page)
+  end
 
   defp maybe_refill(state, reason) do
     missing =

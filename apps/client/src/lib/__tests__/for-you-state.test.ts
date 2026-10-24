@@ -59,4 +59,30 @@ describe('applyRerank', () => {
     ).toEqual(['x']);
     expect(applyRerank(base, { session_id: 's1', rev: 1, after_impression_id: 'zzz', items: [] })).toBe(base);
   });
+
+  it('never replaces the item on screen, even if the server anchored earlier', () => {
+    // The client is on "c"; the server still thinks it's on "a".
+    const push = { session_id: 's1', rev: 1, after_impression_id: 'a', items: [item('x'), item('c2')] };
+    const s = applyRerank(base, push, 'c');
+    expect(ids(s)).toEqual(['a', 'b', 'c', 'x', 'c2']);
+  });
+
+  it('drops pushed items that are already kept (same content)', () => {
+    const dup = { ...item('x'), id: 'c-b' } as ForYouItem;
+    const s = applyRerank(
+      base,
+      { session_id: 's1', rev: 1, after_impression_id: 'a', items: [dup, item('y')] },
+      'b',
+    );
+    expect(ids(s)).toEqual(['a', 'b', 'y']);
+  });
+
+  it('uses the server anchor when it is further than the current item', () => {
+    const s = applyRerank(
+      base,
+      { session_id: 's1', rev: 1, after_impression_id: 'c', items: [item('x')] },
+      'a',
+    );
+    expect(ids(s)).toEqual(['a', 'b', 'c', 'x']);
+  });
 });

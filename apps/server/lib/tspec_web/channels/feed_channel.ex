@@ -2,6 +2,9 @@ defmodule TSpecWeb.FeedChannel do
   @moduledoc """
   Live control of one For You feed, `feed_session:<session_id>` (ADR 0011).
 
+  Join with `{rev}` (the revision the client holds), so a session that
+  restarted since the client last heard from it continues the numbering.
+
   Client → server:
 
     * `at` `{impression_id, rev}` — the visible item changed
@@ -25,11 +28,15 @@ defmodule TSpecWeb.FeedChannel do
   alias TSpecWeb.FeedJSON
 
   @impl true
-  def join("feed_session:" <> session_id, _payload, socket) do
+  def join("feed_session:" <> session_id, payload, socket) do
     scope = socket.assigns.current_scope
 
     with {:ok, session_id} <- Ecto.UUID.cast(session_id),
          {:ok, pid} <- Session.ensure(scope, session_id) do
+      # On a rejoin the client may hold a newer revision than a session
+      # process that restarted meanwhile; the session adopts it.
+      with %{"rev" => rev} when is_integer(rev) <- payload, do: Session.sync_rev(pid, rev)
+
       :ok = Phoenix.PubSub.subscribe(TSpec.PubSub, Session.topic(scope.user.id, session_id))
       {:ok, assign(socket, session_id: session_id, session: pid)}
     else

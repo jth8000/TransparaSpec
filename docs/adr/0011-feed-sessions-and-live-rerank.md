@@ -1,7 +1,7 @@
 # ADR 0011: Feed sessions and live re-rank
 
 - **Status:** Accepted
-- **Date:** 2026-10-21
+- **Date:** 2026-10-21 (amended 2026-10-23 after review: cluster-wide ownership, rebuild on start, client keeps the on-screen item, pruning)
 
 ## Context
 Changing a control must re-rank the feed **live**: the re-ranked feed should be pushed over WebSocket within 500 ms (requirements), and Phase 1's "done when" allows 1 s. Rebuilding every candidate source from SQL on each slider move is too slow and wasteful. The architecture therefore calls for a per-user `Feed` process that caches scored candidates and re-scores them in memory.
@@ -17,12 +17,15 @@ Planning showed that "one process per user" is the wrong unit. A user can have a
   - the items it has served, in order;
   - the client's current position;
   - a revision counter, `rev`.
-- **One `Feed.Session` process per feed session**, registered in a `Registry` under `{user_id, session_id}` and started on demand under a `DynamicSupervisor`. It stops itself after 10 minutes idle.
+- **One `Feed.Session` process per feed session, cluster-wide.** It's registered with `:global` under `{user_id, session_id}` and started on demand under a local `DynamicSupervisor`. A request that lands on another node reaches the same process, so one session never has two owners with diverging served lists. It stops itself after 10 minutes idle.
 
-### The process is a cache, not a source of truth
-- "Already seen" comes from `impressions` rows in Postgres, so it survives the process.
-- If a process dies, or a request lands on a different Fly node, a fresh session starts with an empty cache. The seen filter keeps it from repeating items.
-- Nothing is lost when a process stops, so there's no handoff protocol between nodes.
+### The process is a cache; Postgres is the record
+- **Rebuilt on start.** When a session process starts, whether for the first time or after an idle timeout, crash or deploy, it rebuilds the client's list from the session's `impressions`. It replays them in `(rev, position)` order: a new `rev`'s first impression truncates the list at its position, as the re-rank did, then the rest append.
+  - `rev` resumes from the highest stored revision.
+  - The position is the furthest item the client reported showing (`view_start` events carrying the impression id).
+  - So the client's revision stays valid, its `at` messages keep working, and nothing it already holds is served again.
+- **The client's `rev` wins if it's higher.** An empty re-rank writes no impressions, so the client can be ahead of the rebuild. The client sends its `rev` when it (re)joins the channel and with every `at`, and the session adopts a higher one.
+- **"Seen" means viewed.** Across sessions, items the user *viewed* in the last 48 hours (`view_engagements`) are filtered out of candidates. Items that were only served, never shown, may come back.
 
 ### Two counters, two questions
 | Counter | Scope | Answers |
@@ -37,7 +40,9 @@ Joining checks that the session belongs to the user.
 |---|---|---|
 | client → server | `at {impression_id, rev}` | The visible item changed. Messages with an old `rev` are ignored. |
 | client → server | `update_settings {changes}` | Fast path: save the changes, re-rank this session, broadcast to the user's other sessions, and reply in one round trip. |
-| server → client | `feed_reranked {rev, after_impression_id, items}` | Keep everything up to and including `after_impression_id` and replace the rest. The client drops any push with an older `rev`. |
+| server → client | `feed_reranked {rev, after_impression_id, items}` | Keep everything up to and including `after_impression_id` and replace the rest. The client drops any push with an older `rev`. **It also keeps everything through the item on screen, if that's further:** a push from a refill or another device can cross an `at` message still in flight. |
+
+Joining sends `{rev}` (the revision the client holds); see "The process is a cache".
 
 ### Re-ranking a session
 1. **Immediately, from the cache:**
@@ -65,7 +70,7 @@ Joining checks that the session belongs to the user.
 
 - The dashboard and dividend attribution count **exposed** impressions only.
 - A re-rank writes impressions for the pushed page only (about 10 rows), never for the whole cache. The client debounces slider changes by 150 ms.
-- Served-but-never-exposed impressions are pruned after 30 days.
+- Served-but-never-exposed impressions are deleted after 30 days by a daily job (`Events.ImpressionPruneWorker`).
 
 ### Partitioning
 `impressions` is range-partitioned by month on `served_at`, like `engagement_events`. Dropping old partitions is how ADR 0006's retention works.
@@ -75,11 +80,13 @@ Joining checks that the session belongs to the user.
 
 ## Consequences
 - Multiple devices work independently, while sharing one set of preferences.
-- A process crash or node change costs only a cache rebuild, never correctness.
+- A process crash, idle timeout or deploy costs a cache rebuild from Postgres, never correctness.
+- A session's calls may cross nodes to reach its owner (one extra hop at most).
 - Per-session processes use more memory than per-user ones. At about 500 candidates per session, that's acceptable at beta scale.
 - The client has to track `rev` and its position, which adds a little protocol complexity in exchange for never interrupting the current video.
 
 ## Alternatives considered
 - **One process per user.** Simpler, but it breaks with two devices (see Context).
 - **Stateless re-rank** (rebuild candidates from SQL on every change). No process to manage, but it can't meet the latency target, and slider drags would hammer the database.
-- **Global process registry (Horde / `:global`).** It would keep one process per session cluster-wide. That's unnecessary, because the process is only a cache.
+- **A node-local `Registry`** (the first implementation). Rejected after review: a request on a second node would start a second process for the same session, and the two would diverge on what they'd served. The cache argument doesn't save it, because the *served list* is mutable state.
+- **Horde** (a CRDT-based distributed registry). Heavier than needed. `:global`'s cost is a cluster-wide lock on registration, and registrations are rare (session starts).

@@ -273,6 +273,131 @@ defmodule TSpec.Feed.SessionTest do
     refute Enum.any?(Enum.drop(state.served, 1), &labeled?(&1.content_id, items, :fitness))
   end
 
+  defp pushed_ids(acc \\ []) do
+    receive do
+      {:feed_reranked, %{items: items}} -> pushed_ids(acc ++ ids(items))
+    after
+      0 -> acc
+    end
+  end
+
+  # Polls until the session has no refill in flight.
+  defp settle(pid, tries \\ 100) do
+    if Session.state(pid).refilling == nil or tries == 0 do
+      :ok
+    else
+      Process.sleep(20)
+      settle(pid, tries - 1)
+    end
+  end
+
+  test "refills keep coming under the same settings: a long scroll never runs dry",
+       %{scope: scope, items: items} do
+    all = items |> Map.values() |> Enum.reduce(&MapSet.union/2)
+
+    # Start with 35 candidates; each refill brings at most 15 more. Draining
+    # all 80 items takes several refill cycles under settings version 0.
+    gather = fn user_id, settings, features, opts ->
+      found =
+        Candidates.gather(user_id, settings, features, opts) |> Enum.sort_by(& &1.content_id)
+
+      if opts[:refill], do: Enum.take(found, 15), else: Enum.take(found, 35)
+    end
+
+    {sid, pid} = start!(scope, gather: gather)
+    sub(scope, sid)
+
+    # Like a client: take each page, report the last item as current, and
+    # also take whatever the session pushes (a refill tops up the tail).
+    served =
+      Enum.reduce_while(1..30, MapSet.new(), fn _, acc ->
+        {:ok, %{rev: rev, items: page}} = Session.next_page(pid, 10)
+        if page != [], do: Session.at(pid, List.last(imps(page)), rev)
+        settle(pid)
+        acc = MapSet.union(acc, MapSet.new(ids(page)))
+        acc = MapSet.union(acc, MapSet.new(pushed_ids()))
+
+        if page == [] and Session.state(pid).refilling == nil,
+          do: {:halt, acc},
+          else: {:cont, acc}
+      end)
+
+    assert MapSet.equal?(served, all), "served #{MapSet.size(served)} of #{MapSet.size(all)}"
+    assert Session.state(pid).settings.version == 0
+  end
+
+  test "a restarted session rebuilds the client's list, revision and position",
+       %{scope: scope} do
+    {sid, pid} = start!(scope)
+    {:ok, %{items: page}} = Session.next_page(pid, 10)
+
+    # The client showed the first four items, then re-ranked (rev 1).
+    now = DateTime.utc_now()
+
+    {:ok, _} =
+      Events.record(
+        scope,
+        for {s, imp} <- Enum.take(page, 4) do
+          %{content_id: s.content_id, type: "view_start", occurred_at: now, impression_id: imp}
+        end
+      )
+
+    Session.at(pid, Enum.at(imps(page), 3), 0)
+    sub(scope, sid)
+    {:ok, _} = Transparency.update_settings(scope, %{sources: %{"fresh" => 2.0}})
+    assert_receive {:feed_reranked, %{rev: 1, items: tail}}, 2_000
+    before = Session.state(pid)
+
+    # The process goes away (idle timeout, crash, deploy) and comes back.
+    ref = Process.monitor(pid)
+    Process.exit(pid, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
+    {:ok, pid2} = Session.ensure(scope, sid)
+    after_restart = Session.state(pid2)
+
+    assert after_restart.rev == 1
+
+    assert Enum.map(after_restart.served, & &1.impression_id) ==
+             Enum.map(before.served, & &1.impression_id)
+
+    assert Enum.map(after_restart.served, & &1.impression_id) ==
+             Enum.take(imps(page), 4) ++ imps(tail)
+
+    assert after_restart.position == 3
+
+    # The client's rev-1 messages still count, and the next push continues
+    # the numbering from the same anchor.
+    Session.at(pid2, hd(imps(tail)), 1)
+    assert Session.state(pid2).position == 4
+    {:ok, _} = Transparency.update_settings(scope, %{sources: %{"fresh" => 1.5}})
+    assert_receive {:feed_reranked, %{rev: 2, after_impression_id: anchor}}, 2_000
+    assert anchor == hd(imps(tail))
+
+    # And it doesn't re-serve what the client already holds.
+    {:ok, %{items: more}} = Session.next_page(pid2, 50)
+
+    assert MapSet.disjoint?(
+             MapSet.new(ids(more)),
+             MapSet.new(Enum.map(before.served, & &1.content_id))
+           )
+  end
+
+  test "a client ahead of the session (empty re-ranks leave no impressions) is adopted",
+       %{scope: scope} do
+    {sid, pid} = start!(scope)
+    {:ok, _} = Session.next_page(pid, 5)
+    Session.sync_rev(pid, 7)
+    assert Session.state(pid).rev == 7
+
+    # A lower rev never moves it back.
+    Session.sync_rev(pid, 3)
+    assert Session.state(pid).rev == 7
+
+    sub(scope, sid)
+    {:ok, _} = Transparency.update_settings(scope, %{sources: %{"fresh" => 2.0}})
+    assert_receive {:feed_reranked, %{rev: 8}}, 2_000
+  end
+
   test "a crashed session restarts clean and doesn't repeat what the user watched",
        %{scope: scope} do
     {sid, pid} = start!(scope)
