@@ -121,6 +121,57 @@ defmodule TSpec.Feed.RankingTest do
       assert "trending" in by_id[hit.id].sources
     end
 
+    test "views watched in non-personalized mode never drive co-engagement for anyone",
+         %{viewer: viewer, scope: scope} do
+      creator = onboarded_user_fixture()
+      shared = ready_video_fixture(creator)
+      next = ready_video_fixture(creator)
+
+      # The peer watches in non-personalized mode.
+      peer = Accounts.scope_for_user(onboarded_user_fixture())
+      {:ok, _} = Transparency.set_non_personalized(peer, true)
+      watch!(peer, shared)
+      watch!(peer, next)
+      watch!(scope, shared)
+
+      refute Enum.any?(
+               gather(viewer),
+               &(&1.content_id == next.id and "co_engagement" in &1.sources)
+             )
+
+      # The same peer behavior in personalized mode does count.
+      other = Accounts.scope_for_user(onboarded_user_fixture())
+      watch!(other, shared)
+      watch!(other, next)
+
+      assert Enum.any?(
+               gather(viewer),
+               &(&1.content_id == next.id and "co_engagement" in &1.sources)
+             )
+    end
+
+    test "one account replaying an item counts once in trending and quality", %{viewer: viewer} do
+      creator = onboarded_user_fixture()
+      replayed = ready_video_fixture(creator)
+      fan = Accounts.scope_for_user(onboarded_user_fixture())
+      for _ <- 1..5, do: watch!(fan, replayed)
+
+      :ok = TrendingWorker.perform(%Oban.Job{})
+
+      [score] =
+        Repo.all(
+          from t in "trending_scores",
+            where: t.content_id == type(^replayed.id, :binary_id),
+            select: t.score
+        )
+
+      assert_in_delta score, 1.0, 0.01
+
+      # Smoothed completion rate: 1 completer of 1 viewer, not 5 of 5.
+      candidate = Enum.find(gather(viewer), &(&1.content_id == replayed.id))
+      assert_in_delta candidate.quality, (1 + 10 * Candidates.prior_rate()) / (1 + 10), 1.0e-9
+    end
+
     test "non-personalized mode uses no source that reads the user's profile or history",
          %{viewer: viewer, scope: scope} do
       creator = onboarded_user_fixture()
@@ -300,6 +351,64 @@ defmodule TSpec.Feed.RankingTest do
       assert {viewer.id, id} in stored
       assert Enum.count(stored, fn {u, i} -> u == other.user.id and is_nil(i) end) == 2
     end
+  end
+
+  test "unshown impressions are pruned after 30 days; shown and recent ones stay",
+       %{scope: scope, viewer: viewer} do
+    for _ <- 1..3, do: text_post_fixture(onboarded_user_fixture())
+
+    [a, b, c] = Ranking.rank(viewer.id, %Settings{}) |> Enum.take(3)
+
+    # Three impressions served 40 days ago (old UUIDv7 ids, so old
+    # served_at), plus one served now. Only the old shown one survives.
+    old_ms = System.system_time(:millisecond) - 40 * 86_400_000
+
+    insert = fn scored, id ->
+      Repo.insert_all(Impression, [
+        %{
+          id: id,
+          served_at: Impression.served_at_for(id),
+          user_id: viewer.id,
+          content_id: scored.content_id,
+          feed_session_id: Ecto.UUID.generate(),
+          rev: 0,
+          position: 0,
+          ranker_version: "v1",
+          candidate_source: scored.candidate_source,
+          sources: scored.sources,
+          final_score: scored.final_score,
+          contributions: scored.contributions,
+          settings_version: 0,
+          settings_snapshot_id: Transparency.snapshot_settings(viewer.id, %Settings{}),
+          consent_version: scope.consent_version
+        }
+      ])
+
+      id
+    end
+
+    old_shown = insert.(a, UUIDv7.generate(old_ms))
+    old_unshown = insert.(b, UUIDv7.generate(old_ms + 1))
+    recent_unshown = insert.(c, UUIDv7.generate())
+
+    Repo.insert_all(Events.Event, [
+      %{
+        id: UUIDv7.generate(),
+        user_id: viewer.id,
+        content_id: a.content_id,
+        type: "view_start",
+        occurred_at: DateTime.add(DateTime.utc_now(), -40, :day),
+        received_at: DateTime.add(DateTime.utc_now(), -40, :day),
+        impression_id: old_shown,
+        consent_version: scope.consent_version
+      }
+    ])
+
+    :ok = TSpec.Events.ImpressionPruneWorker.perform(%Oban.Job{})
+
+    assert {:ok, _} = Events.get_impression(scope, old_shown)
+    assert {:error, :not_found} = Events.get_impression(scope, old_unshown)
+    assert {:ok, _} = Events.get_impression(scope, recent_unshown)
   end
 
   test "trending decays with age and counts only recent completions" do

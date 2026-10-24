@@ -55,6 +55,7 @@ Split into two parts. 1a uses creator-picked topics and must meet the "done when
 ## Phase 2: Social and safety → private beta
 - Passkeys and Sign in with Apple / Google (deferred from Phase 0); first iOS build and run.
 - Rate limiting on sign-in requests and code attempts per IP/email (Phase 0 only caps attempts per code).
+- Engagement abuse: rate limits on events, view-lifecycle validation, sybil/bot heuristics before signals feed shared rankings (see open questions).
 - Threaded comments, likes, blocks/mutes, share links.
 - Real-time in-app notifications; push notifications.
 - Reporting, moderation queue/actions/audit log, ML-score routing.

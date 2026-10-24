@@ -141,6 +141,27 @@ defmodule TSpec.Events do
     end
   end
 
+  @doc """
+  Deletes impressions served before `before` that were never shown (no
+  `view_start` event names them). Returns `{:ok, count}`.
+  """
+  def prune_unexposed_impressions(%DateTime{} = before) do
+    %{num_rows: n} =
+      Repo.query!(
+        """
+        DELETE FROM impressions i
+        WHERE i.served_at < $1
+          AND NOT EXISTS (
+            SELECT 1 FROM engagement_events e
+            WHERE e.impression_id = i.id AND e.user_id = i.user_id AND e.type = 'view_start'
+          )
+        """,
+        [before]
+      )
+
+    {:ok, n}
+  end
+
   defp served_at(id) do
     case safe_served_at(id) do
       nil -> :error

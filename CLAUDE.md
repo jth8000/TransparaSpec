@@ -63,6 +63,8 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user + 
 ## Gotchas learned in Phase 1a
 - **Server**:
   - `Feed.Session` processes run under the app's supervisors, outside the test process. Tests that start sessions (directly, via `/api/feed/for-you`, or the feed channel) must be `async: false` and call `on_exit(&TSpec.DataCase.stop_feed_sessions/0)`.
+  - Sessions are registered with `:global` (one owner per cluster). `test/tspec/feed/session_cluster_test.exs` starts a real second node with `:peer`; it needs `epmd`, which ships with Erlang.
+  - When a race needs a precise pause point, give the function a small test seam in its options (e.g. `apply_dirty_views(user, before_upsert: fn -> … end)`) rather than relying on timing.
   - Tests that need *real* concurrent transactions (lock waits, late commits) use `Ecto.Adapters.SQL.Sandbox.unboxed_run/2` in an `async: false` module and must delete what they commit. See `test/tspec/feed/interests_concurrency_test.exs`.
   - `jsonb` stores numbers as decimals and has no `-0.0`; ranker contributions are normalized so stored traces stay bit-identical to what ranked.
   - A partitioned table's primary key must include the partition key: `impressions` is keyed `(id, served_at)`, with `served_at` taken from the UUIDv7 id (`Impression.served_at_for/1`).

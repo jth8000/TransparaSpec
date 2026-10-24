@@ -185,29 +185,35 @@ defmodule TSpec.Feed.Candidates do
     |> Repo.all()
   end
 
+  # Collaborative: uses individual viewing histories, so only views whose
+  # owner allowed personal use (`learnable`) count — on either side. A view
+  # watched in non-personalized mode never recommends anything to anyone
+  # (ADR 0012). Items rank by how many distinct peers completed them, so one
+  # account can't push an item by itself.
   defp nominate("co_engagement", base, user_id, _settings, _features, now, _opts) do
     since = DateTime.add(now, -@co_window_days, :day)
 
     mine =
       from v in ViewEngagement,
-        where: v.user_id == ^user_id and v.completed and v.inserted_at > ^since,
+        where: v.user_id == ^user_id and v.completed and v.learnable and v.inserted_at > ^since,
         order_by: [desc: v.inserted_at],
         limit: 50,
         select: v.content_id
 
     peers =
       from v in ViewEngagement,
-        where: v.content_id in subquery(mine) and v.completed and v.user_id != ^user_id,
-        where: v.inserted_at > ^since,
+        where: v.content_id in subquery(mine) and v.completed and v.learnable,
+        where: v.user_id != ^user_id and v.inserted_at > ^since,
         distinct: true,
         limit: 200,
         select: v.user_id
 
     co =
       from v in ViewEngagement,
-        where: v.user_id in subquery(peers) and v.completed and v.inserted_at > ^since,
+        where: v.user_id in subquery(peers) and v.completed and v.learnable,
+        where: v.inserted_at > ^since,
         group_by: v.content_id,
-        order_by: [desc: count(v.view_id), asc: v.content_id],
+        order_by: [desc: count(v.user_id, :distinct), asc: v.content_id],
         limit: ^@limits.co_engagement,
         select: v.content_id
 
@@ -284,16 +290,20 @@ defmodule TSpec.Feed.Candidates do
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
 
-  # Smoothed completion rate per item.
+  # Smoothed completion rate per item, over distinct viewers: replaying an
+  # item (or fabricating views) from one account counts once. Aggregate, so
+  # every view counts regardless of personalization mode (ADR 0012).
   defp quality(ids) do
     from(v in ViewEngagement,
       where: v.content_id in ^ids,
       group_by: v.content_id,
-      select: {v.content_id, count(v.view_id), filter(count(v.view_id), v.completed)}
+      select:
+        {v.content_id, count(v.user_id, :distinct),
+         fragment("count(DISTINCT ?) FILTER (WHERE ?)", v.user_id, v.completed)}
     )
     |> Repo.all()
-    |> Map.new(fn {id, views, completed} ->
-      {id, (completed + @prior_views * @prior_rate) / (views + @prior_views)}
+    |> Map.new(fn {id, viewers, completers} ->
+      {id, (completers + @prior_views * @prior_rate) / (viewers + @prior_views)}
     end)
   end
 

@@ -48,7 +48,8 @@ config :tspec, Oban,
      crontab: [
        {"15 3 * * *", TSpec.Events.PartitionWorker},
        {"*/10 * * * *", TSpec.Feed.AffinitySweepWorker},
-       {"*/5 * * * *", TSpec.Feed.TrendingWorker}
+       {"*/5 * * * *", TSpec.Feed.TrendingWorker},
+       {"45 3 * * *", TSpec.Events.ImpressionPruneWorker}
      ]}
   ]
 

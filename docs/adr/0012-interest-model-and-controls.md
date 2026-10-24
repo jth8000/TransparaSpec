@@ -1,7 +1,7 @@
 # ADR 0012: Interest model v1 and user controls
 
 - **Status:** Accepted
-- **Date:** 2026-10-21
+- **Date:** 2026-10-21 (amended 2026-10-23 after review: forget boundaries, per-use view eligibility, distinct-user aggregates, no job dedupe)
 
 ## Context
 The ranker (ADR 0006) needs a per-user interest profile: how much this person likes each topic and creator. It also needs controls whose meaning users can rely on:
@@ -50,7 +50,7 @@ This is correct for each failure case:
 - **A view spread across many batches:** each run adds only the difference, so the total equals the final target.
 - **Late commits:** a late commit is simply a dirty row that becomes visible later. There's no cursor for it to fall behind, so commit order and timing don't matter.
 
-Oban uniqueness and a sweep cron over dirty rows exist only for promptness.
+Each committed batch gets its own job. Jobs are deliberately not deduplicated: a unique job could be folded into one that runs before the batch's transaction commits, leaving the new views waiting for the sweep. Extra runs cost almost nothing, since applying is idempotent. The sweep cron only covers jobs that were discarded.
 
 ### Decay
 Interest fades unless it's reinforced, with a half-life of 14 days:
@@ -98,6 +98,12 @@ Each topic slider `m` runs from 0 to 2, with a default of 1. It has two effects,
   - Explanations show which source each label came from.
 - Phase 1b's model labels widen coverage without changing this meaning.
 
+### Forgetting an interest
+"Forget" zeroes the affinity and stamps `reset_at`, under the same per-user advisory lock the worker uses.
+- Views that **started before** the stamp never credit that topic or creator again. That includes views still waiting to be applied and views that keep growing afterwards.
+- Views that start after it are learned normally.
+- The lock closes the gap where a worker has already read the boundaries but not yet written. A test pauses the worker exactly there.
+
 ### Non-personalized mode: no inferred signals
 | Off | Still on |
 |---|---|
@@ -107,7 +113,15 @@ Each topic slider `m` runs from 0 to 2, with a default of 1. It has two effects,
 | | `freshness`, `quality` and `diversity` |
 | | the seen filter, which keeps the feed from repeating itself and isn't used for profiling |
 
-Events are still recorded for aggregate trending and quality.
+Events are still recorded. What a view may be used for is decided per view:
+
+| Use | Example | Which views |
+|---|---|---|
+| Personal learning | the user's own affinities | `learnable` only |
+| Collaborative | co-engagement ("people who finished this also finished…") | `learnable` only, on both sides. A view watched in non-personalized mode never recommends anything to anyone. |
+| Aggregate | trending, completion-rate quality | all views, counted as **distinct users**, so one account (or one replaying client) counts once per item |
+
+Fabricated engagement from many accounts (sybils) and rate limits on events are Phase 2 work (see open questions).
 
 ### Creator signals are split
 - `creator_affinity` is inferred from behavior.

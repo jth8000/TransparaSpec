@@ -1,7 +1,8 @@
 defmodule TSpec.Feed.TrendingWorker do
   @moduledoc """
   Refreshes the global trending pool (`trending_scores`) every few minutes:
-  completions of each item in the last 24 hours, decayed by the item's age
+  how many distinct people completed each item in the last 24 hours (one
+  account counts once, however often it replays), decayed by the item's age
   (half-life 48 hours) so yesterday's hit gives way to today's. Aggregate
   over all viewers — it's not personal data about anyone, which is why the
   `trending` source stays on in non-personalized mode.
@@ -19,7 +20,7 @@ defmodule TSpec.Feed.TrendingWorker do
         Repo.query!("""
         INSERT INTO trending_scores (content_id, score, computed_at)
         SELECT v.content_id,
-               count(*) * power(0.5, extract(epoch FROM now() - i.published_at) / 172800),
+               count(DISTINCT v.user_id) * power(0.5, extract(epoch FROM now() - i.published_at) / 172800),
                now()
         FROM view_engagements v
         JOIN content_items i ON i.id = v.content_id

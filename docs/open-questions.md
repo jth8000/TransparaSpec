@@ -26,6 +26,10 @@ Undecided items. When one is resolved, record the answer here and write an ADR i
 - [ ] **Postgres host** with pgvector: Fly managed Postgres, Neon, or Supabase.
 - [ ] **Web sessions**: Phase 0 uses bearer tokens everywhere, with web storing the token in localStorage. Before beta, decide whether web moves to an httpOnly cookie session (XSS exposure vs. one auth path).
 - [ ] **Sign-in abuse**: per-IP/email rate limits on `/api/auth/request` and verify. Phase 0 only limits attempts per code.
+- [ ] **Engagement abuse**: events are client-reported, so an account can fabricate views. Phase 1a counts distinct users in trending, quality and co-engagement, so one account counts once per item. Still open for Phase 2:
+  - rate limits on `POST /api/events`;
+  - stricter view lifecycles (e.g. `complete` needs a prior `view_start` and plausible timing);
+  - sybil/bot heuristics before signals feed shared rankings.
 
 ## Legal / compliance (needs counsel before Phase 3–4)
 - [ ] Is paying a data dividend money transmission, a securities issue, or a tax-reporting obligation? Which threshold triggers 1099 forms?
