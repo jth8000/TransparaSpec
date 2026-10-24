@@ -55,8 +55,11 @@ test('a followed creator’s upload plays in the Following feed', async ({ brows
 
   const response = await eventsPosted;
   expect(response.status()).toBe(202);
-  const sent = response.request().postDataJSON() as { events: { type: string }[] };
+  const sent = response.request().postDataJSON() as { events: { type: string; view_id?: string }[] };
   expect(sent.events.map((e) => e.type)).toContain('view_start');
   expect(sent.events.some((e) => 'consent_version' in e)).toBe(false);
+  // Every playback event belongs to a view (ADR 0012): one UUID per episode.
+  const start = sent.events.find((e) => e.type === 'view_start')!;
+  expect(start.view_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   expect(((await response.json()) as { accepted: number }).accepted).toBeGreaterThan(0);
 });

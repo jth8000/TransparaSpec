@@ -1,0 +1,11 @@
+TransparaSpec (T-Spec)
+Copyright (C) 2026 jth8000. Licensed under the GNU Affero General Public License v3.0 (see LICENSE).
+
+This project includes third-party material:
+
+- IAB Tech Lab Content Taxonomy v3.1
+  apps/server/priv/taxonomy/iab-content-taxonomy-3.1.tsv
+  © IAB Technology Laboratory, Inc. Licensed under the Creative Commons Attribution 3.0 License
+  (https://creativecommons.org/licenses/by/3.0/).
+  Source: https://github.com/InteractiveAdvertisingBureau/Taxonomies
+  Used unmodified as the source of T-Spec's topic taxonomy (tiers 1–2).

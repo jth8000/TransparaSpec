@@ -14,3 +14,5 @@ Each ADR captures one decision: its context, the decision itself, its consequenc
 | [0008](0008-polymorphic-content-model.md) | Polymorphic content model | Accepted |
 | [0009](0009-creator-monetization.md) | Creator monetization (per-subscriber split, ad revenue share, tap-only attribution) | Accepted |
 | [0010](0010-ad-placements-and-creator-analytics.md) | Ad placements (overlay / post-roll / labeled lead-in clip) and creator revenue analytics | Accepted |
+| [0011](0011-feed-sessions-and-live-rerank.md) | Feed sessions (one per client feed) and live re-rank | Accepted |
+| [0012](0012-interest-model-and-controls.md) | Interest model v1 (per-view deltas, decay) and user controls | Accepted |

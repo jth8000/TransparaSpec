@@ -8,6 +8,7 @@ defmodule TSpecWeb.UserSocket do
   alias TSpec.Accounts
 
   channel "user:*", TSpecWeb.UserChannel
+  channel "feed_session:*", TSpecWeb.FeedChannel
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) when is_binary(token) do

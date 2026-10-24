@@ -43,7 +43,9 @@ defmodule TSpec.Social do
   end
 
   @doc "Query of ids the scope's user follows (for feed queries)."
-  def followee_ids_query(%Scope{user: %User{id: user_id}}) do
+  def followee_ids_query(%Scope{user: %User{id: user_id}}), do: followee_ids_query(user_id)
+
+  def followee_ids_query(user_id) when is_binary(user_id) do
     from f in Follow, where: f.follower_id == ^user_id, select: f.followee_id
   end
 end

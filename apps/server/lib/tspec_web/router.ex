@@ -47,6 +47,7 @@ defmodule TSpecWeb.Router do
     post "/auth/request", AuthController, :request
     post "/auth/verify", AuthController, :verify
     get "/consent/current", ConsentController, :show
+    get "/topics", TopicController, :index
     get "/users/:handle", UserController, :show
     get "/content/:id", ContentController, :show
     get "/feed/latest", FeedController, :latest
@@ -71,6 +72,16 @@ defmodule TSpecWeb.Router do
     patch "/content/:id", ContentController, :update
     delete "/content/:id", ContentController, :delete
     get "/feed/following", FeedController, :following
+    get "/feed/for-you", FeedController, :for_you
+    get "/impressions/:id", TransparencyController, :explain
+    get "/algorithm/settings", TransparencyController, :settings
+    put "/algorithm/settings", TransparencyController, :update_settings
+    post "/algorithm/settings/reset", TransparencyController, :reset_settings
+    get "/algorithm/dashboard", TransparencyController, :dashboard
+    get "/me/interests", TransparencyController, :interests
+    get "/me/interests/topics/:slug/evidence", TransparencyController, :interest_evidence
+    delete "/me/interests/topics/:slug", TransparencyController, :forget_interest
+    delete "/me/interests/creators/:id", TransparencyController, :forget_creator_interest
     post "/events", EventController, :create
   end
 

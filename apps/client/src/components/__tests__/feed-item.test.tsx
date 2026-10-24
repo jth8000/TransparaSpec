@@ -8,6 +8,9 @@ const mockTrack = jest.fn();
 
 jest.mock('@/lib/events', () => ({ useTrack: () => mockTrack }));
 
+let mockViewIds = 0;
+jest.mock('expo-crypto', () => ({ randomUUID: () => `view-${++mockViewIds}` }));
+
 jest.mock('expo-router', () => {
   const { Text: MockText } = jest.requireActual('react-native');
   return { Link: ({ children }: { children: React.ReactNode }) => <MockText>{children}</MockText> };
@@ -28,6 +31,7 @@ const base: Schemas['ContentItem'] = {
   published_at: '2026-10-20T12:00:00Z',
   created_at: '2026-10-20T12:00:00Z',
   author: { id: 'a', handle: 'alice', display_name: null, avatar_url: null },
+  topics: [],
   video: null,
   text: { body: 'Hello T-Spec' },
 };
@@ -73,15 +77,30 @@ describe('FeedItem', () => {
     expect(mockTrack).not.toHaveBeenCalled();
 
     await rerender(<FeedItem item={base} height={800} active preload={false} muted />);
-    expect(mockTrack).toHaveBeenCalledWith(base.id, 'view_start');
+    expect(mockTrack).toHaveBeenCalledWith(base.id, 'view_start', {
+      viewId: expect.stringMatching(/^view-/),
+    });
   });
 
   it('records a skip when an unfinished video is swiped away', async () => {
     const { rerender } = await render(<FeedItem item={video} height={800} active preload={false} muted />);
     await rerender(<FeedItem item={video} height={800} active={false} preload={false} muted />);
 
-    expect(mockTrack).toHaveBeenCalledWith(video.id, 'view_start');
-    expect(mockTrack).toHaveBeenCalledWith(video.id, 'skip', 0);
+    const [[, , start]] = mockTrack.mock.calls;
+    expect(mockTrack).toHaveBeenCalledWith(video.id, 'view_start', { viewId: start.viewId });
+    expect(mockTrack).toHaveBeenCalledWith(video.id, 'skip', { value: 0, viewId: start.viewId });
+  });
+
+  it('starts a new view, with a new id, each time the item becomes active again', async () => {
+    const { rerender } = await render(<FeedItem item={video} height={800} active preload={false} muted />);
+    await rerender(<FeedItem item={video} height={800} active={false} preload={false} muted />);
+    await rerender(<FeedItem item={video} height={800} active preload={false} muted />);
+
+    const starts = mockTrack.mock.calls
+      .filter(([, type]) => type === 'view_start')
+      .map(([, , o]) => o.viewId);
+    expect(starts).toHaveLength(2);
+    expect(starts[0]).not.toEqual(starts[1]);
   });
 
   it('only loads video when active or adjacent', async () => {

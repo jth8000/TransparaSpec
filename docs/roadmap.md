@@ -14,29 +14,60 @@ Each phase ends with a working, demoable system. Phases are sized for a two-pers
 - **Not yet done** (carried forward):
   - iOS has never been run. It needs an Apple Developer account and a device or Mac. Phase 2, before beta.
   - Cloudflare Stream is only stub-tested. A live check needs an account (`VIDEO_PROVIDER=cloudflare` + `CF_*`).
-  - CI is written but has never run. There's no git remote yet.
+  - ~~CI is written but has never run.~~ CI first ran green on GitHub on 2026-10-21 (all four jobs).
 
 ## Phase 1: Transparent ranking
-- Topic taxonomy (IAB-seeded) and creator topic selection.
-- Python ML service: transcript, embeddings, topic classification, moderation scores, called via Oban.
-- Interest model: topic affinities with decay, plus an evidence view.
-- Candidate sources: following, topic, trending, explore, and co-engagement (SQL v1).
-- Explainable ranker with contribution traces; `impressions` logging; property tests.
+Split into two parts. 1a uses creator-picked topics and must meet the "done when" test on its own. 1b adds model topics through the same `content_topics` table.
+
+### 1a: Ranker, explanations and live controls — done (2026-10-21)
+- Topic taxonomy: IAB Content Taxonomy tiers 1–2, plus creator topic selection (up to 3).
+- Interest model ([ADR 0012](adr/0012-interest-model-and-controls.md)):
+  - per-view deltas;
+  - decay;
+  - exactly-once application;
+  - an evidence view.
+- Candidate sources (SQL v1): following, topic, trending, explore, co-engagement, fresh.
+- Explainable ranker with contribution traces; `impressions` logging (served vs exposed); property tests.
+- Per-feed-session `Feed.Session` processes; live re-rank and refill over Channels ([ADR 0011](adr/0011-feed-sessions-and-live-rerank.md)).
+- Topic sliders (preference + affinity), hard-off toggles, source weights, a non-personalized mode.
 - "Why am I seeing this?" sheet; Algorithm Dashboard.
-- Per-user `Feed` process; weight sliders and hard-off toggles; live re-rank over Channels.
-- Non-personalized feed toggle.
-- **Done when:** turning off "fitness" visibly re-ranks the feed within a second, and every item's explanation matches its stored trace.
+- **Done when:** turning off "fitness" visibly re-ranks the feed within a second, and every item's explanation matches its stored trace. ✅
+  - **Web:** Playwright (`e2e/tests/transparent-ranking.spec.ts`). The tap reaches a pushed, re-ranked feed in about 230 ms, including the 150 ms debounce, with no reload and no fitness item after the current one. Every new explanation sums exactly to its stored score. A second device re-ranks its own session. After a further settings change, an item still explains itself with the settings it was served under.
+  - **Android 17 emulator:** For You, the Why sheet, and Tune → Fitness off, with the following items free of fitness.
+  - **Server timing:** ranking 500 candidates takes about 15 ms; a settings change reaches the client in about 6 ms.
+- **Known limits:**
+  - Hard-off covers creator labels only until 1b adds model labels.
+  - Ranker weights and affinity deltas are hand-tuned (open questions).
+  - iOS still not run (Phase 2).
+
+### 1b: Content understanding (Python ML service)
+- `services/ml` (FastAPI), called from Oban jobs (ADR 0003). The default pipeline is multimodal:
+  - a Whisper transcript;
+  - CLIP/SigLIP embeddings of about 8 frames;
+  - caption text;
+  - zero-shot scoring against the taxonomy.
+
+  Frames matter because many short videos have no speech or caption.
+- Writes `content_topics` with `source = model`, and adds `content_embeddings` (pgvector) and moderation scores (scores only, never approve/reject).
+- Hard-off coverage widens to model labels, with the same meaning.
+- An optional LLM pass over the caption and transcript, behind the same output contract, if accuracy needs it.
 
 ## Phase 2: Social and safety → private beta
 - Passkeys and Sign in with Apple / Google (deferred from Phase 0); first iOS build and run.
 - Rate limiting on sign-in requests and code attempts per IP/email (Phase 0 only caps attempts per code).
+- Engagement abuse: rate limits on events, view-lifecycle validation, sybil/bot heuristics before signals feed shared rankings (see open questions).
 - Threaded comments, likes, blocks/mutes, share links.
 - Real-time in-app notifications; push notifications.
 - Reporting, moderation queue/actions/audit log, ML-score routing.
 - CSAM hash matching + NCMEC reporting process; DMCA agent and flow.
 - Data export and account deletion.
 - ToS and privacy policy; beta invite system; basic admin tools.
-- Fly.io production deploy, backups, monitoring.
+- Fly.io production deploy, backups, monitoring. Nothing exists yet: `infra/` is empty, and there's no release config, Dockerfile or `fly.toml` (`mix phx.gen.release --docker` / `fly launch` generate most of it). Feed sessions rely on `:global` across connected nodes (ADR 0011), so clustering is required:
+  - `DNS_CLUSTER_QUERY=<app>.internal`;
+  - a node name built from each machine's private IP (`RELEASE_NODE` in `rel/env.sh.eex`);
+  - the same `RELEASE_COOKIE` on every machine;
+  - IPv6 distribution (`ERL_AFLAGS="-proto_dist inet6_tcp"`), since Fly's private network is IPv6;
+  - then verify on two machines that a feed session keeps one owner.
 - **Done when:** invite-only US beta is live.
 
 ## Phase 3: Monetization (creators first)

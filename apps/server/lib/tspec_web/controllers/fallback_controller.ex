@@ -15,7 +15,8 @@ defmodule TSpecWeb.FallbackController do
     already_onboarded: {:conflict, "Onboarding is already complete"},
     consent_required: {:unprocessable_entity, "You must accept the current terms"},
     cannot_follow_self: {:unprocessable_entity, "You can't follow yourself"},
-    batch_too_large: {:unprocessable_entity, "Too many events in one batch"}
+    batch_too_large: {:unprocessable_entity, "Too many events in one batch"},
+    invalid_session: {:unprocessable_entity, "The feed session id is invalid"}
   }
 
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do

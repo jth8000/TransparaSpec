@@ -93,4 +93,43 @@ describe('EventQueue', () => {
     await queue.flush({ keepalive: true });
     expect(send).toHaveBeenCalledWith([event(1)], { keepalive: true });
   });
+
+  it('flushAll drains every batch and reports success', async () => {
+    const send = jest.fn().mockResolvedValue(undefined);
+    const queue = new EventQueue(send, { flushAt: 1000, maxBatch: 2 });
+    [1, 2, 3, 4, 5].forEach((n) => queue.push(event(n)));
+
+    await expect(queue.flushAll()).resolves.toBe(true);
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(queue.size).toBe(0);
+  });
+
+  it('flushAll reports failure and keeps the unsent batch', async () => {
+    const send = jest.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('offline'));
+    const queue = new EventQueue(send, { flushAt: 1000, maxBatch: 2 });
+    [1, 2, 3].forEach((n) => queue.push(event(n)));
+
+    await expect(queue.flushAll()).resolves.toBe(false);
+    expect(queue.size).toBe(1);
+  });
+
+  it('flushAll waits for a batch already in flight', async () => {
+    let release!: () => void;
+    const send = jest
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>((resolve) => (release = resolve)))
+      .mockResolvedValue(undefined);
+    const queue = new EventQueue(send, { flushAt: 1000 });
+    queue.push(event(1));
+    void queue.flush();
+
+    let done = false;
+    const all = queue.flushAll().then((ok) => (done = ok));
+    await Promise.resolve();
+    expect(done).toBe(false);
+
+    release();
+    await all;
+    expect(done).toBe(true);
+  });
 });

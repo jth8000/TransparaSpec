@@ -41,6 +41,20 @@ defmodule TSpec.DataCase do
   end
 
   @doc """
+  Stops every feed session and background task (refills). Feed sessions
+  run under the application's supervisors, outside the test process, so
+  tests that start them call this in `on_exit` before the sandbox goes away.
+  """
+  def stop_feed_sessions do
+    for sup <- [TSpec.Feed.SessionSupervisor, TSpec.TaskSupervisor],
+        {_, pid, _, _} <- DynamicSupervisor.which_children(sup) do
+      DynamicSupervisor.terminate_child(sup, pid)
+    end
+
+    :ok
+  end
+
+  @doc """
   A helper that transforms changeset errors into a map of messages.
 
       assert {:error, changeset} = Accounts.create_user(%{password: "short"})

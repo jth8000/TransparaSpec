@@ -19,6 +19,7 @@ export default function TabsLayout() {
       }}>
       <Tabs.Screen name="feed" options={{ title: 'Feed', tabBarIcon: icon('▶') }} />
       <Tabs.Screen name="create" options={{ title: 'Create', tabBarIcon: icon('＋') }} />
+      <Tabs.Screen name="algorithm" options={{ title: 'Algorithm', tabBarIcon: icon('◎') }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: icon('●') }} />
     </Tabs>
   );

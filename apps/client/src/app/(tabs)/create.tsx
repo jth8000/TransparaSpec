@@ -3,16 +3,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { TopicPicker } from '@/components/topic-picker';
 import { Button, ErrorText, Field, Screen } from '@/components/ui';
 import { api, ApiError, unwrap } from '@/lib/api';
 import { useContentStatus, type ContentStatus } from '@/lib/socket';
 import { uploadVideo } from '@/lib/upload';
-import {
-  applyContentStatus,
-  pendingContentId,
-  uploadFinished,
-  type UploadState,
-} from '@/lib/upload-state';
+import { applyContentStatus, pendingContentId, uploadFinished, type UploadState } from '@/lib/upload-state';
 import { colors, radius, space } from '@/theme';
 
 const STATUS_TEXT: Record<UploadState['step'], string> = {
@@ -26,8 +22,10 @@ const STATUS_TEXT: Record<UploadState['step'], string> = {
 export default function Create() {
   const queryClient = useQueryClient();
   const [caption, setCaption] = useState('');
+  const [videoTopics, setVideoTopics] = useState<string[]>([]);
   const [upload, setUpload] = useState<UploadState>({ step: 'idle' });
   const [postBody, setPostBody] = useState('');
+  const [postTopics, setPostTopics] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string>();
   const [posted, setPosted] = useState(false);
@@ -73,12 +71,13 @@ export default function Create() {
     setUpload({ step: 'uploading' });
     try {
       const slot = await unwrap(
-        api.POST('/api/videos', { body: caption ? { caption } : {} }),
+        api.POST('/api/videos', { body: { ...(caption ? { caption } : {}), topics: videoTopics } }),
       );
       setUpload({ step: 'uploading', contentId: slot.content.id });
       await uploadVideo(picked.assets[0], slot.upload);
       setUpload((current) => uploadFinished(current, slot.content.id));
       setCaption('');
+      setVideoTopics([]);
       await reconcile(slot.content.id);
     } catch (e) {
       setUpload({ step: 'failed', message: e instanceof Error ? e.message : 'Upload failed' });
@@ -90,12 +89,17 @@ export default function Create() {
     setPosted(false);
     setPosting(true);
     try {
-      await unwrap(api.POST('/api/posts', { body: { body: postBody } }));
+      await unwrap(api.POST('/api/posts', { body: { body: postBody, topics: postTopics } }));
       setPostBody('');
+      setPostTopics([]);
       setPosted(true);
       void queryClient.invalidateQueries({ queryKey: ['feed'] });
     } catch (e) {
-      setPostError(e instanceof ApiError ? (e.fieldMessage('body') ?? e.message) : 'Could not post');
+      setPostError(
+        e instanceof ApiError
+          ? (e.fieldMessage('body') ?? e.fieldMessage('topics') ?? e.message)
+          : 'Could not post',
+      );
     } finally {
       setPosting(false);
     }
@@ -115,11 +119,16 @@ export default function Create() {
           placeholder="Say something about it"
           maxLength={2200}
         />
+        <TopicPicker value={videoTopics} onChange={setVideoTopics} testID="video-topics" />
         <Button title="Choose a video" testID="pick-video" onPress={pickAndUpload} loading={busy} />
         {upload.step !== 'idle' && (
           <Text
             testID="upload-status"
-            style={[styles.status, upload.step === 'ready' && styles.ok, upload.step === 'failed' && styles.bad]}>
+            style={[
+              styles.status,
+              upload.step === 'ready' && styles.ok,
+              upload.step === 'failed' && styles.bad,
+            ]}>
             {upload.step === 'failed' ? upload.message : STATUS_TEXT[upload.step]}
           </Text>
         )}
@@ -136,9 +145,16 @@ export default function Create() {
           multiline
           maxLength={2000}
         />
+        <TopicPicker value={postTopics} onChange={setPostTopics} testID="post-topics" />
         <ErrorText>{postError}</ErrorText>
         {posted && <Text style={[styles.status, styles.ok]}>Posted.</Text>}
-        <Button title="Post" testID="create-post" onPress={createPost} loading={posting} disabled={!postBody.trim()} />
+        <Button
+          title="Post"
+          testID="create-post"
+          onPress={createPost}
+          loading={posting}
+          disabled={!postBody.trim()}
+        />
       </View>
     </Screen>
   );
