@@ -309,4 +309,7 @@ defmodule TSpec.Feed.Candidates do
 
   @doc false
   def prior_rate, do: @prior_rate
+
+  @doc false
+  def prior_views, do: @prior_views
 end

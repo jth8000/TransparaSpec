@@ -146,6 +146,8 @@ When the user changes a weight, every one of their sessions re-scores its cache 
 - Users can see the evidence count and recent contributing events for each affinity, and edit or delete it.
 
 ### Ranker v1 as built (Phase 1a)
+The full explanation, with worked examples and every default, is in [ranking.md](ranking.md). This section is the summary.
+
 - **Features and default weights** (`Feed.Ranker.Defaults`):
 
   | Feature | Weight |

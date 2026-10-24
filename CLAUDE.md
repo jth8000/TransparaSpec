@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-TransparaSpec (T-Spec) is a social/short-video platform. The team is the user + Claude. Read `docs/architecture.md` and the ADRs in `docs/adr/` before designing anything new.
+TransparaSpec (T-Spec) is a social/short-video platform. The team is the user + Claude. Read `docs/architecture.md` and the ADRs in `docs/adr/` before designing anything new. Before touching ranking, interests or feed sessions, read `docs/ranking.md`: the plain-language spec of the ranker with its real defaults.
 
 ## Pillars (every feature must respect these)
 1. **Transparency and control.**
@@ -35,6 +35,7 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user + 
 - **Content**: new content kinds are a payload table on top of `content_items` (ADR 0008). Don't create parallel content systems.
 - **Video**: access goes only through the `VideoProvider` behaviour. Video bytes never pass through Phoenix.
 - **Rust**: only when profiling justifies it, for ranking or graph hot paths (ADR 0004).
+- **Ranking docs**: `docs/ranking.md` must describe what the code does. Change a weight, formula or rule, and update it in the same commit. `test/tspec/docs/ranking_doc_test.exs` checks its defaults table.
 - **Decisions**: architecture-shaping decisions get a new ADR in `docs/adr/` and a row in its README. Resolve items in `docs/open-questions.md` as they're decided.
 - **Testing**: ExUnit + StreamData property tests on the server; Jest + RNTL on the client; Maestro/Playwright end-to-end.
 - **User background**: strongest in Go, some Elixir and Rust, new to recommender systems. Explain Elixir idioms and recommender concepts when introducing them.

@@ -22,6 +22,7 @@ T-Spec is a social and video-sharing platform where you can see, and steer, the 
 ## Docs
 - [Requirements](docs/requirements.md)
 - [Architecture](docs/architecture.md)
+- [How the For You ranker works](docs/ranking.md): the math, with the real defaults
 - [Decision records](docs/adr/README.md)
 - [Roadmap](docs/roadmap.md)
 - [Open questions](docs/open-questions.md)
