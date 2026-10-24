@@ -392,6 +392,63 @@ defmodule TSpec.Feed.InterestsTest do
     end
   end
 
+  describe "forgetting an interest" do
+    defp fitness_id, do: Content.topics_by_slug()["fitness-and-exercise"].id
+
+    test "a view still waiting to be applied can't bring it back",
+         %{viewer: viewer, scope: scope, fitness: fitness, creator: creator} do
+      now = DateTime.utc_now()
+      v1 = Ecto.UUID.generate()
+      record!(scope, [ev(fitness, v1, "view_start"), ev(fitness, v1, "complete", 2.0)])
+      apply!(viewer, now)
+      assert Map.has_key?(Interests.topic_affinities(viewer.id), fitness_id())
+
+      # Another view is recorded but not applied yet when the user forgets.
+      v2 = Ecto.UUID.generate()
+      record!(scope, [ev(fitness, v2, "view_start"), ev(fitness, v2, "complete", 2.0)])
+      :ok = Interests.forget(viewer.id, :topic, fitness_id())
+      :ok = Interests.forget(viewer.id, :creator, creator.id)
+
+      apply!(viewer, now)
+      refute Map.has_key?(Interests.topic_affinities(viewer.id), fitness_id())
+      refute Map.has_key?(Interests.creator_affinities(viewer.id), creator.id)
+      # Topics the user didn't forget still learn from the same view.
+      assert_in_delta scores(viewer)["healthy-living"], 1.0, 1.0e-12
+      assert %{dirty: false} = view(v2)
+    end
+
+    test "a view that keeps growing after the forget doesn't credit it either",
+         %{viewer: viewer, scope: scope, fitness: fitness} do
+      now = DateTime.utc_now()
+      v = Ecto.UUID.generate()
+      record!(scope, [ev(fitness, v, "view_start"), ev(fitness, v, "watch_progress", 1.0)])
+      apply!(viewer, now)
+
+      :ok = Interests.forget(viewer.id, :topic, fitness_id())
+      record!(scope, [ev(fitness, v, "complete", 2.0)])
+      apply!(viewer, now)
+
+      assert scores(viewer)["fitness-and-exercise"] == 0.0
+      refute Map.has_key?(Interests.topic_affinities(viewer.id), fitness_id())
+    end
+
+    test "new views after the forget are learned again", %{
+      viewer: viewer,
+      scope: scope,
+      fitness: fitness
+    } do
+      :ok = Interests.forget(viewer.id, :topic, fitness_id())
+      v = Ecto.UUID.generate()
+      record!(scope, [ev(fitness, v, "view_start"), ev(fitness, v, "complete", 2.0)])
+      apply!(viewer, DateTime.utc_now())
+
+      assert %{score: score, evidence_count: 1} =
+               Interests.topic_affinities(viewer.id)[fitness_id()]
+
+      assert_in_delta score, 1.0, 1.0e-6
+    end
+  end
+
   describe "the atomic upsert" do
     test "is order-independent: an older write landing second is decayed, not the stored score",
          %{viewer: viewer} do

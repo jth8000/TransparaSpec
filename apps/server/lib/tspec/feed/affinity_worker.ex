@@ -4,19 +4,18 @@ defmodule TSpec.Feed.AffinityWorker do
   (`TSpec.Feed.Interests.apply_dirty_views/2`).
 
   Queued by `Events.record/2` in the same transaction as the events, so a
-  job exists whenever new view state commits. Uniqueness only spares
-  duplicate work: it covers queued jobs but not an executing one, so views
-  that commit mid-run still get a follow-up job. Correctness never depends
-  on it — re-applying is a no-op (ADR 0012). `TSpec.Feed.AffinitySweepWorker`
-  catches anything a lost job left behind.
+  job exists for every batch of view state that commits — and Oban only
+  runs committed jobs, so it always runs after the views it's for are
+  visible. Deliberately **not** deduplicated: a unique job could be folded
+  into one that runs before this transaction commits, leaving the new views
+  with no job until the sweep. Extra runs are cheap and idempotent (ADR 0012).
+  `TSpec.Feed.AffinitySweepWorker` only covers jobs that were discarded.
   """
   use Oban.Worker, queue: :affinity, max_attempts: 5
 
   alias TSpec.Feed.Interests
 
-  @unique [period: 60, keys: [:user_id], states: [:available, :scheduled, :retryable]]
-
-  def new_for_user(user_id), do: new(%{user_id: user_id}, unique: @unique)
+  def new_for_user(user_id), do: new(%{user_id: user_id})
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => user_id}}) do

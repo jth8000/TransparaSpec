@@ -1,8 +1,9 @@
 defmodule TSpec.Feed.AffinitySweepWorker do
   @moduledoc """
   Periodic backstop: queues `TSpec.Feed.AffinityWorker` for every user who
-  still has dirty views (e.g. a job was discarded after repeated failures).
-  Promptness only — applying views is idempotent.
+  still has dirty views. Every committed batch already has its own job, so
+  this only matters when a job was discarded after repeated failures.
+  Applying views is idempotent, so an extra run is harmless.
   """
   use Oban.Worker, queue: :maintenance, max_attempts: 3
 

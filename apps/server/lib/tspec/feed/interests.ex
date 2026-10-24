@@ -236,7 +236,7 @@ defmodule TSpec.Feed.Interests do
 
   defp ms(_), do: 0
 
-  @doc "Queues the affinity worker for a user (deduplicated while queued)."
+  @doc "Queues the affinity worker for a user (one job per committed batch; see AffinityWorker)."
   def enqueue_apply(user_id) do
     {:ok, _job} = user_id |> AffinityWorker.new_for_user() |> Oban.insert()
     :ok
@@ -262,9 +262,7 @@ defmodule TSpec.Feed.Interests do
     w = Weights.get()
 
     Repo.transact(fn ->
-      Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
-        "affinity:" <> user_id
-      ])
+      lock_user!(user_id)
 
       views =
         from(v in ViewEngagement,
@@ -275,7 +273,9 @@ defmodule TSpec.Feed.Interests do
         )
         |> Repo.all()
 
-      {topics, creators} = accumulate(views)
+      {topics, creators} = accumulate(views, resets(user_id))
+      # Test seam: pause between reading reset boundaries and writing.
+      if hook = Keyword.get(opts, :before_upsert), do: hook.()
       upsert_affinities(:topic, user_id, topics, now, w)
       upsert_affinities(:creator, user_id, creators, now, w)
 
@@ -297,24 +297,101 @@ defmodule TSpec.Feed.Interests do
   end
 
   # Sums each learnable view's outstanding delta per topic and per creator.
-  # Evidence counts a view the first time it moves an affinity.
-  defp accumulate(views) do
+  # Evidence counts a view the first time it moves an affinity. A topic or
+  # creator the user told us to forget isn't credited by views that started
+  # before they did.
+  defp accumulate(views, resets) do
     Enum.reduce(views, {%{}, %{}}, fn v, {topics, creators} ->
       delta = v.target_delta - v.applied_delta
 
       if v.learnable and delta != 0.0 do
         evidence = if is_nil(v.applied_at), do: 1, else: 0
+        after_reset? = fn kind, key -> after_reset?(resets[kind][key], v.inserted_at) end
 
         topics =
           Enum.reduce(v.topic_snapshot, topics, fn {topic_id, weight}, acc ->
-            add(acc, topic_id, delta * weight, evidence)
+            if after_reset?.(:topic, topic_id),
+              do: add(acc, topic_id, delta * weight, evidence),
+              else: acc
           end)
 
-        {topics, add(creators, v.creator_id, delta, evidence)}
+        creators =
+          if after_reset?.(:creator, v.creator_id),
+            do: add(creators, v.creator_id, delta, evidence),
+            else: creators
+
+        {topics, creators}
       else
         {topics, creators}
       end
     end)
+  end
+
+  defp after_reset?(nil, _view_started), do: true
+  defp after_reset?(reset_at, view_started), do: DateTime.compare(view_started, reset_at) == :gt
+
+  # %{topic: %{topic_id => reset_at}, creator: %{creator_id => reset_at}}
+  defp resets(user_id) do
+    %{
+      topic:
+        from(a in TopicAffinity,
+          where: a.user_id == ^user_id and not is_nil(a.reset_at),
+          select: {a.topic_id, a.reset_at}
+        )
+        |> Repo.all()
+        |> Map.new(),
+      creator:
+        from(a in CreatorAffinity,
+          where: a.user_id == ^user_id and not is_nil(a.reset_at),
+          select: {a.creator_id, a.reset_at}
+        )
+        |> Repo.all()
+        |> Map.new()
+    }
+  end
+
+  @doc """
+  Takes the per-user affinity lock for the rest of the current transaction.
+  Everything that writes a user's affinities — the worker, "forget" —
+  serializes on it.
+  """
+  def lock_user!(user_id) do
+    Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["affinity:" <> user_id])
+    :ok
+  end
+
+  @doc """
+  Forgets a learned interest (`kind` is `:topic` or `:creator`): zeroes it
+  and stamps `reset_at`, under the affinity lock. Views that started before
+  the stamp — including ones still waiting to be applied — never credit it
+  again; new views are learned as usual.
+  """
+  def forget(user_id, kind, key, now \\ DateTime.utc_now()) when kind in [:topic, :creator] do
+    {schema, field} =
+      case kind do
+        :topic -> {TopicAffinity, :topic_id}
+        :creator -> {CreatorAffinity, :creator_id}
+      end
+
+    Repo.transact(fn ->
+      lock_user!(user_id)
+
+      Repo.insert_all(
+        schema,
+        [
+          Map.merge(
+            %{user_id: user_id, score: 0.0, evidence_count: 0, as_of: now, reset_at: now},
+            %{field => key}
+          )
+        ],
+        on_conflict: [set: [score: 0.0, evidence_count: 0, as_of: now, reset_at: now]],
+        conflict_target: [:user_id, field]
+      )
+
+      {:ok, :forgotten}
+    end)
+
+    :ok
   end
 
   defp add(acc, key, delta, evidence) do
@@ -377,7 +454,7 @@ defmodule TSpec.Feed.Interests do
   def topic_affinities(user_id, now \\ DateTime.utc_now()) do
     w = Weights.get()
 
-    from(a in TopicAffinity, where: a.user_id == ^user_id)
+    from(a in TopicAffinity, where: a.user_id == ^user_id and a.evidence_count > 0)
     |> Repo.all()
     |> Map.new(
       &{&1.topic_id,
@@ -389,7 +466,7 @@ defmodule TSpec.Feed.Interests do
   def creator_affinities(user_id, now \\ DateTime.utc_now()) do
     w = Weights.get()
 
-    from(a in CreatorAffinity, where: a.user_id == ^user_id)
+    from(a in CreatorAffinity, where: a.user_id == ^user_id and a.evidence_count > 0)
     |> Repo.all()
     |> Map.new(
       &{&1.creator_id,

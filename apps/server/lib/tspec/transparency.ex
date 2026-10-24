@@ -20,7 +20,7 @@ defmodule TSpec.Transparency do
 
   alias TSpec.{Content, Events, Repo}
   alias TSpec.Accounts.{Scope, User}
-  alias TSpec.Feed.{CreatorAffinity, Interests, Settings, TopicAffinity, ViewEngagement}
+  alias TSpec.Feed.{Interests, Settings, TopicAffinity, ViewEngagement}
   alias TSpec.Transparency.{SettingsSnapshot, UserSetting}
 
   # Events up to 7 days old are accepted (Events.record/2), so a view can
@@ -327,9 +327,18 @@ defmodule TSpec.Transparency do
   """
   def interest_evidence(%Scope{user: %User{id: user_id}}, slug, limit \\ 20) do
     with %{id: topic_id} <- Content.topics_by_slug()[slug] do
+      # Only views since the interest was last forgotten.
+      since =
+        Repo.one(
+          from a in TopicAffinity,
+            where: a.user_id == ^user_id and a.topic_id == ^topic_id,
+            select: a.reset_at
+        ) || ~U[1970-01-01 00:00:00Z]
+
       views =
         from(v in ViewEngagement,
           where: v.user_id == ^user_id and v.learnable and not is_nil(v.applied_at),
+          where: v.inserted_at > ^since,
           where: fragment("? \\? ?", v.topic_snapshot, ^topic_id),
           order_by: [desc: v.inserted_at],
           limit: ^limit
@@ -359,17 +368,14 @@ defmodule TSpec.Transparency do
   end
 
   @doc """
-  Forgets a learned topic interest: removes the score and evidence count.
-  New views of the topic are learned again (turn the topic down or off to
-  stop that).
+  Forgets a learned topic interest: zeroes it and sets a reset boundary, so
+  views from before now — even ones still waiting to be applied — can't
+  bring it back. New views of the topic are learned again (turn the topic
+  down or off to stop that). See `TSpec.Feed.Interests.forget/4`.
   """
   def forget_interest(%Scope{user: %User{id: user_id}}, slug) do
     with %{id: topic_id} <- Content.topics_by_slug()[slug] do
-      Repo.delete_all(
-        from a in TopicAffinity, where: a.user_id == ^user_id and a.topic_id == ^topic_id
-      )
-
-      :ok
+      Interests.forget(user_id, :topic, topic_id)
     else
       nil -> {:error, :not_found}
     end
@@ -378,11 +384,7 @@ defmodule TSpec.Transparency do
   @doc "Forgets a learned creator interest (following is separate)."
   def forget_creator_interest(%Scope{user: %User{id: user_id}}, creator_id) do
     with {:ok, creator_id} <- Ecto.UUID.cast(creator_id) do
-      Repo.delete_all(
-        from a in CreatorAffinity, where: a.user_id == ^user_id and a.creator_id == ^creator_id
-      )
-
-      :ok
+      Interests.forget(user_id, :creator, creator_id)
     else
       :error -> {:error, :not_found}
     end

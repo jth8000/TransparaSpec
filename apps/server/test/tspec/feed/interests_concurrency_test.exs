@@ -236,4 +236,83 @@ defmodule TSpec.Feed.InterestsConcurrencyTest do
 
     assert %{learnable: false} = unboxed(fn -> Repo.get!(ViewEngagement, v) end)
   end
+
+  test "forgetting an interest can't be overwritten by a worker already in flight",
+       %{viewer: viewer, cooking: cooking} do
+    scope = Accounts.scope_for_user(viewer)
+    topic = Content.topics_by_slug()["cooking"].id
+    parent = self()
+
+    unboxed(fn ->
+      {:ok, _} = Events.record(scope, completed_view(cooking, Ecto.UUID.generate()))
+    end)
+
+    # The worker has read the reset boundaries (none yet) and is about to
+    # write. The race: a forget that commits in this gap would be overwritten.
+    worker =
+      spawn_unboxed(fn ->
+        Interests.apply_dirty_views(viewer.id,
+          before_upsert: fn ->
+            send(parent, :read_resets)
+            receive do: (:go -> :ok)
+          end
+        )
+      end)
+
+    assert_receive :read_resets, 5_000
+    forgetting = spawn_unboxed(fn -> Interests.forget(viewer.id, :topic, topic) end)
+    assert blocked?(forgetting), "forget should wait for the worker (per-user affinity lock)"
+
+    send(worker.pid, :go)
+    {:ok, %{applied: 1}} = Task.await(worker)
+    assert :ok = Task.await(forgetting)
+
+    # The forget came second, so the interest stays forgotten.
+    assert cooking_score(viewer) == 0.0
+  end
+
+  test "a view committed after the user's queued job already ran still gets its own job",
+       %{viewer: viewer, cooking: cooking} do
+    scope = Accounts.scope_for_user(viewer)
+    parent = self()
+
+    jobs = fn ->
+      unboxed(fn ->
+        Repo.all(
+          from j in Oban.Job,
+            where: j.worker == "TSpec.Feed.AffinityWorker" and j.state == "available",
+            where: fragment("?->>'user_id' = ?", j.args, ^viewer.id),
+            select: j.id
+        )
+      end)
+    end
+
+    # A job for this user is already queued (from an earlier batch).
+    unboxed(fn -> :ok = Interests.enqueue_apply(viewer.id) end)
+    [earlier] = jobs.()
+
+    # A new batch is recorded in a transaction that hasn't committed yet...
+    recording =
+      spawn_unboxed(fn ->
+        Repo.transaction(fn ->
+          {:ok, _} = Events.record(scope, completed_view(cooking, Ecto.UUID.generate()))
+          send(parent, :recorded)
+          receive do: (:commit -> :ok)
+        end)
+      end)
+
+    assert_receive :recorded, 5_000
+
+    # ...when the earlier job runs (it can't see the uncommitted view) and finishes.
+    unboxed(fn ->
+      {:ok, %{applied: 0}} = Interests.apply_dirty_views(viewer.id)
+      Repo.update_all(from(j in Oban.Job, where: j.id == ^earlier), set: [state: "completed"])
+    end)
+
+    send(recording.pid, :commit)
+    Task.await(recording)
+
+    # The committed view must still have a job of its own waiting.
+    assert [_] = jobs.()
+  end
 end

@@ -15,5 +15,7 @@ defmodule TSpec.Feed.TopicAffinity do
     field :score, :float
     field :evidence_count, :integer
     field :as_of, :utc_datetime_usec
+    # Set by "forget": views that started before it never credit this again.
+    field :reset_at, :utc_datetime_usec
   end
 end
