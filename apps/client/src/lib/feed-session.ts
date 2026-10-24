@@ -95,7 +95,12 @@ export function useForYouFeed(enabled: boolean) {
     channel.on('feed_reranked', (push: Rerank) =>
       dispatch({ type: 'rerank', push, current: currentRef.current }),
     );
-    channel.join();
+    // On every (re)join, tell the session where we are: a restarted process
+    // only knows what our exposure events have reported so far.
+    channel.join().receive('ok', () => {
+      const current = currentRef.current;
+      if (current) channel.push('at', { impression_id: current, rev: stateRef.current.rev });
+    });
     channelRef.current = channel;
     return () => {
       channelRef.current = null;

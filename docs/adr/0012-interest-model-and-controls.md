@@ -1,7 +1,7 @@
 # ADR 0012: Interest model v1 and user controls
 
 - **Status:** Accepted
-- **Date:** 2026-10-21 (amended 2026-10-23 after review: forget boundaries, per-use view eligibility, distinct-user aggregates, no job dedupe)
+- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: forget boundaries and no parent fallback for forgotten topics, per-use view eligibility, distinct-user aggregates, no job dedupe)
 
 ## Context
 The ranker (ADR 0006) needs a per-user interest profile: how much this person likes each topic and creator. It also needs controls whose meaning users can rely on:
@@ -102,6 +102,7 @@ Each topic slider `m` runs from 0 to 2, with a default of 1. It has two effects,
 "Forget" zeroes the affinity and stamps `reset_at`, under the same per-user advisory lock the worker uses.
 - Views that **started before** the stamp never credit that topic or creator again. That includes views still waiting to be applied and views that keep growing afterwards.
 - Views that start after it are learned normally.
+- Until it's re-learned, a forgotten topic counts as a **known zero** for ranking. A forgotten tier-2 topic doesn't fall back to half its parent's affinity: "forget Fitness" removes Fitness's learned credit entirely, while Healthy Living keeps its own.
 - The lock closes the gap where a worker has already read the boundaries but not yet written. A test pauses the worker exactly there.
 
 ### Non-personalized mode: no inferred signals
@@ -122,6 +123,8 @@ Events are still recorded. What a view may be used for is decided per view:
 | Aggregate | trending, completion-rate quality | all views, counted as **distinct users**, so one account (or one replaying client) counts once per item |
 
 Fabricated engagement from many accounts (sybils) and rate limits on events are Phase 2 work (see open questions).
+
+The Algorithm tab's description of non-personalized mode says exactly this: what you watch isn't used to learn about you or to recommend anything to anyone, and it only counts in anonymous totals like trending and completion rates.
 
 ### Creator signals are split
 - `creator_affinity` is inferred from behavior.

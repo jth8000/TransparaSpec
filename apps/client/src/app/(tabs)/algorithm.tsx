@@ -74,7 +74,7 @@ export default function AlgorithmScreen() {
           <Text style={styles.body}>
             {personalized
               ? 'On: For You uses what you watch to learn your interests.'
-              : 'Off: For You uses only accounts you follow, trending and new posts, plus your own settings. Nothing you watch is learned.'}
+              : 'Off: For You uses only accounts you follow, trending and new posts, plus your own settings. What you watch isn’t used to learn about you or to recommend anything to anyone; it only counts in anonymous totals like trending and completion rates.'}
           </Text>
           <Switch
             value={personalized}

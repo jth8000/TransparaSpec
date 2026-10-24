@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 
 import { api, unwrap, type Schemas } from './api';
-import { mergeChanges, SettingsBatcher, type SettingsChange } from './settings-batch';
+import { mergeChanges, SettingsBatcher, subtractChange, type SettingsChange } from './settings-batch';
 
 export type AlgorithmSettings = Schemas['AlgorithmSettings'];
 export type TopicControl = { multiplier: number; hard_off: boolean };
@@ -65,19 +65,21 @@ export function useSettingsEditor(send: (change: SettingsChange) => Promise<unkn
   const [batcher] = useState(() => new SettingsBatcher());
 
   useEffect(() => {
-    batcher.setSender((change) => {
+    // The batcher waits for this promise before sending the next change.
+    batcher.setSender((change) =>
       send(change)
         .then(() => setError(undefined))
         .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not save'))
         .finally(async () => {
           await queryClient.invalidateQueries({ queryKey: SETTINGS_KEY });
-          setPending({});
-        });
-    });
+          // Only what this write carried is settled; newer edits stay shown.
+          setPending((p) => subtractChange(p, change));
+        }),
+    );
   }, [batcher, send, queryClient]);
 
   // Send anything still pending when the editor goes away.
-  useEffect(() => () => batcher.flush(), [batcher]);
+  useEffect(() => () => void batcher.flush(), [batcher]);
 
   const change = useCallback(
     (c: SettingsChange) => {

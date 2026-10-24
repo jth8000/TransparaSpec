@@ -1,7 +1,7 @@
 # ADR 0011: Feed sessions and live re-rank
 
 - **Status:** Accepted
-- **Date:** 2026-10-21 (amended 2026-10-23 after review: cluster-wide ownership, rebuild on start, client keeps the on-screen item, pruning)
+- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: cluster-wide ownership, rebuild on start, client keeps the on-screen item, pruning, position reports by impression id, re-rank on start after missed settings, monitored refills)
 
 ## Context
 Changing a control must re-rank the feed **live**: the re-ranked feed should be pushed over WebSocket within 500 ms (requirements), and Phase 1's "done when" allows 1 s. Rebuilding every candidate source from SQL on each slider move is too slow and wasteful. The architecture therefore calls for a per-user `Feed` process that caches scored candidates and re-scores them in memory.
@@ -24,6 +24,7 @@ Planning showed that "one process per user" is the wrong unit. A user can have a
   - `rev` resumes from the highest stored revision.
   - The position is the furthest item the client reported showing (`view_start` events carrying the impression id).
   - So the client's revision stays valid, its `at` messages keep working, and nothing it already holds is served again.
+- **Settings that changed while no process was running** (it idled out, or the change came from the Algorithm tab) are caught at start: if the client's list was ranked under an older `settings_version` than the current one, the session re-ranks its tail at once. The channel subscribes *before* starting the session, so that push isn't lost, and `update_settings` makes sure the session is running *before* saving.
 - **The client's `rev` wins if it's higher.** An empty re-rank writes no impressions, so the client can be ahead of the rebuild. The client sends its `rev` when it (re)joins the channel and with every `at`, and the session adopts a higher one.
 - **"Seen" means viewed.** Across sessions, items the user *viewed* in the last 48 hours (`view_engagements`) are filtered out of candidates. Items that were only served, never shown, may come back.
 
@@ -38,7 +39,7 @@ Joining checks that the session belongs to the user.
 
 | Direction | Message | Meaning |
 |---|---|---|
-| client → server | `at {impression_id, rev}` | The visible item changed. Messages with an old `rev` are ignored. |
+| client → server | `at {impression_id, rev}` | The visible item changed. Matched by impression id whatever `rev` it carries (ids are unique, and channel messages arrive in order); a higher `rev` is adopted. If the session no longer lists that impression, the client kept it on screen through a re-rank: its video is never served again. The client re-sends `at` for its current item whenever it (re)joins. |
 | client → server | `update_settings {changes}` | Fast path: save the changes, re-rank this session, broadcast to the user's other sessions, and reply in one round trip. |
 | server → client | `feed_reranked {rev, after_impression_id, items}` | Keep everything up to and including `after_impression_id` and replace the rest. The client drops any push with an older `rev`. **It also keeps everything through the item on screen, if that's further:** a push from a refill or another device can cross an `at` message still in flight. |
 
@@ -51,7 +52,7 @@ Joining sends `{rev}` (the revision the client holds); see "The process is a cac
    - replace only the items **after** the client's current position.
 
    The item being watched is never taken away. Server-side target: under 100 ms for 500 candidates.
-2. **Refill in the background** when fewer than 30 eligible candidates remain, or when a topic was boosted but is poorly represented in the cache.
+2. **Refill in the background** when fewer than 30 eligible candidates remain, or when a topic was boosted but is poorly represented in the cache. The task is monitored: if it dies before reporting (say, a database timeout), the session stops waiting. An empty or failed refill starts a 60 s cooldown before a page can trigger another.
    - The candidate sources run under the new settings, including a targeted query for the boosted topic.
    - The results are merged, and a second push follows with `rev + 1`.
 3. **Breadth:** the `topic` source draws from the user's top affinity topics *plus every topic they've explicitly boosted*, so a slider can surface content the profile has never seen.

@@ -18,6 +18,15 @@ describe('appendPage', () => {
     expect(ids(s)).toEqual(['a', 'b', 'c']);
   });
 
+  it('skips a page item whose video the list already holds (kept through a re-rank)', () => {
+    const s = appendPage(appendPage(initialForYou, page('s1', 0, ['a', 'b'])), {
+      session_id: 's1',
+      rev: 0,
+      items: [{ ...item('z'), id: 'c-a' } as ForYouItem, item('c')],
+    });
+    expect(ids(s)).toEqual(['a', 'b', 'c']);
+  });
+
   it('a new session id replaces the feed', () => {
     const s = appendPage(appendPage(initialForYou, page('s1', 3, ['a'])), page('s2', 0, ['x']));
     expect(s).toEqual({ sessionId: 's2', rev: 0, items: [item('x')] });
