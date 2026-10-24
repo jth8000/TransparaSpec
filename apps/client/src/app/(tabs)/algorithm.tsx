@@ -30,7 +30,7 @@ export default function AlgorithmScreen() {
   const flushEvents = useFlushEvents();
   const { data: settings } = useAlgorithmSettings();
   const { data: taxonomy } = useTopics();
-  const { pending, change, error } = useSettingsEditor(saveSettings);
+  const { pending, change, error, supersede } = useSettingsEditor(saveSettings);
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [browsing, setBrowsing] = useState(false);
@@ -62,10 +62,9 @@ export default function AlgorithmScreen() {
     }
   };
 
-  const reset = async () => {
-    await unwrap(api.POST('/api/algorithm/settings/reset'));
-    await queryClient.invalidateQueries({ queryKey: SETTINGS_KEY });
-  };
+  // A reset overrides every edit before it, so it goes through the same
+  // write sequence: no queued or in-flight slider save can land after it.
+  const reset = () => supersede(() => unwrap(api.POST('/api/algorithm/settings/reset')));
 
   return (
     <Screen title="Your algorithm">

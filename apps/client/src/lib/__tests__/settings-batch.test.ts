@@ -82,6 +82,102 @@ describe('SettingsBatcher', () => {
   });
 });
 
+describe('SettingsBatcher barriers (reset)', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  const deferred = () => {
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => (resolve = r));
+    return { promise, resolve };
+  };
+  const ticks = async (n = 6) => {
+    for (let i = 0; i < n; i++) await Promise.resolve();
+  };
+
+  it('a reset drops an edit still in its quiet period', async () => {
+    const log: string[] = [];
+    const b = new SettingsBatcher((c) => {
+      log.push(`save ${JSON.stringify(c)}`);
+    });
+
+    b.push({ topics: { cooking: { multiplier: 2 } } });
+    await b.supersede(async () => {
+      log.push('reset');
+    });
+    jest.advanceTimersByTime(1000);
+    await ticks();
+
+    expect(log).toEqual(['reset']);
+  });
+
+  it('a reset waits for a save in flight, so the save can never land after it', async () => {
+    const log: string[] = [];
+    const slow = deferred();
+    const b = new SettingsBatcher(() => {
+      log.push('save sent');
+      return slow.promise.then(() => void log.push('save done'));
+    });
+
+    b.push({ topics: { cooking: { multiplier: 2 } } });
+    jest.advanceTimersByTime(150);
+    const reset = b.supersede(async () => {
+      log.push('reset');
+    });
+    await ticks();
+    expect(log).toEqual(['save sent']);
+
+    slow.resolve();
+    await reset;
+    expect(log).toEqual(['save sent', 'save done', 'reset']);
+  });
+
+  it('edits made during the reset go out after it', async () => {
+    const log: string[] = [];
+    const resetDone = deferred();
+    const b = new SettingsBatcher((c) => {
+      log.push(`save ${JSON.stringify(c)}`);
+    });
+
+    const reset = b.supersede(() => {
+      log.push('reset sent');
+      return resetDone.promise.then(() => void log.push('reset done'));
+    });
+    await ticks();
+    b.push({ sources: { fresh: 0 } });
+    jest.advanceTimersByTime(150);
+    await ticks();
+    expect(log).toEqual(['reset sent']);
+
+    resetDone.resolve();
+    await reset;
+    await ticks();
+    expect(log).toEqual(['reset sent', 'reset done', 'save {"sources":{"fresh":0}}']);
+  });
+
+  it('drain waits for follow-up writes, not just the one in flight', async () => {
+    const first = deferred();
+    const sent: unknown[] = [];
+    const b = new SettingsBatcher((c) => {
+      sent.push(c);
+      return sent.length === 1 ? first.promise : Promise.resolve();
+    });
+
+    b.push({ sources: { fresh: 0 } });
+    jest.advanceTimersByTime(150);
+    b.push({ sources: { trending: 2 } });
+
+    let drained = false;
+    const done = b.drain().then(() => (drained = true));
+    await ticks();
+    expect(drained).toBe(false);
+
+    first.resolve();
+    await done;
+    expect(sent).toEqual([{ sources: { fresh: 0 } }, { sources: { trending: 2 } }]);
+  });
+});
+
 describe('subtractChange', () => {
   it('settles only what an acknowledged write carried', () => {
     const pending = {

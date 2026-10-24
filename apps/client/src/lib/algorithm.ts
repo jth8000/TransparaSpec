@@ -89,7 +89,21 @@ export function useSettingsEditor(send: (change: SettingsChange) => Promise<unkn
     [batcher],
   );
 
-  return { pending, change, error, flush: useCallback(() => batcher.flush(), [batcher]) };
+  /**
+   * Runs `write` (a reset) as a barrier: queued edits are dropped, edits in
+   * flight land first, and the optimistic overlay is cleared.
+   */
+  const supersede = useCallback(
+    async <T>(write: () => Promise<T>) => {
+      setPending({});
+      const result = await batcher.supersede(write);
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_KEY });
+      return result;
+    },
+    [batcher, queryClient],
+  );
+
+  return { pending, change, error, supersede, flush: useCallback(() => batcher.drain(), [batcher]) };
 }
 
 /** REST sender for screens without a feed channel. */

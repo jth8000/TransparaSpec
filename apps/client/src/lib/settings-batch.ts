@@ -104,15 +104,49 @@ export class SettingsBatcher {
         () => undefined,
         () => undefined,
       )
-      .finally(() => {
-        this.inFlight = null;
-        // Edits that came in meanwhile go next, unless their quiet period
-        // is still running (its timer will flush them).
-        if (this.pending && (this.flushWhenIdle || this.timer === null)) void this.flush();
-        this.flushWhenIdle = false;
-      });
+      .finally(() => this.settled());
 
     return this.inFlight;
+  }
+
+  /**
+   * Resolves once nothing is queued or in flight, sending what's queued.
+   * (`flush()` alone only covers the write in flight when it's called.)
+   */
+  async drain(): Promise<void> {
+    while (this.pending || this.inFlight) {
+      await (this.inFlight ?? this.flush());
+    }
+  }
+
+  /**
+   * Runs `write` as a barrier in the write sequence — for a reset, which
+   * overrides everything before it. Queued edits are discarded, writes in
+   * flight finish first, and edits made meanwhile go out after it. Nothing
+   * from before can land after the barrier.
+   */
+  async supersede<T>(write: () => Promise<T>): Promise<T> {
+    this.cancel();
+    await this.drain();
+
+    // No await between the drain and claiming the slot, so no queued timer
+    // can slip a write in ahead of the barrier.
+    const run = write();
+    this.inFlight = run
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+      .finally(() => this.settled());
+    return run;
+  }
+
+  private settled() {
+    this.inFlight = null;
+    // Edits that came in meanwhile go next, unless their quiet period is
+    // still running (its timer will flush them).
+    if (this.pending && (this.flushWhenIdle || this.timer === null)) void this.flush();
+    this.flushWhenIdle = false;
   }
 
   cancel() {

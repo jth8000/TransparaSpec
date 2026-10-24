@@ -62,7 +62,12 @@ Split into two parts. 1a uses creator-picked topics and must meet the "done when
 - CSAM hash matching + NCMEC reporting process; DMCA agent and flow.
 - Data export and account deletion.
 - ToS and privacy policy; beta invite system; basic admin tools.
-- Fly.io production deploy, backups, monitoring. Set `DNS_CLUSTER_QUERY` so nodes cluster (feed sessions rely on `:global`, ADR 0011), and verify on two machines that a feed session keeps one owner.
+- Fly.io production deploy, backups, monitoring. Nothing exists yet: `infra/` is empty, and there's no release config, Dockerfile or `fly.toml` (`mix phx.gen.release --docker` / `fly launch` generate most of it). Feed sessions rely on `:global` across connected nodes (ADR 0011), so clustering is required:
+  - `DNS_CLUSTER_QUERY=<app>.internal`;
+  - a node name built from each machine's private IP (`RELEASE_NODE` in `rel/env.sh.eex`);
+  - the same `RELEASE_COOKIE` on every machine;
+  - IPv6 distribution (`ERL_AFLAGS="-proto_dist inet6_tcp"`), since Fly's private network is IPv6;
+  - then verify on two machines that a feed session keeps one owner.
 - **Done when:** invite-only US beta is live.
 
 ## Phase 3: Monetization (creators first)

@@ -83,7 +83,11 @@ Joining sends `{rev}` (the revision the client holds); see "The process is a cac
 - Multiple devices work independently, while sharing one set of preferences.
 - A process crash, idle timeout or deploy costs a cache rebuild from Postgres, never correctness.
 - A session's calls may cross nodes to reach its owner (one extra hop at most).
-- **Deployment requirement:** `:global` only spans nodes that are connected. In production that means `DNS_CLUSTER_QUERY` must be set (on Fly, `<app>.internal`), or the app must run on one machine. The server warns at boot when it's unset. The two-node behavior is covered by `session_cluster_test.exs` locally and in CI; a live multi-machine check belongs to the Phase 2 deploy.
+- **Deployment requirement:** `:global` only spans nodes that are connected. In production the machines must actually cluster, or the app must run on one machine. On Fly, clustering takes four things (the Phase 2 deploy item has the details):
+  - `DNS_CLUSTER_QUERY`;
+  - a node name built from each machine's private IP;
+  - a shared release cookie;
+  - IPv6 distribution. The server warns at boot when it's unset. The two-node behavior is covered by `session_cluster_test.exs` locally and in CI; a live multi-machine check belongs to the Phase 2 deploy.
 - Per-session processes use more memory than per-user ones. At about 500 candidates per session, that's acceptable at beta scale.
 - The client has to track `rev` and its position, which adds a little protocol complexity in exchange for never interrupting the current video.
 
