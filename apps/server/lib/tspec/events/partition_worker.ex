@@ -29,6 +29,9 @@ defmodule TSpec.Events.PartitionWorker do
   end
 
   @doc "Creates `table`'s partition for the month starting at `month` if it doesn't exist."
+  # The guard limits `table` to @tables, and the dates are Date structs, so
+  # nothing here comes from a request.
+  # sobelow_skip ["SQL.Query"]
   def ensure_month(table, %Date{day: 1} = month) when table in @tables do
     next = Date.shift(month, month: 1)
 

@@ -400,6 +400,8 @@ defmodule TSpec.Transparency do
     * `top_drivers` — the features (per topic, for topic features) that
       contributed most to what was shown, summed from the stored traces
   """
+  # `exposed` is a constant subquery; the user and date are bound parameters.
+  # sobelow_skip ["SQL.Query"]
   def dashboard(%Scope{user: %User{id: user_id}}, days) when days in [7, 30] do
     since = DateTime.add(DateTime.utc_now(), -days, :day)
     uid = Ecto.UUID.dump!(user_id)
@@ -464,6 +466,7 @@ defmodule TSpec.Transparency do
     }
   end
 
+  # sobelow_skip ["SQL.Query"]
   defp shown_count(uid, since, exposed) do
     %{rows: [[n]]} = Repo.query!("SELECT count(*)::int FROM (#{exposed}) s", [uid, since])
     n
