@@ -10,7 +10,7 @@ Phase 0 (foundations) and Phase 1a (transparent ranker with live controls and "W
 
 ## AI assistance disclosure
 
-The large majority of the design elaboration, implementation, tests, and documentation in this repository was produced with heavy assistance from Claude (Anthropic). I (the repository owner) set the product direction, made the key decisions, reviewed the work, and own the project. I am not an Elixir/OTP, distributed-systems or security expert; the more sophisticated concurrency and ranking machinery should be treated accordingly. Before any private beta, the code base needs review by experts in those areas.
+The large majority of the design elaboration, implementation, tests, and documentation in this repository was produced with heavy assistance from Claude (Anthropic). I (the repository owner) set the product direction, made the key decisions, reviewed the work, and own the project. I am not an Elixir/OTP, distributed-systems, security or recommender-systems expert; the more sophisticated concurrency and ranking machinery should be treated as not yet reviewed by a human expert. Before any private beta, the code base needs review by experts in those areas.
 
 ## Pillars
 1. **Algorithm transparency and control.** Every recommendation comes with an exact "why", and you can change the weights and watch your feed re-rank live.
