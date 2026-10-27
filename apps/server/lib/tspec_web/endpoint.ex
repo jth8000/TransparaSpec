@@ -59,10 +59,15 @@ defmodule TSpecWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  # Multipart is only used by the dev/test video-upload emulator, which takes
+  # short-form-sized files. Production doesn't parse it at all, so nobody can
+  # stream large multipart bodies to disk ahead of routing and auth.
+  @parsers if Application.compile_env(:tspec, :local_video, false),
+             do: [:urlencoded, {:multipart, length: 250_000_000}, :json],
+             else: [:urlencoded, :json]
+
   plug Plug.Parsers,
-    # Multipart is only used by the dev video-upload emulator; allow
-    # short-form-sized files there.
-    parsers: [:urlencoded, {:multipart, length: 250_000_000}, :json],
+    parsers: @parsers,
     pass: ["*/*"],
     body_reader: {TSpecWeb.CacheBodyReader, :read_body, []},
     json_decoder: Phoenix.json_library()

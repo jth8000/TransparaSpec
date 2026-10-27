@@ -117,6 +117,10 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Keep credentials out of logs. Phoenix filters any parameter whose name
+# contains one of these, including the socket's `?token=` on connect.
+config :phoenix, :filter_parameters, ["password", "token", "code", "secret"]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
