@@ -14,7 +14,9 @@ defmodule TSpec.Application do
       {Phoenix.PubSub, name: TSpec.PubSub},
       {Oban, Application.fetch_env!(:tspec, Oban)},
       {TSpec.RateLimit, clean_period: :timer.minutes(10)},
-      # Per-feed-session ranking caches (ADR 0011).
+      # Per-feed-session ranking caches (ADR 0011), and the cluster-wide
+      # process groups that count each user's live sessions.
+      %{id: :pg, start: {:pg, :start_link, [TSpec.Feed.Session]}},
       {DynamicSupervisor, name: TSpec.Feed.SessionSupervisor, strategy: :one_for_one},
       {Task.Supervisor, name: TSpec.TaskSupervisor},
       # Start to serve requests, typically the last entry

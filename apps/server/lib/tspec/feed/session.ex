@@ -18,6 +18,11 @@ defmodule TSpec.Feed.Session do
   process instead of starting a second one. A user's phone and browser rank
   independently but share settings.
 
+  A user may have at most `max_sessions_per_user/0` live sessions across the
+  cluster, counted with the `:pg` group `{:user, user_id}`. Starting one more
+  stops an existing one first, so a client minting session ids can't pile up
+  processes. A stopped session just rebuilds if it's used again.
+
   The process is a cache. When it starts — first use, or after an idle
   timeout, crash or deploy — it rebuilds the client's list, `rev` and
   position from the session's stored impressions and exposures, so it never
@@ -47,6 +52,8 @@ defmodule TSpec.Feed.Session do
   @empty_refill_cooldown_ms :timer.seconds(60)
   # How far back to look for a session's impressions when rebuilding.
   @rebuild_window_hours 24
+  # A phone and several browser tabs stay well below this.
+  @max_sessions_per_user 10
 
   defstruct [
     :scope,
@@ -86,6 +93,8 @@ defmodule TSpec.Feed.Session do
           {:ok, pid}
 
         :undefined ->
+          make_room(scope.user.id)
+
           case DynamicSupervisor.start_child(
                  TSpec.Feed.SessionSupervisor,
                  {__MODULE__, {scope, session_id, opts}}
@@ -108,6 +117,28 @@ defmodule TSpec.Feed.Session do
       other ->
         other
     end
+  end
+
+  def max_sessions_per_user, do: @max_sessions_per_user
+
+  @doc "The user's live session processes, on all nodes."
+  def list(user_id), do: :pg.get_members(__MODULE__, {:user, user_id})
+
+  # Stops existing sessions until a new one fits under the cap. Concurrent
+  # starts can each see room and overshoot by a few; the next start trims.
+  defp make_room(user_id) do
+    sessions = list(user_id)
+
+    sessions
+    |> Enum.take(max(length(sessions) - @max_sessions_per_user + 1, 0))
+    |> Enum.each(fn pid ->
+      try do
+        GenServer.stop(pid, :normal, 5_000)
+      catch
+        # Already gone, or still busy at the timeout (it stays; the cap is soft).
+        :exit, _ -> :ok
+      end
+    end)
   end
 
   @doc "The live session's pid, on any node, or nil."
@@ -148,6 +179,7 @@ defmodule TSpec.Feed.Session do
 
   @impl true
   def init({scope, session_id, opts}) do
+    :ok = :pg.join(__MODULE__, {:user, scope.user.id}, self())
     :ok = Transparency.subscribe_settings(scope.user.id)
     settings = Transparency.get_settings(scope.user.id)
 

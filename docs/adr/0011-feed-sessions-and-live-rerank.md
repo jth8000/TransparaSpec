@@ -17,7 +17,7 @@ Planning showed that "one process per user" is the wrong unit. A user can have a
   - the items it has served, in order;
   - the client's current position;
   - a revision counter, `rev`.
-- **One `Feed.Session` process per feed session, cluster-wide.** It's registered with `:global` under `{user_id, session_id}` and started on demand under a local `DynamicSupervisor`. A request that lands on another node reaches the same process, so one session never has two owners with diverging served lists. It stops itself after 10 minutes idle.
+- **One `Feed.Session` process per feed session, cluster-wide.** It's registered with `:global` under `{user_id, session_id}` and started on demand under a local `DynamicSupervisor`. A request that lands on another node reaches the same process, so one session never has two owners with diverging served lists. It stops itself after 10 minutes idle. A user has at most 10 live sessions across the cluster, counted with a `:pg` group per user; starting another stops an existing one, which just rebuilds if it's used again. That keeps a client that mints session ids from piling up processes.
 
 ### The process is a cache; Postgres is the record
 - **Rebuilt on start.** When a session process starts, whether for the first time or after an idle timeout, crash or deploy, it rebuilds the client's list from the session's `impressions`. It replays them in `(rev, position)` order: a new `rev`'s first impression truncates the list at its position, as the re-rank did, then the rest append.
