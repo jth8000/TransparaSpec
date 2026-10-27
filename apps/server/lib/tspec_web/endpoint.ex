@@ -13,7 +13,7 @@ defmodule TSpecWeb.Endpoint do
 
   # First, so static media (dev HLS) and API responses both carry CORS headers
   # for the Expo web client.
-  plug CORSPlug, origin: Application.compile_env(:tspec, :cors_origins)
+  plug CORSPlug, origin: &TSpecWeb.CORS.allowed_origins/1
 
   socket "/socket", TSpecWeb.UserSocket,
     websocket: true,
