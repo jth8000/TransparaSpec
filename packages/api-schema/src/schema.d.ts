@@ -4,6 +4,58 @@
  */
 
 export interface paths {
+    "/api/algorithm/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Algorithm Dashboard: topic mix and top drivers of what you were shown */
+        get: operations["TSpecWeb.TransparencyController.dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/algorithm/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your algorithm controls */
+        get: operations["TSpecWeb.TransparencyController.settings"];
+        /** Change algorithm controls (your open feeds re-rank live) */
+        put: operations["TSpecWeb.TransparencyController.update_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/algorithm/settings/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset topic and source controls to the defaults */
+        post: operations["TSpecWeb.TransparencyController.reset_settings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/request": {
         parameters: {
             query?: never;
@@ -90,7 +142,7 @@ export interface paths {
         delete: operations["TSpecWeb.ContentController.delete"];
         options?: never;
         head?: never;
-        /** Edit a caption */
+        /** Edit a caption and/or creator topics */
         patch: operations["TSpecWeb.ContentController.update"];
         trace?: never;
     };
@@ -120,6 +172,23 @@ export interface paths {
         };
         /** Newest public items from accounts you follow */
         get: operations["TSpecWeb.FeedController.following"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feed/for-you": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your ranked feed, with an explanation for every item */
+        get: operations["TSpecWeb.FeedController.for_you"];
         put?: never;
         post?: never;
         delete?: never;
@@ -162,6 +231,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/impressions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Why am I seeing this? (the stored trace of one served item) */
+        get: operations["TSpecWeb.TransparencyController.explain"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -178,6 +264,74 @@ export interface paths {
         head?: never;
         /** Update profile fields */
         patch: operations["TSpecWeb.MeController.update"];
+        trace?: never;
+    };
+    "/api/me/interests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What the algorithm has learned about you */
+        get: operations["TSpecWeb.TransparencyController.interests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/interests/creators/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Forget a learned creator interest (following is unaffected) */
+        delete: operations["TSpecWeb.TransparencyController.forget_creator_interest"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/interests/topics/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Forget a learned topic interest */
+        delete: operations["TSpecWeb.TransparencyController.forget_interest"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/interests/topics/{slug}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The views a topic interest was learned from */
+        get: operations["TSpecWeb.TransparencyController.interest_evidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/onboarding": {
@@ -211,6 +365,23 @@ export interface paths {
         put?: never;
         /** Create a text post */
         post: operations["TSpecWeb.ContentController.create_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The topic taxonomy (IAB Content Taxonomy 3.1, tiers 1–2) */
+        get: operations["TSpecWeb.TopicController.index"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -274,20 +445,19 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
-         * AuthRequest
-         * @description Start email sign-in (also creates the account on first use).
+         * OnboardingRequest
+         * @description Choose a handle, confirm age (the birthdate is checked and discarded, never stored) and accept the current consent document.
          */
-        AuthRequest: {
-            /** Format: email */
-            email: string;
+        OnboardingRequest: {
+            accept_consent_version: number;
+            /** Format: date */
+            birthdate: string;
+            display_name?: string;
+            handle: string;
         };
-        /**
-         * AuthSession
-         * @description A new API session. Send `token` as `Authorization: Bearer <token>`.
-         */
-        AuthSession: {
-            token: string;
-            user: components["schemas"]["Me"];
+        /** StatusResponse */
+        StatusResponse: {
+            status: string;
         };
         /**
          * AuthVerify
@@ -299,24 +469,44 @@ export interface components {
             email?: string;
             token?: string;
         };
-        /** Author */
-        Author: {
+        /**
+         * SettingsChange
+         * @description Changes to apply; anything omitted stays as it is.
+         */
+        SettingsChange: {
+            non_personalized?: boolean;
+            /** @description By candidate source */
+            sources?: {
+                [key: string]: number;
+            };
+            /** @description By topic slug */
+            topics?: {
+                [key: string]: {
+                    hard_off?: boolean;
+                    multiplier?: number;
+                };
+            };
+        };
+        /**
+         * CreatorTopics
+         * @description Topic slugs picked by the creator (see `GET /api/topics`), at most 3.
+         */
+        CreatorTopics: string[];
+        /**
+         * Me
+         * @description The signed-in user, including private fields.
+         */
+        Me: {
             avatar_url: string | null;
+            bio: string | null;
+            consent_version: number | null;
             display_name: string | null;
-            handle: string;
+            /** Format: email */
+            email: string;
+            handle: string | null;
             /** Format: uuid */
             id: string;
-        };
-        /** CaptionUpdate */
-        CaptionUpdate: {
-            caption: string | null;
-        };
-        /** ConsentDocument */
-        ConsentDocument: {
-            kind: string;
-            /** Format: date-time */
-            published_at: string;
-            version: number;
+            onboarded: boolean;
         };
         /**
          * ContentItem
@@ -336,7 +526,63 @@ export interface components {
             /** @enum {string} */
             status: "processing" | "ready" | "failed" | "removed";
             text: components["schemas"]["TextPayload"] | null;
+            topics: components["schemas"]["TopicLabel"][];
             video: components["schemas"]["VideoPayload"] | null;
+        };
+        /**
+         * Interests
+         * @description What the algorithm has learned about you from what you watched. `score`
+         *     fades with a 14-day half-life unless renewed; `value` is the score as
+         *     the ranker uses it, between -1 and 1.
+         */
+        Interests: {
+            creators: {
+                /** Format: uuid */
+                creator_id: string;
+                evidence_count: number;
+                handle: string | null;
+                score: number;
+                value: number;
+            }[];
+            topics: {
+                evidence_count: number;
+                name: string;
+                parent: string | null;
+                score: number;
+                slug: string;
+                tier: number;
+                value: number;
+            }[];
+        };
+        /** TopicList */
+        TopicList: {
+            /** @description How many topics a creator may pick */
+            max_creator_topics: number;
+            topics: components["schemas"]["Topic"][];
+        };
+        /** TextPayload */
+        TextPayload: {
+            body: string;
+        };
+        /** FeedPage */
+        FeedPage: {
+            items: components["schemas"]["ContentItem"][];
+            /** @description Pass as `cursor` to get the next page; null at the end */
+            next_cursor: string | null;
+        };
+        /**
+         * Topic
+         * @description A taxonomy topic (IAB Content Taxonomy 3.1, tiers 1–2).
+         */
+        Topic: {
+            /** @example Fitness and Exercise */
+            name: string;
+            /** @description Parent slug (tier 2 only) */
+            parent: string | null;
+            /** @example fitness-and-exercise */
+            slug: string;
+            /** @enum {integer} */
+            tier: 1 | 2;
         };
         /**
          * Error
@@ -350,110 +596,41 @@ export interface components {
             };
             message?: string;
         };
-        /** EventBatch */
-        EventBatch: {
-            events: components["schemas"]["EventInput"][];
-        };
         /** EventBatchResult */
         EventBatchResult: {
             accepted: number;
             rejected: number;
         };
         /**
-         * EventInput
-         * @description One engagement event. The consent version is added by the server and is not accepted from clients.
+         * ForYouItem
+         * @description A ranked item. `impression_id` identifies this serving of it: "Why am I
+         *     seeing this?" is `GET /api/impressions/{impression_id}`, and the client
+         *     sends it with `view_start` when the item is actually shown.
          */
-        EventInput: {
+        ForYouItem: components["schemas"]["ContentItem"] & {
+            /**
+             * @description The candidate source that ranked it highest
+             * @enum {string}
+             */
+            candidate_source: "following" | "topic" | "co_engagement" | "trending" | "explore" | "fresh";
             /** Format: uuid */
-            content_id: string;
-            /** Format: date-time */
-            occurred_at: string;
-            session_id?: string | null;
-            /** @enum {string} */
-            type: "view_start" | "watch_progress" | "complete" | "skip";
-            /** @description Seconds watched, where relevant */
-            value?: number | null;
-        };
-        /** FeedPage */
-        FeedPage: {
-            items: components["schemas"]["ContentItem"][];
-            /** @description Pass as `cursor` to get the next page; null at the end */
-            next_cursor: string | null;
-        };
-        /** Health */
-        Health: {
-            /** @enum {string} */
-            status: "ok";
+            impression_id: string;
         };
         /**
-         * Me
-         * @description The signed-in user, including private fields.
+         * InterestEvidence
+         * @description The views an interest was learned from, newest first.
          */
-        Me: {
-            avatar_url: string | null;
-            bio: string | null;
-            consent_version: number | null;
-            display_name: string | null;
-            /** Format: email */
-            email: string;
-            handle: string | null;
-            /** Format: uuid */
-            id: string;
-            onboarded: boolean;
-        };
-        /**
-         * OnboardingRequest
-         * @description Choose a handle, confirm age (the birthdate is checked and discarded, never stored) and accept the current consent document.
-         */
-        OnboardingRequest: {
-            accept_consent_version: number;
-            /** Format: date */
-            birthdate: string;
-            display_name?: string;
-            handle: string;
-        };
-        /** ProfileUpdate */
-        ProfileUpdate: {
-            bio?: string | null;
-            display_name?: string | null;
-        };
-        /** PublicProfile */
-        PublicProfile: {
-            avatar_url: string | null;
-            bio: string | null;
-            display_name: string | null;
-            followed_by_me: boolean;
-            followers_count: number;
-            following_count: number;
-            handle: string;
-            /** Format: uuid */
-            id: string;
-        };
-        /** StatusResponse */
-        StatusResponse: {
-            status: string;
-        };
-        /** TextPayload */
-        TextPayload: {
-            body: string;
-        };
-        /** TextPostRequest */
-        TextPostRequest: {
-            body: string;
-            caption?: string;
-        };
-        /**
-         * VideoPayload
-         * @description Playback details. URLs are null until the video is ready.
-         */
-        VideoPayload: {
-            duration_ms: number | null;
-            failure_reason: string | null;
-            height: number | null;
-            /** @description HLS (.m3u8) */
-            playback_url: string | null;
-            thumbnail_url: string | null;
-            width: number | null;
+        InterestEvidence: {
+            views: {
+                completed: boolean;
+                /** @description How much this view moved the topic */
+                delta: number;
+                duration_ms: number | null;
+                item: components["schemas"]["ContentItem"] | null;
+                /** Format: date-time */
+                viewed_at: string;
+                watched_ms: number;
+            }[];
         };
         /**
          * VideoUpload
@@ -468,9 +645,242 @@ export interface components {
                 url: string;
             };
         };
+        /** PublicProfile */
+        PublicProfile: {
+            avatar_url: string | null;
+            bio: string | null;
+            display_name: string | null;
+            followed_by_me: boolean;
+            followers_count: number;
+            following_count: number;
+            handle: string;
+            /** Format: uuid */
+            id: string;
+        };
+        /**
+         * EventInput
+         * @description One engagement event. The consent version is added by the server and is not accepted from clients.
+         */
+        EventInput: {
+            /** Format: uuid */
+            content_id: string;
+            /**
+             * Format: uuid
+             * @description The served impression this item came from (For You), marking it as actually shown. Ignored unless it's the caller's impression of this content.
+             */
+            impression_id?: string | null;
+            /** Format: date-time */
+            occurred_at: string;
+            session_id?: string | null;
+            /** @enum {string} */
+            type: "view_start" | "watch_progress" | "complete" | "skip";
+            /** @description Seconds played so far in this view (cumulative across loops), where relevant */
+            value?: number | null;
+            /**
+             * Format: uuid
+             * @description Playback episode: minted by the client each time an item becomes the active item. Interests are learned per view.
+             */
+            view_id?: string | null;
+        };
+        /**
+         * AuthSession
+         * @description A new API session. Send `token` as `Authorization: Bearer <token>`.
+         */
+        AuthSession: {
+            token: string;
+            user: components["schemas"]["Me"];
+        };
+        /** ConsentDocument */
+        ConsentDocument: {
+            kind: string;
+            /** Format: date-time */
+            published_at: string;
+            version: number;
+        };
+        /**
+         * ContentUpdate
+         * @description Fields to change; omitted or null fields stay as they are. An empty
+         *     `caption` ("") clears it. `topics` replaces the creator's topic labels
+         *     (`[]` removes them).
+         */
+        ContentUpdate: {
+            caption?: string | null;
+            topics?: components["schemas"]["CreatorTopics"];
+        };
+        /** Health */
+        Health: {
+            /** @enum {string} */
+            status: "ok";
+        };
+        /**
+         * TopicLabel
+         * @description A topic on a content item. `confidence` is the max over label sources;
+         *     `sources` says who labeled it. A creator label has confidence 1.0 because
+         *     it is a deliberate declaration, not because it is certainly right.
+         */
+        TopicLabel: {
+            confidence: number;
+            name: string;
+            slug: string;
+            sources: ("creator" | "model" | "moderator")[];
+            /** @enum {integer} */
+            tier: 1 | 2;
+        };
+        /**
+         * Contribution
+         * @description One line of a ranking trace: `contribution = weight × value`, where
+         *     `weight = default_weight × user_multiplier` (for `topic_preference`,
+         *     `weight = default_weight × (user_multiplier − 1)`). An item's score is
+         *     the sum of its contributions, in order.
+         */
+        Contribution: {
+            contribution: number;
+            default_weight: number;
+            /** @enum {string} */
+            feature: "topic_affinity" | "topic_preference" | "creator_affinity" | "following" | "source_prior" | "freshness" | "quality" | "diversity";
+            /** @description Who labeled the item with this topic */
+            label_sources?: string[] | null;
+            /** @description Candidate source, for source_prior */
+            source?: string | null;
+            /** @description Topic slug, for topic features */
+            topic?: string | null;
+            user_multiplier: number;
+            value: number;
+            weight: number;
+        };
         /** VideoUploadRequest */
         VideoUploadRequest: {
             caption?: string;
+            topics?: components["schemas"]["CreatorTopics"];
+        };
+        /** EventBatch */
+        EventBatch: {
+            events: components["schemas"]["EventInput"][];
+        };
+        /**
+         * AlgorithmSettings
+         * @description Your algorithm controls. Only non-default entries are listed (multiplier
+         *     1 and not hard-off is the default). A tier-2 topic without its own entry
+         *     follows its tier-1 parent.
+         */
+        AlgorithmSettings: {
+            available_sources: string[];
+            /** @description Hard-off hides items labeled with the topic at this confidence or more */
+            hard_off_threshold: number;
+            non_personalized: boolean;
+            sources: {
+                multiplier: number;
+                /** @enum {string} */
+                source: "following" | "topic" | "co_engagement" | "trending" | "explore" | "fresh";
+            }[];
+            topics: {
+                hard_off: boolean;
+                multiplier: number;
+                slug: string;
+            }[];
+            version: number;
+        };
+        /**
+         * AuthRequest
+         * @description Start email sign-in (also creates the account on first use).
+         */
+        AuthRequest: {
+            /** Format: email */
+            email: string;
+        };
+        /**
+         * Explanation
+         * @description Why an item was shown: the exact trace stored when it was served, with
+         *     the settings as they were then (not your current ones). `final_score`
+         *     is the sum of `contributions`.
+         */
+        Explanation: {
+            candidate_source: string;
+            /** Format: uuid */
+            content_id: string;
+            contributions: components["schemas"]["Contribution"][];
+            final_score: number;
+            /** Format: uuid */
+            impression_id: string;
+            position: number;
+            ranker_version: string;
+            /** Format: date-time */
+            served_at: string;
+            settings: components["schemas"]["AlgorithmSettings"];
+            settings_version: number;
+            sources: string[];
+            /** @description Display names for the topic slugs in the trace */
+            topic_names: {
+                [key: string]: string;
+            };
+        };
+        /** TextPostRequest */
+        TextPostRequest: {
+            body: string;
+            caption?: string;
+            topics?: components["schemas"]["CreatorTopics"];
+        };
+        /**
+         * Dashboard
+         * @description Aggregates over items you were actually shown in your For You feed.
+         */
+        Dashboard: {
+            /** @enum {integer} */
+            days: 7 | 30;
+            shown: number;
+            top_drivers: {
+                /** @description Topic or source */
+                detail: string | null;
+                feature: string;
+                items: number;
+                total: number;
+            }[];
+            topic_mix: {
+                /** Format: date */
+                date: string;
+                topics: {
+                    count: number;
+                    topic: string;
+                }[];
+            }[];
+        };
+        /**
+         * ForYouPage
+         * @description A page of the For You feed. Pass `session_id` back for the next page and
+         *     join channel `feed_session:{session_id}` for live re-ranks. `rev`
+         *     increases with every re-rank of this feed.
+         */
+        ForYouPage: {
+            items: components["schemas"]["ForYouItem"][];
+            rev: number;
+            /** Format: uuid */
+            session_id: string;
+        };
+        /** ProfileUpdate */
+        ProfileUpdate: {
+            bio?: string | null;
+            display_name?: string | null;
+        };
+        /**
+         * VideoPayload
+         * @description Playback details. URLs are null until the video is ready.
+         */
+        VideoPayload: {
+            duration_ms: number | null;
+            failure_reason: string | null;
+            height: number | null;
+            /** @description HLS (.m3u8) */
+            playback_url: string | null;
+            thumbnail_url: string | null;
+            width: number | null;
+        };
+        /** Author */
+        Author: {
+            avatar_url: string | null;
+            display_name: string | null;
+            handle: string;
+            /** Format: uuid */
+            id: string;
         };
     };
     responses: never;
@@ -481,6 +891,102 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "TSpecWeb.TransparencyController.dashboard": {
+        parameters: {
+            query?: {
+                days?: 7 | 30;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dashboard */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.TransparencyController.settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlgorithmSettings"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.TransparencyController.update_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Changes */
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SettingsChange"];
+            };
+        };
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlgorithmSettings"];
+                };
+            };
+            /** @description Invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.TransparencyController.reset_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlgorithmSettings"];
+                };
+            };
+        };
+    };
     "TSpecWeb.AuthController.request": {
         parameters: {
             query?: never;
@@ -677,10 +1183,10 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description Caption */
+        /** @description Changes */
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["CaptionUpdate"];
+                "application/json": components["schemas"]["ContentUpdate"];
             };
         };
         responses: {
@@ -704,6 +1210,15 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -780,6 +1295,39 @@ export interface operations {
             };
         };
     };
+    "TSpecWeb.FeedController.for_you": {
+        parameters: {
+            query?: {
+                /** @description The feed session from the previous page; omit to start a new feed */
+                session?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForYouPage"];
+                };
+            };
+            /** @description Bad session */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "TSpecWeb.FeedController.latest": {
         parameters: {
             query?: {
@@ -833,6 +1381,38 @@ export interface operations {
             };
         };
     };
+    "TSpecWeb.TransparencyController.explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Impression id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Explanation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Explanation"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "TSpecWeb.MeController.show": {
         parameters: {
             query?: never;
@@ -878,6 +1458,116 @@ export interface operations {
             };
             /** @description Invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.TransparencyController.interests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Interests */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Interests"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.TransparencyController.forget_creator_interest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Creator user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forgotten */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.TransparencyController.forget_interest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forgotten */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.TransparencyController.interest_evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Evidence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterestEvidence"];
+                };
+            };
+            /** @description Not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -969,6 +1659,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "TSpecWeb.TopicController.index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Topics, tier 1 first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicList"];
                 };
             };
         };

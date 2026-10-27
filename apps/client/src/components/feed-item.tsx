@@ -1,9 +1,10 @@
 import { Link } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Schemas } from '@/lib/api';
 import { useTrack } from '@/lib/events';
+import { ViewTracker } from '@/lib/view-tracker';
 import { colors, radius, space } from '@/theme';
 
 import { VideoPlayer } from './video-player';
@@ -16,9 +17,9 @@ type Props = {
   /** Near the visible item: preloads its video. */
   preload: boolean;
   muted: boolean;
+  /** Shows a "Why?" button (For You items, which carry an impression). */
+  onWhy?: () => void;
 };
-
-const PROGRESS_EVERY_SECONDS = 5;
 
 /**
  * Vertical (and square/unknown) videos fill the screen; landscape videos are
@@ -29,43 +30,27 @@ export function fitFor(video: { width: number | null; height: number | null }): 
 }
 
 /**
- * One full-screen feed entry. Records engagement for the active item:
- * `view_start` when it becomes visible, `watch_progress` every few seconds,
- * `complete` on the first play-through, and `skip` (with seconds watched) if
- * the viewer swipes away before finishing.
+ * One full-screen feed entry. While it's the active item it records one
+ * *view* (see `ViewTracker`): `view_start`, cumulative `watch_progress`,
+ * `complete` on each loop, and `skip` if swiped away before finishing.
  */
-export function FeedItem({ item, height, active, preload, muted }: Props) {
+export function FeedItem({ item, height, active, preload, muted, onWhy }: Props) {
   const track = useTrack();
-  const watched = useRef({ seconds: 0, completed: false, lastProgressBucket: 0 });
+  const view = useRef<ViewTracker | null>(null);
+  const impressionId = 'impression_id' in item ? (item.impression_id as string) : undefined;
 
   useEffect(() => {
     if (!active) return;
-    watched.current = { seconds: 0, completed: false, lastProgressBucket: 0 };
-    track(item.id, 'view_start');
-
+    const tracker = new ViewTracker(item.id, item.kind === 'short_video', track, { impressionId });
+    view.current = tracker;
     return () => {
-      const w = watched.current;
-      if (item.kind === 'short_video' && !w.completed) track(item.id, 'skip', w.seconds);
+      tracker.end();
+      if (view.current === tracker) view.current = null;
     };
-  }, [active, item.id, item.kind, track]);
+  }, [active, item.id, item.kind, impressionId, track]);
 
-  const onTime = (seconds: number) => {
-    const w = watched.current;
-    w.seconds = Math.max(w.seconds, seconds);
-    const bucket = Math.floor(seconds / PROGRESS_EVERY_SECONDS);
-    if (bucket > w.lastProgressBucket) {
-      w.lastProgressBucket = bucket;
-      track(item.id, 'watch_progress', Math.round(seconds * 10) / 10);
-    }
-  };
-
-  const onEnded = (duration: number) => {
-    const w = watched.current;
-    if (!w.completed) {
-      w.completed = true;
-      track(item.id, 'complete', Number.isFinite(duration) ? duration : w.seconds);
-    }
-  };
+  const onTime = (seconds: number) => view.current?.time(seconds);
+  const onEnded = (duration: number) => view.current?.ended(duration);
 
   return (
     <View style={[styles.container, { height }]} testID={`feed-item-${item.id}`}>
@@ -89,7 +74,23 @@ export function FeedItem({ item, height, active, preload, muted }: Props) {
           @{item.author.handle}
         </Link>
         {item.caption ? <Text style={styles.caption}>{item.caption}</Text> : null}
+        {item.topics.length > 0 && (
+          <Text style={styles.topics} numberOfLines={1}>
+            {item.topics.map((t) => `#${t.name}`).join('  ')}
+          </Text>
+        )}
       </View>
+
+      {onWhy && (
+        <Pressable
+          onPress={onWhy}
+          style={styles.why}
+          accessibilityRole="button"
+          accessibilityLabel="Why am I seeing this?"
+          testID="why-button">
+          <Text style={styles.whyText}>Why?</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -121,6 +122,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
     overflow: 'hidden',
   },
+  topics: { color: colors.textMuted, fontSize: 13 },
+  why: {
+    position: 'absolute',
+    right: space.lg,
+    bottom: space.xl,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  whyText: { color: colors.text, fontWeight: '700', fontSize: 14 },
   caption: {
     color: colors.text,
     fontSize: 15,

@@ -83,6 +83,6 @@ defmodule TSpec.EventsTest do
     this_month = Date.beginning_of_month(Date.utc_today())
 
     %{rows: [[partition]]} = Repo.query!("SELECT tableoid::regclass::text FROM engagement_events")
-    assert partition == PartitionWorker.partition_name(this_month)
+    assert partition == PartitionWorker.partition_name("engagement_events", this_month)
   end
 end

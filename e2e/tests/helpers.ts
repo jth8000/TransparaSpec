@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { expect, type Page } from '@playwright/test';
@@ -25,7 +25,7 @@ export function testClip(): string {
 }
 
 /** Reads the newest sign-in code sent to `email` from the dev mailbox. */
-async function latestCode(email: string): Promise<string> {
+export async function latestCode(email: string): Promise<string> {
   let code: string | undefined;
   await expect
     .poll(async () => {
@@ -56,4 +56,62 @@ export async function signUp(page: Page, handle: string) {
   await page.getByTestId('finish-onboarding').click();
 
   await expect(page.getByTestId('feed-tab-following')).toBeVisible();
+}
+
+/** A signed-in, onboarded user created through the API (no browser). */
+export type ApiUser = { handle: string; token: string };
+
+export async function api<T = unknown>(token: string | null, method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}: ${await res.text()}`);
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+export async function apiSignUp(handle: string): Promise<ApiUser> {
+  const email = `${handle}@example.com`;
+  await api(null, 'POST', '/api/auth/request', { email });
+  const { token } = await api<{ token: string }>(null, 'POST', '/api/auth/verify', {
+    email,
+    code: await latestCode(email),
+  });
+  const { version } = await api<{ version: number }>(null, 'GET', '/api/consent/current');
+  await api(token, 'POST', '/api/onboarding', { handle, birthdate: '2000-01-15', accept_consent_version: version });
+  return { handle, token };
+}
+
+/** Uploads the test clip through the provider and waits until it's ready. */
+export async function apiVideo(user: ApiUser, caption: string, topics: string[]): Promise<string> {
+  const { content, upload } = await api<{ content: { id: string }; upload: { url: string; form_field: string } }>(
+    user.token,
+    'POST',
+    '/api/videos',
+    { caption, topics },
+  );
+  const form = new FormData();
+  form.append(upload.form_field, new Blob([readFileSync(testClip())], { type: 'video/mp4' }), 'clip.mp4');
+  const res = await fetch(upload.url, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`upload -> ${res.status}`);
+
+  await expect
+    .poll(async () => (await api<{ status: string }>(user.token, 'GET', `/api/content/${content.id}`)).status, {
+      timeout: 60_000,
+    })
+    .toBe('ready');
+  return content.id;
+}
+
+/** Records one fully watched view of `contentId` (the client's event shape). */
+export async function apiWatch(user: ApiUser, contentId: string, seconds = 3) {
+  const view_id = crypto.randomUUID();
+  const occurred_at = new Date().toISOString();
+  await api(user.token, 'POST', '/api/events', {
+    events: [
+      { content_id: contentId, view_id, type: 'view_start', occurred_at },
+      { content_id: contentId, view_id, type: 'complete', value: seconds, occurred_at },
+    ],
+  });
 }

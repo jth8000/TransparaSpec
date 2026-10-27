@@ -20,6 +20,7 @@ defmodule TSpec.Content.Item do
     belongs_to :root, __MODULE__
     has_one :short_video, TSpec.Content.ShortVideo, foreign_key: :content_id
     has_one :text_post, TSpec.Content.TextPost, foreign_key: :content_id
+    has_many :content_topics, TSpec.Content.ContentTopic, foreign_key: :content_id
 
     timestamps()
   end

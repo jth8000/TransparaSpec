@@ -1,17 +1,105 @@
 defmodule TSpec.Content do
   @moduledoc """
-  Content items and their payloads (ADR 0008): short videos and text posts in
-  Phase 0. Video uploads go to the configured `TSpec.Video.Provider`; its
-  webhooks move items from `processing` to `ready` or `failed`.
+  Content items and their payloads (ADR 0008): short videos and text posts.
+  Video uploads go to the configured `TSpec.Video.Provider`; its webhooks move
+  items from `processing` to `ready` or `failed`.
+
+  Items carry topic labels (`content_topics`) from the IAB-based taxonomy.
+  Creators pick up to three topics by slug; the ML service adds `model` labels
+  in Phase 1b.
   """
   import Ecto.Query, warn: false
 
   alias TSpec.Repo
   alias TSpec.Accounts.Scope
-  alias TSpec.Content.{DeleteAssetWorker, Item, ShortVideo, TextPost, VideoEventWorker}
+
+  alias TSpec.Content.{
+    ContentTopic,
+    DeleteAssetWorker,
+    Item,
+    ShortVideo,
+    TextPost,
+    Topic,
+    VideoEventWorker
+  }
+
   alias TSpec.Video
 
-  @render_preloads [:short_video, :text_post, author: :profile]
+  @render_preloads [:short_video, :text_post, author: :profile, content_topics: :topic]
+  @max_creator_topics 3
+
+  def max_creator_topics, do: @max_creator_topics
+
+  ## Topics
+
+  @doc """
+  All topics, tier 1 first, each tier by name. The taxonomy is reference data
+  seeded by migration, so it's cached for the life of the node.
+  """
+  def list_topics do
+    case :persistent_term.get({__MODULE__, :topics}, nil) do
+      nil ->
+        topics = Repo.all(from t in Topic, order_by: [asc: t.tier, asc: t.name])
+        :persistent_term.put({__MODULE__, :topics}, topics)
+        topics
+
+      topics ->
+        topics
+    end
+  end
+
+  @doc "Topics keyed by slug."
+  def topics_by_slug, do: Map.new(list_topics(), &{&1.slug, &1})
+
+  @doc "Topics keyed by id."
+  def topics_by_id, do: Map.new(list_topics(), &{&1.id, &1})
+
+  # Resolves the `:topics` slugs in creator attrs. `:keep` when absent (an
+  # edit that doesn't touch topics).
+  defp resolve_creator_topics(attrs) do
+    case Map.fetch(attrs, :topics) do
+      :error ->
+        {:ok, :keep}
+
+      {:ok, slugs} when is_list(slugs) ->
+        slugs = Enum.uniq(slugs)
+        by_slug = topics_by_slug()
+
+        case Enum.reject(slugs, &Map.has_key?(by_slug, &1)) do
+          [] when length(slugs) <= @max_creator_topics ->
+            {:ok, Enum.map(slugs, &by_slug[&1].id)}
+
+          [] ->
+            topics_error("pick at most #{@max_creator_topics} topics")
+
+          unknown ->
+            topics_error("unknown topics: #{Enum.join(unknown, ", ")}")
+        end
+    end
+  end
+
+  defp topics_error(message) do
+    {:error, %Item{} |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(:topics, message)}
+  end
+
+  # Replaces the item's creator labels. Model/moderator labels are untouched.
+  defp put_creator_topics(_item, :keep), do: :ok
+
+  defp put_creator_topics(%Item{id: id}, topic_ids) do
+    Repo.delete_all(
+      from ct in ContentTopic, where: ct.content_id == ^id and ct.source == "creator"
+    )
+
+    Repo.insert_all(
+      ContentTopic,
+      for(
+        tid <- topic_ids,
+        do: %{content_id: id, topic_id: tid, source: "creator", confidence: 1.0}
+      )
+    )
+
+    :ok
+  end
 
   ## Creating content
 
@@ -24,13 +112,16 @@ defmodule TSpec.Content do
     provider_name = Video.default_provider_name()
     provider = Video.provider!(provider_name)
 
-    with {:ok, upload} <-
+    # Validate topics before asking the provider for an upload slot.
+    with {:ok, topic_ids} <- resolve_creator_topics(attrs),
+         {:ok, upload} <-
            provider.create_direct_upload(%{max_duration_seconds: Video.max_duration_seconds()}) do
       Repo.transact(fn ->
         with {:ok, item} <-
                %Item{author_id: user.id, kind: "short_video", status: "processing"}
                |> Item.caption_changeset(attrs)
-               |> Repo.insert() do
+               |> Repo.insert(),
+             :ok <- put_creator_topics(item, topic_ids) do
           Repo.insert!(%ShortVideo{
             content_id: item.id,
             provider: provider_name,
@@ -46,7 +137,8 @@ defmodule TSpec.Content do
   @doc "Creates a text post, published immediately."
   def create_text_post(%Scope{user: user}, attrs) do
     Repo.transact(fn ->
-      with {:ok, item} <-
+      with {:ok, topic_ids} <- resolve_creator_topics(attrs),
+           {:ok, item} <-
              %Item{
                author_id: user.id,
                kind: "text_post",
@@ -56,7 +148,8 @@ defmodule TSpec.Content do
              |> Item.caption_changeset(attrs)
              |> Repo.insert(),
            {:ok, _post} <-
-             %TextPost{content_id: item.id} |> TextPost.changeset(attrs) |> Repo.insert() do
+             %TextPost{content_id: item.id} |> TextPost.changeset(attrs) |> Repo.insert(),
+           :ok <- put_creator_topics(item, topic_ids) do
         {:ok, preload_for_render(item)}
       end
     end)
@@ -89,10 +182,19 @@ defmodule TSpec.Content do
 
   ## Editing
 
-  def update_caption(%Scope{} = scope, id, attrs) do
+  @doc """
+  Edits an item the scope owns. `attrs` may carry `:caption` and/or `:topics`
+  (creator topic slugs, replacing the previous creator labels).
+  """
+  def update_item(%Scope{} = scope, id, attrs) do
     with {:ok, item} <- get_own_item(scope, id),
-         {:ok, item} <- item |> Item.caption_changeset(attrs) |> Repo.update() do
-      {:ok, preload_for_render(item)}
+         {:ok, topic_ids} <- resolve_creator_topics(attrs) do
+      Repo.transact(fn ->
+        with {:ok, item} <- item |> Item.caption_changeset(attrs) |> Repo.update(),
+             :ok <- put_creator_topics(item, topic_ids) do
+          {:ok, item |> Repo.preload(@render_preloads, force: true)}
+        end
+      end)
     end
   end
 

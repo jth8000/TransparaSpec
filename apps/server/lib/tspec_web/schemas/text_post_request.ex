@@ -7,7 +7,8 @@ defmodule TSpecWeb.Schemas.TextPostRequest do
     type: :object,
     properties: %{
       body: %Schema{type: :string, minLength: 1, maxLength: 2000},
-      caption: %Schema{type: :string, maxLength: 2200}
+      caption: %Schema{type: :string, maxLength: 2200},
+      topics: TSpecWeb.Schemas.CreatorTopics
     },
     required: [:body]
   })
