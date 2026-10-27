@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { DashboardPanel } from '@/components/dashboard-panel';
@@ -38,6 +39,16 @@ export default function AlgorithmScreen() {
   const [switching, setSwitching] = useState(false);
 
   const searching = query.trim() !== '';
+  // Tabs stay mounted, so refresh what may have changed while you were in
+  // the feed (learned interests, what you were shown, settings from Tune).
+  useFocusEffect(
+    useCallback(() => {
+      for (const queryKey of [['interests'], ['dashboard'], SETTINGS_KEY]) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
+    }, [queryClient]),
+  );
+
   const tree = useMemo(() => filterTree(topicTree(taxonomy?.topics ?? []), query), [taxonomy, query]);
   const bySlug = useMemo(() => new Map((taxonomy?.topics ?? []).map((t) => [t.slug, t])), [taxonomy]);
   const adjusted = (settings?.topics ?? []).flatMap((t) => {

@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +25,7 @@ export default function FeedScreen() {
   const [tuning, setTuning] = useState(false);
   const [focus, setFocus] = useState<string[]>([]);
   const params = useLocalSearchParams<{ tune?: string }>();
+  const focused = useIsFocused();
 
   const forYou = useForYouFeed(kind === 'for-you');
 
@@ -79,6 +80,7 @@ export default function FeedScreen() {
           items={forYou.items}
           onActive={onActive}
           onWhy={onWhy}
+          visible={focused}
           onEndReached={forYou.loadMore}
           loadingMore={forYou.loading}
           onRefresh={forYou.refresh}
@@ -92,6 +94,7 @@ export default function FeedScreen() {
       ) : (
         <Feed
           key={kind}
+          visible={focused}
           items={chrono.data?.pages.flatMap((p) => p.items) ?? []}
           onEndReached={() => chrono.hasNextPage && !chrono.isFetchingNextPage && chrono.fetchNextPage()}
           loadingMore={chrono.isFetchingNextPage}
