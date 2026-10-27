@@ -66,6 +66,8 @@ defmodule TSpec.Feed.SessionTest do
     MapSet.new(rows, & &1.id)
   end
 
+  defp live_sessions(user_id), do: user_id |> Session.list() |> Enum.filter(&Process.alive?/1)
+
   defp ids(pairs), do: Enum.map(pairs, fn {s, _} -> s.content_id end)
   defp imps(pairs), do: Enum.map(pairs, fn {_, i} -> i end)
 
@@ -598,5 +600,28 @@ defmodule TSpec.Feed.SessionTest do
     )
 
     assert micros < 500_000
+  end
+
+  describe "sessions per user" do
+    test "are capped: starting one more stops an existing one", %{scope: scope} do
+      max = Session.max_sessions_per_user()
+      pids = for _ <- 1..max, do: elem(start!(scope), 1)
+      for pid <- pids, do: Process.monitor(pid)
+
+      # Someone else's sessions don't count toward this user's cap.
+      other = Accounts.scope_for_user(onboarded_user_fixture())
+      {_, other_pid} = start!(other)
+
+      {_sid, newest} = start!(scope)
+
+      assert_receive {:DOWN, _ref, :process, evicted, :normal}
+      assert evicted in pids
+      refute_receive {:DOWN, _, :process, _, _}, 50
+
+      live = live_sessions(scope.user.id)
+      assert length(live) == max
+      assert newest in live
+      assert Process.alive?(other_pid)
+    end
   end
 end

@@ -1836,7 +1836,7 @@
     "/api/auth/request": {
       "post": {
         "callbacks": {},
-        "description": "Emails a 6-digit code and a magic link. Creates the account on first use. Always 202 for a well-formed email.",
+        "description": "Emails a 6-digit code and a magic link. Creates the account on first use. Always 202 for a well-formed email, unless rate limited: per client address, and per email address (5 an hour, 10 a day).",
         "operationId": "TSpecWeb.AuthController.request",
         "parameters": [],
         "requestBody": {
@@ -1870,6 +1870,16 @@
               }
             },
             "description": "Invalid email"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Rate limited"
           }
         },
         "summary": "Start email sign-in",
@@ -1945,6 +1955,16 @@
               }
             },
             "description": "Malformed request"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Rate limited"
           }
         },
         "summary": "Finish sign-in with an emailed code or magic-link token",

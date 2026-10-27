@@ -77,6 +77,16 @@ if config_env() == :prod do
            |> URI.to_string()
          ]
 
+  # Fly's proxy sets Fly-Client-IP on every request (overwriting any value a
+  # client sent), and the app is only reachable through it. Rate limits key
+  # on this address. Set CLIENT_IP_HEADER to "" when not behind such a proxy.
+  config :tspec,
+         :client_ip_header,
+         (case System.get_env("CLIENT_IP_HEADER", "fly-client-ip") do
+            "" -> nil
+            header -> String.downcase(header)
+          end)
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

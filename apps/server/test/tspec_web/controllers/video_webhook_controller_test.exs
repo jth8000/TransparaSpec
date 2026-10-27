@@ -35,6 +35,13 @@ defmodule TSpecWeb.VideoWebhookControllerTest do
     refute_enqueued(worker: VideoEventWorker)
   end
 
+  test "a body over the parser's limit is refused, not buffered" do
+    # Signed correctly, so reading the whole body would reach the provider
+    # and fail later (400) instead.
+    body = Jason.encode!(%{state: "ready", pad: String.duplicate("a", 8_100_000)})
+    assert_error_sent 413, fn -> post_webhook(body, sign(body)) end
+  end
+
   test "unknown providers 404" do
     assert json_conn() |> post(~p"/api/webhooks/video/nope", "{}") |> json_response(404)
   end

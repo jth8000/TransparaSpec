@@ -73,6 +73,16 @@ config :tspec, :client_url, "http://localhost:8081"
 # LOGIN_CODE_SECRET in runtime.exs.
 config :tspec, :login_code_secret, "dev-only-login-code-secret-not-for-production"
 
+# Per-client-address limits, `{requests, window_ms}` per node
+# (`TSpecWeb.RateLimit`). Dev and test raise them for repeated E2E runs.
+config :tspec, :rate_limits,
+  auth_request: {10, :timer.minutes(10)},
+  auth_verify: {30, :timer.minutes(10)}
+
+# Header holding the client's address when behind a proxy (`TSpecWeb.ClientIP`).
+# Unset: use the socket's peer address. Production sets it in runtime.exs.
+config :tspec, :client_ip_header, nil
+
 # Configure LiveView
 config :phoenix_live_view,
   # the attribute set on all root tags. Used for Phoenix.LiveView.ColocatedCSS.
@@ -116,6 +126,10 @@ config :logger, :default_formatter,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+# Keep credentials out of logs. Phoenix filters any parameter whose name
+# contains one of these, including the socket's `?token=` on connect.
+config :phoenix, :filter_parameters, ["password", "token", "code", "secret"]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

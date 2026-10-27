@@ -89,3 +89,7 @@ config :tspec, TSpec.Video.LocalProvider,
 
 # Expo web runs on whichever localhost port is free (8081, 8082, ...).
 config :tspec, :cors_allow_localhost, true
+
+config :tspec, :rate_limits,
+  auth_request: {1000, :timer.minutes(10)},
+  auth_verify: {1000, :timer.minutes(10)}

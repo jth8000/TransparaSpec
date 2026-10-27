@@ -5,7 +5,7 @@ defmodule TSpec.Accounts.ApiLoginTest do
   import TSpec.AccountsFixtures
 
   alias TSpec.Accounts
-  alias TSpec.Accounts.{LoginCode, User}
+  alias TSpec.Accounts.{LoginCode, User, UserToken}
 
   defp request_code(email) do
     :ok = Accounts.request_login(email, &"https://app.test/verify?token=#{&1}")
@@ -14,6 +14,14 @@ defmodule TSpec.Accounts.ApiLoginTest do
     [_, code] = Regex.run(~r/sign-in code: (\d{6})/, sent.subject)
     [_, token] = Regex.run(~r{verify\?token=(\S+)}, sent.text_body)
     {code, token}
+  end
+
+  # Moves the user's sign-in emails `seconds` into the past.
+  defp backdate_login_emails(user, seconds) do
+    Repo.update_all(
+      from(t in UserToken, where: t.user_id == ^user.id and t.context == "login"),
+      set: [inserted_at: DateTime.add(DateTime.utc_now(:second), -seconds)]
+    )
   end
 
   describe "request_login/2" do
@@ -31,6 +39,44 @@ defmodule TSpec.Accounts.ApiLoginTest do
       {_second, _} = request_code(user.email)
 
       assert Repo.aggregate(from(c in LoginCode, where: c.user_id == ^user.id), :count) == 1
+    end
+
+    test "caps sign-in emails per address, per hour and per day" do
+      %{hour: per_hour, day: per_day} = Accounts.login_email_limits()
+      email = unique_user_email()
+
+      for _ <- 1..per_hour, do: request_code(email)
+      assert {:error, :rate_limited} = Accounts.request_login(email, & &1)
+      refute_email_sent()
+
+      # Out of the hourly window, but they still count toward the day.
+      user = Accounts.get_user_by_email(email)
+      backdate_login_emails(user, 2 * 60 * 60)
+      for _ <- 1..(per_day - per_hour), do: request_code(email)
+      assert {:error, :rate_limited} = Accounts.request_login(email, & &1)
+
+      backdate_login_emails(user, 25 * 60 * 60)
+      request_code(email)
+    end
+
+    test "signing in resets the count" do
+      email = unique_user_email()
+      for _ <- 1..(Accounts.login_email_limits().hour - 1), do: request_code(email)
+      {code, _} = request_code(email)
+      assert {:error, :rate_limited} = Accounts.request_login(email, & &1)
+
+      assert {:ok, _user} = Accounts.verify_login_code(email, code)
+      request_code(email)
+    end
+
+    test "magic links from the browser sign-in page count toward the same cap" do
+      user = user_fixture()
+
+      for _ <- 1..Accounts.login_email_limits().hour,
+          do: {:ok, _} = Accounts.deliver_login_instructions(user, & &1)
+
+      assert {:error, :rate_limited} = Accounts.deliver_login_instructions(user, & &1)
+      assert {:error, :rate_limited} = Accounts.request_login(user.email, & &1)
     end
 
     test "rejects malformed emails" do

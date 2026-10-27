@@ -277,9 +277,14 @@ defmodule TSpec.Accounts do
   """
   def deliver_login_instructions(%User{} = user, magic_link_url_fun)
       when is_function(magic_link_url_fun, 1) do
-    {encoded_token, user_token} = UserToken.build_email_token(user, "login")
-    Repo.insert!(user_token)
-    UserNotifier.deliver_login_instructions(user, magic_link_url_fun.(encoded_token))
+    with {:ok, encoded_token} <-
+           within_login_email_limits(user, fn ->
+             {encoded_token, user_token} = UserToken.build_email_token(user, "login")
+             Repo.insert!(user_token)
+             {:ok, encoded_token}
+           end) do
+      UserNotifier.deliver_login_instructions(user, magic_link_url_fun.(encoded_token))
+    end
   end
 
   @doc """
@@ -302,20 +307,60 @@ defmodule TSpec.Accounts do
   token and returns the URL to put in the email.
   """
   def request_login(email, link_url_fun) when is_function(link_url_fun, 1) do
-    with {:ok, user} <- get_or_register_user(email) do
-      {code, login_code} = LoginCode.build(user)
-      {encoded_token, user_token} = UserToken.build_email_token(user, "login")
-
-      Repo.transact(fn ->
-        Repo.delete_all(from c in LoginCode, where: c.user_id == ^user.id)
-        Repo.insert!(login_code)
-        Repo.insert!(user_token)
-        {:ok, nil}
-      end)
-
+    with {:ok, user} <- get_or_register_user(email),
+         {:ok, {code, encoded_token}} <- issue_login_code(user) do
       {:ok, _email} = UserNotifier.deliver_login_code(user, code, link_url_fun.(encoded_token))
       :ok
     end
+  end
+
+  # Sign-in emails per address. Each carries a fresh code worth
+  # LoginCode.max_attempts/0 guesses, so these caps bound brute force (at
+  # most 50 guesses a day against a million codes) as well as how often
+  # anyone can make us mail a stranger. They're counted from the "login"
+  # tokens in Postgres, so they hold across nodes; signing in deletes those
+  # tokens, which resets the count.
+  @login_emails_per_hour 5
+  @login_emails_per_day 10
+
+  def login_email_limits, do: %{hour: @login_emails_per_hour, day: @login_emails_per_day}
+
+  # Replaces the user's code and adds a magic-link token.
+  defp issue_login_code(%User{} = user) do
+    within_login_email_limits(user, fn ->
+      {code, login_code} = LoginCode.build(user)
+      {encoded_token, user_token} = UserToken.build_email_token(user, "login")
+      Repo.delete_all(from c in LoginCode, where: c.user_id == ^user.id)
+      Repo.insert!(login_code)
+      Repo.insert!(user_token)
+      {:ok, {code, encoded_token}}
+    end)
+  end
+
+  # Runs `fun` (which issues a "login" token) in a transaction, or returns
+  # `{:error, :rate_limited}` if the address is over its limits. Locking the
+  # user row makes concurrent requests for one address count each other.
+  defp within_login_email_limits(%User{id: user_id}, fun) do
+    Repo.transact(fn ->
+      Repo.one!(from u in User, where: u.id == ^user_id, select: u.id, lock: "FOR UPDATE")
+      if login_emails_exceeded?(user_id), do: {:error, :rate_limited}, else: fun.()
+    end)
+  end
+
+  defp login_emails_exceeded?(user_id) do
+    now = DateTime.utc_now(:second)
+    hour_ago = DateTime.add(now, -1, :hour)
+
+    {last_hour, last_day} =
+      Repo.one!(
+        from t in UserToken,
+          where:
+            t.user_id == ^user_id and t.context == "login" and
+              t.inserted_at > ^DateTime.add(now, -1, :day),
+          select: {filter(count(), t.inserted_at > ^hour_ago), count()}
+      )
+
+    last_hour >= @login_emails_per_hour or last_day >= @login_emails_per_day
   end
 
   defp get_or_register_user(email) when is_binary(email) do
