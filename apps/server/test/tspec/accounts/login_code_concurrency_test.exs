@@ -55,4 +55,24 @@ defmodule TSpec.Accounts.LoginCodeConcurrencyTest do
     # The limit held, so the right code is refused too.
     assert {:error, :invalid_code} = unboxed(fn -> Accounts.verify_login_code(email, code) end)
   end
+
+  test "a burst of parallel sign-in requests can't send more emails than the cap" do
+    user = unboxed(fn -> unconfirmed_user_fixture() end)
+
+    on_exit(fn ->
+      unboxed(fn -> Repo.delete_all(from u in Accounts.User, where: u.id == ^user.id) end)
+    end)
+
+    per_hour = Accounts.login_email_limits().hour
+
+    results =
+      1..(4 * per_hour)
+      |> Enum.map(fn _ ->
+        Task.async(fn -> unboxed(fn -> Accounts.request_login(user.email, & &1) end) end)
+      end)
+      |> Task.await_many(10_000)
+
+    assert Enum.count(results, &(&1 == :ok)) == per_hour
+    assert Enum.count(results, &(&1 == {:error, :rate_limited})) == 3 * per_hour
+  end
 end

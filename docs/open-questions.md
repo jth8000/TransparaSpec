@@ -25,11 +25,12 @@ Undecided items. When one is resolved, record the answer here and write an ADR i
 - [ ] **Impression retention**: how long to keep raw *exposed* impressions before aggregating them? It must cover any attribution and audit window. Served-but-never-exposed impressions are pruned after 30 days ([ADR 0011](adr/0011-feed-sessions-and-live-rerank.md)).
 - [ ] **Postgres host** with pgvector: Fly managed Postgres, Neon, or Supabase.
 - [ ] **Web sessions**: Phase 0 uses bearer tokens everywhere, with web storing the token in localStorage. Before beta, decide whether web moves to an httpOnly cookie session (XSS exposure vs. one auth path).
-- [ ] **Sign-in abuse**: per-IP/email rate limits on `/api/auth/request` and verify. Phase 0 only limits attempts per code.
+- [x] ~~**Sign-in abuse**~~ Each code allows 5 guesses, claimed atomically before the comparison. Sign-in emails are capped per address at 5 an hour and 10 a day (counted in Postgres, so the cap holds across nodes; signing in resets it), which bounds brute force at 50 guesses a day against a million codes. `/api/auth/request` and `/api/auth/verify` are also limited per client address (per node, in memory; IPv6 per /64). Behind Fly the address comes from `Fly-Client-IP`.
 - [ ] **Engagement abuse**: events are client-reported, so an account can fabricate views. Phase 1a counts distinct users in trending, quality and co-engagement, so one account counts once per item. Still open for Phase 2:
   - rate limits on `POST /api/events`;
   - stricter view lifecycles (e.g. `complete` needs a prior `view_start` and plausible timing);
-  - sybil/bot heuristics before signals feed shared rankings.
+  - sybil/bot heuristics before signals feed shared rankings (sign-up is free, so accounts are cheap);
+  - before the Ledger credits anything from engagement (viewer dividends, creator shares, "viewable" ad impressions), how a view is attested. Today viewability is whatever the client reports, so these signals can't drive payouts as they stand.
 
 ## Legal / compliance (needs counsel before Phase 3–4)
 - [ ] Is paying a data dividend money transmission, a securities issue, or a tax-reporting obligation? Which threshold triggers 1099 forms?

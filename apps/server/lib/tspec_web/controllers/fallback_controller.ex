@@ -16,7 +16,9 @@ defmodule TSpecWeb.FallbackController do
     consent_required: {:unprocessable_entity, "You must accept the current terms"},
     cannot_follow_self: {:unprocessable_entity, "You can't follow yourself"},
     batch_too_large: {:unprocessable_entity, "Too many events in one batch"},
-    invalid_session: {:unprocessable_entity, "The feed session id is invalid"}
+    invalid_session: {:unprocessable_entity, "The feed session id is invalid"},
+    rate_limited:
+      {:too_many_requests, "Too many sign-in emails for this address. Try again later."}
   }
 
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do

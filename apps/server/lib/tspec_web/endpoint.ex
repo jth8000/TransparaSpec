@@ -58,6 +58,7 @@ defmodule TSpecWeb.Endpoint do
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug TSpecWeb.ClientIP
 
   # Multipart is only used by the dev/test video-upload emulator, which takes
   # short-form-sized files. Production doesn't parse it at all, so nobody can

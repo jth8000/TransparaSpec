@@ -2,9 +2,13 @@ defmodule TSpecWeb.AuthController do
   use TSpecWeb, :controller
   use OpenApiSpex.ControllerSpecs
 
+  import TSpecWeb.RateLimit
+
   alias TSpec.Accounts
   alias TSpecWeb.{Schemas, UserJSON}
 
+  plug :rate_limit, :auth_request when action == :request
+  plug :rate_limit, :auth_verify when action == :verify
   plug OpenApiSpex.Plug.CastAndValidate, render_error: TSpecWeb.CastErrorRenderer
   action_fallback TSpecWeb.FallbackController
 
@@ -13,11 +17,12 @@ defmodule TSpecWeb.AuthController do
   operation :request,
     summary: "Start email sign-in",
     description:
-      "Emails a 6-digit code and a magic link. Creates the account on first use. Always 202 for a well-formed email.",
+      "Emails a 6-digit code and a magic link. Creates the account on first use. Always 202 for a well-formed email, unless rate limited: per client address, and per email address (5 an hour, 10 a day).",
     request_body: {"Email", "application/json", Schemas.AuthRequest},
     responses: [
       accepted: {"Email sent", "application/json", Schemas.StatusResponse},
-      unprocessable_entity: {"Invalid email", "application/json", Schemas.Error}
+      unprocessable_entity: {"Invalid email", "application/json", Schemas.Error},
+      too_many_requests: {"Rate limited", "application/json", Schemas.Error}
     ]
 
   def request(conn, _params) do
@@ -34,7 +39,8 @@ defmodule TSpecWeb.AuthController do
     responses: [
       ok: {"Signed in", "application/json", Schemas.AuthSession},
       unauthorized: {"Invalid or expired code", "application/json", Schemas.Error},
-      unprocessable_entity: {"Malformed request", "application/json", Schemas.Error}
+      unprocessable_entity: {"Malformed request", "application/json", Schemas.Error},
+      too_many_requests: {"Rate limited", "application/json", Schemas.Error}
     ]
 
   def verify(conn, _params) do

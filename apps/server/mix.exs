@@ -79,6 +79,7 @@ defmodule TSpec.MixProject do
       {:cors_plug, "~> 3.0"},
       {:pgvector, "~> 0.4.2"},
       {:uuidv7, "~> 1.0"},
+      {:hammer, "~> 7.5"},
       {:stream_data, "~> 1.4", only: [:dev, :test]}
     ]
   end

@@ -67,7 +67,7 @@ export interface paths {
         put?: never;
         /**
          * Start email sign-in
-         * @description Emails a 6-digit code and a magic link. Creates the account on first use. Always 202 for a well-formed email.
+         * @description Emails a 6-digit code and a magic link. Creates the account on first use. Always 202 for a well-formed email, unless rate limited: per client address, and per email address (5 an hour, 10 a day).
          */
         post: operations["TSpecWeb.AuthController.request"];
         delete?: never;
@@ -1019,6 +1019,15 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     "TSpecWeb.AuthController.delete": {
@@ -1073,6 +1082,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

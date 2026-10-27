@@ -28,6 +28,18 @@ defmodule TSpecWeb.ApiAuthFlowTest do
 
   defp bearer(token), do: json_conn() |> put_req_header("authorization", "Bearer " <> token)
 
+  test "too many sign-in emails for one address is a 429" do
+    email = unique_user_email()
+
+    for _ <- 1..TSpec.Accounts.login_email_limits().hour do
+      json_conn() |> post(~p"/api/auth/request", %{email: email}) |> json_response(202)
+    end
+
+    body = json_conn() |> post(~p"/api/auth/request", %{email: email}) |> json_response(429)
+    assert_schema(body, "Error", spec())
+    assert body["error"] == "rate_limited"
+  end
+
   test "sign up, onboard, follow someone and see it on their profile", %{conn: conn} do
     bob = onboarded_user_fixture(handle: "bob")
     %{"token" => token, "user" => user} = sign_in(conn, "alice@example.com")

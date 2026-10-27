@@ -13,6 +13,7 @@ defmodule TSpec.Application do
       {DNSCluster, query: Application.get_env(:tspec, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TSpec.PubSub},
       {Oban, Application.fetch_env!(:tspec, Oban)},
+      {TSpec.RateLimit, clean_period: :timer.minutes(10)},
       # Per-feed-session ranking caches (ADR 0011).
       {DynamicSupervisor, name: TSpec.Feed.SessionSupervisor, strategy: :one_for_one},
       {Task.Supervisor, name: TSpec.TaskSupervisor},
