@@ -73,7 +73,7 @@ defmodule TSpec.MixProject do
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"},
+      {:bandit, "~> 1.14"},
       {:oban, "~> 2.24"},
       {:open_api_spex, "~> 3.22"},
       {:cors_plug, "~> 3.0"},
