@@ -62,3 +62,6 @@ config :tspec, TSpec.Video.CloudflareStream,
   webhook_secret: "test-webhook-secret",
   customer_subdomain: "customer-test.cloudflarestream.com",
   req_options: [plug: {Req.Test, TSpec.Video.CloudflareStream}, retry: false]
+
+# Expo web runs on whichever localhost port is free (8081, 8082, ...).
+config :tspec, :cors_allow_localhost, true

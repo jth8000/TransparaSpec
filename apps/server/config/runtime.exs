@@ -66,6 +66,17 @@ if config_env() == :prod do
     client_url:
       System.get_env("CLIENT_URL") || raise("environment variable CLIENT_URL is missing")
 
+  # The deployed web client may call the API from the browser (CORS). An
+  # origin is scheme://host[:port], so drop any path from CLIENT_URL.
+  client_uri = URI.parse(System.fetch_env!("CLIENT_URL"))
+
+  config :tspec,
+         :cors_origins,
+         [
+           %URI{scheme: client_uri.scheme, host: client_uri.host, port: client_uri.port}
+           |> URI.to_string()
+         ]
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

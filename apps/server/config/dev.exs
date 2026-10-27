@@ -86,3 +86,6 @@ config :tspec, TSpec.Video.LocalProvider,
   media_root: Path.expand("../tmp/dev_media", __DIR__),
   secret: "dev-only-local-video-secret",
   webhook: :http
+
+# Expo web runs on whichever localhost port is free (8081, 8082, ...).
+config :tspec, :cors_allow_localhost, true
