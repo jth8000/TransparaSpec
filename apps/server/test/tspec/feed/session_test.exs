@@ -214,10 +214,7 @@ defmodule TSpec.Feed.SessionTest do
     assert Session.state(pid2).settings.version == 1
   end
 
-  test "a refill that finishes instantly isn't mistaken for a crash", %{
-    scope: scope,
-    items: items
-  } do
+  test "a refill that finishes instantly isn't mistaken for a crash", %{scope: scope} do
     # Refills that return at once (here: a canned, non-empty list) can finish
     # before the session would get to monitor them. That must not look like
     # a failure and trigger the 60 s back-off.
