@@ -16,11 +16,17 @@ test('a followed creator’s upload plays in the Following feed', async ({ brows
   await signUp(creator, creatorHandle);
 
   await creator.getByRole('tab', { name: /create/i }).click();
-  await creator.getByTestId('caption-input').fill(`hello from ${creatorHandle}`);
 
+  // Choosing a file only selects it: nothing is posted yet, and the caption
+  // can still be written afterwards.
   const chooser = creator.waitForEvent('filechooser');
   await creator.getByTestId('pick-video').click();
   await (await chooser).setFiles(testClip());
+  await expect(creator.getByTestId('picked-video')).toContainText('clip.mp4 · 0:03 · 360×640');
+  await expect(creator.getByTestId('upload-status')).toHaveCount(0);
+
+  await creator.getByTestId('caption-input').fill(`hello from ${creatorHandle}`);
+  await creator.getByTestId('post-video').click();
 
   // Upload → ffmpeg transcode → webhook → pushed over the user channel.
   await expect(creator.getByTestId('upload-status')).toHaveText('Your video is live.', {
