@@ -36,6 +36,12 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user + 
 - **Video**: access goes only through the `VideoProvider` behaviour. Video bytes never pass through Phoenix.
 - **Rust**: only when profiling justifies it, for ranking or graph hot paths (ADR 0004).
 - **Ranking docs**: `docs/ranking.md` must describe what the code does. Change a weight, formula or rule, and update it in the same commit. `test/tspec/docs/ranking_doc_test.exs` checks its defaults table.
+- **Pull requests: one per milestone, not one per phase.** The human reviewer reads every PR, so each must be reviewable in one sitting.
+  - Branch per milestone (`phase-1b/m1-ml-service`), PR into `main`. If the next milestone needs one that isn't merged yet, stack it: base its branch and PR on the previous milestone's branch (GitHub retargets it to `main` when that merges).
+  - Aim for under ~1,500 lines of hand-written logic per PR. If a milestone grows past that, split it.
+  - Fixes from a review round go in their own PR (or as new commits on the open one), never folded into a later milestone.
+  - In the PR description, split the line count into logic, tests and generated/vendored code, and say where to start reading.
+  - Plan milestones with PR size in mind; a plan that implies one huge PR should be re-cut.
 - **Decisions**: architecture-shaping decisions get a new ADR in `docs/adr/` and a row in its README. Resolve items in `docs/open-questions.md` as they're decided.
 - **Testing**: ExUnit + StreamData property tests on the server; Jest + RNTL on the client; Maestro/Playwright end-to-end.
 - **User background**: strongest in Go, some Elixir and Rust, new to recommender systems. Explain Elixir idioms and recommender concepts when introducing them.
