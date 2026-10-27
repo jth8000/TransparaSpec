@@ -1,8 +1,16 @@
 # TransparaSpec (T-Spec)
 
-T-Spec is a social and video-sharing platform where you can see, and steer, the recommendation algorithm. It's also built to eventually pay users for the revenue their data generates.
+T-Spec is a social and video-sharing platform where you can see, and steer, the recommendation algorithm. It's also designed so that users could eventually be paid for the revenue their data generates.
 
-**Status:** pre-beta and under active development. Expect breaking changes, and don't run it in production yet. Phase 0 (foundations) and Phase 1a (the transparent ranker: For You with a "Why?" on every item and live controls) are done. Phase 1b (the ML service for content understanding) is next.
+**Status: pre-beta, under active development, not production-ready.**
+
+Expect breaking changes. Do not run this with real users or in production. There is no formal support. This is a personal project exploring what transparent, user-controllable recommendation systems and fairer creator/user economics could look like. It may or may not ever reach a private beta.
+
+Phase 0 (foundations) and Phase 1a (transparent ranker with live controls and "Why?" explanations) are complete. Phase 1b (ML service for content understanding) is next.
+
+## AI assistance disclosure
+
+The large majority of the design elaboration, implementation, tests, and documentation in this repository was produced with heavy assistance from Claude (Anthropic). I (the repository owner) set the product direction, made the key decisions, reviewed the work, and own the project. I am not an Elixir/OTP, distributed-systems or security expert; the more sophisticated concurrency and ranking machinery should be treated accordingly. Before any private beta, the code base needs review by experts in those areas.
 
 ## Pillars
 1. **Algorithm transparency and control.** Every recommendation comes with an exact "why", and you can change the weights and watch your feed re-rank live.
