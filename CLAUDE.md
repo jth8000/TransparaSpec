@@ -49,7 +49,7 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user + 
 ## Commands
 - `make setup` / `make dev` (API :4000) / `make web` (:8081) / `make android`
 - `cd apps/server && mix tspec.seed_demo`: demo creators and topic-labeled content for For You (dev, idempotent)
-- `make test`: `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test`, client `tsc` + `expo lint` + `jest`, and `make api-check`
+- `make test`: `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test --warnings-as-errors`, client `tsc` + `expo lint` + `jest`, and `make api-check`
 - `make e2e`: Playwright web flow. It reads sign-in codes from `GET /dev/mailbox/json`.
 - `make api-gen`: run after any API change, and commit the regenerated `packages/api-schema`
 - Shells need mise activated for Erlang/Elixir (`eval "$(mise env -s bash)"`) and Node 24 (`nvm use`).

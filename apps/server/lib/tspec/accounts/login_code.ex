@@ -47,9 +47,6 @@ defmodule TSpec.Accounts.LoginCode do
     Plug.Crypto.secure_compare(hash(user_id, code), code_hash)
   end
 
-  def expired?(%__MODULE__{expires_at: expires_at}),
-    do: DateTime.compare(expires_at, DateTime.utc_now()) != :gt
-
   defp hash(user_id, code) do
     :crypto.mac(:hmac, :sha256, secret(), user_id <> ":" <> code)
   end

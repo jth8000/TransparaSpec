@@ -297,6 +297,45 @@ defmodule TSpec.Content do
     broadcast_status(item)
   end
 
+  ## Abandoned uploads
+
+  @doc """
+  Fails video items still `processing` that were created before `cutoff`:
+  upload slots whose bytes never arrived (the client gave up, or retried
+  with a fresh slot) or that the provider never finished. Marks them
+  `failed` with reason `upload_expired`, schedules deletion of their
+  provider assets and notifies their authors. Returns `{:ok, count}`.
+
+  The status change is one conditional UPDATE, so it can't race a provider
+  event: whichever commits first wins, and a later `ready` finds the item
+  no longer processing and is ignored.
+  """
+  def expire_stale_uploads(%DateTime{} = cutoff) do
+    {:ok, items} =
+      Repo.transact(fn ->
+        {_, items} =
+          from(i in Item,
+            where:
+              i.kind == "short_video" and i.status == "processing" and i.inserted_at < ^cutoff,
+            select: i
+          )
+          |> Repo.update_all(set: [status: "failed", updated_at: DateTime.utc_now(:second)])
+
+        {_, videos} =
+          from(v in ShortVideo,
+            where: v.content_id in ^Enum.map(items, & &1.id),
+            select: %{provider: v.provider, asset_id: v.asset_id}
+          )
+          |> Repo.update_all(set: [failure_reason: "upload_expired"])
+
+        Oban.insert_all(Enum.map(videos, &DeleteAssetWorker.new/1))
+        {:ok, items}
+      end)
+
+    Enum.each(items, &broadcast_status/1)
+    {:ok, length(items)}
+  end
+
   ## Status notifications
 
   @doc "Subscribes the caller to status changes of the scope user's uploads."

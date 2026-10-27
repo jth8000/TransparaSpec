@@ -6,7 +6,7 @@ defmodule TSpec.ContentTest do
   import TSpec.ContentFixtures
 
   alias TSpec.{Accounts, Content}
-  alias TSpec.Content.{DeleteAssetWorker, Item}
+  alias TSpec.Content.{DeleteAssetWorker, ExpireUploadsWorker, Item}
 
   setup do
     author = onboarded_user_fixture()
@@ -75,6 +75,56 @@ defmodule TSpec.ContentTest do
       assert :ok = Content.apply_video_event("local", ready_event(upload.asset_id))
       assert :ok = Content.apply_video_event("local", ready_event(Ecto.UUID.generate()))
       assert :ok = Content.apply_video_event("other", ready_event(upload.asset_id))
+    end
+  end
+
+  describe "abandoned uploads" do
+    defp age_item(item, hours) do
+      at = DateTime.add(DateTime.utc_now(:second), -hours, :hour)
+      Repo.update_all(from(i in Item, where: i.id == ^item.id), set: [inserted_at: at])
+    end
+
+    test "fail after the cutoff, delete their assets and notify the author", %{scope: scope} do
+      {:ok, {stale, upload}} = Content.create_video_upload(scope, %{})
+      {:ok, {fresh, _}} = Content.create_video_upload(scope, %{})
+      age_item(stale, 25)
+      Content.subscribe_content_status(scope)
+
+      assert :ok = perform_job(ExpireUploadsWorker, %{})
+
+      assert_receive {:content_status, %{content_id: id, status: "failed"}}
+      assert id == stale.id
+      {:ok, stale} = Content.get_item(scope, stale.id)
+      assert stale.short_video.failure_reason == "upload_expired"
+      assert {:ok, %{status: "processing"}} = Content.get_item(scope, fresh.id)
+
+      assert_enqueued(
+        worker: DeleteAssetWorker,
+        args: %{provider: "local", asset_id: upload.asset_id}
+      )
+    end
+
+    test "leave ready, failed and text items alone", %{author: author, scope: scope} do
+      ready = ready_video_fixture(author)
+      post = text_post_fixture(author)
+      {:ok, {failed, upload}} = Content.create_video_upload(scope, %{})
+      event = %{"type" => "failed", "asset_id" => upload.asset_id, "reason" => "too_long"}
+      :ok = Content.apply_video_event("local", event)
+      Enum.each([ready, post, failed], &age_item(&1, 48))
+
+      assert {:ok, 0} = Content.expire_stale_uploads(DateTime.utc_now())
+      {:ok, failed} = Content.get_item(scope, failed.id)
+      assert failed.short_video.failure_reason == "too_long"
+      refute_enqueued(worker: DeleteAssetWorker)
+    end
+
+    test "a ready event after expiry changes nothing", %{scope: scope} do
+      {:ok, {item, upload}} = Content.create_video_upload(scope, %{})
+      age_item(item, 25)
+      {:ok, 1} = Content.expire_stale_uploads(DateTime.add(DateTime.utc_now(), -24, :hour))
+
+      assert :ok = Content.apply_video_event("local", ready_event(upload.asset_id))
+      assert {:ok, %{status: "failed"}} = Content.get_item(scope, item.id)
     end
   end
 

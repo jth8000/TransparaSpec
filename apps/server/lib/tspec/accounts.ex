@@ -333,27 +333,30 @@ defmodule TSpec.Accounts do
   """
   def verify_login_code(email, code) when is_binary(email) and is_binary(code) do
     with %User{} = user <- get_user_by_email(email),
-         %LoginCode{} = login_code <- Repo.get_by(LoginCode, user_id: user.id, sent_to: email),
-         false <- LoginCode.expired?(login_code),
-         true <- login_code.attempts < LoginCode.max_attempts() do
-      if LoginCode.matches?(login_code, code) do
-        Repo.delete_all(from c in LoginCode, where: c.user_id == ^user.id)
-
-        Repo.delete_all(
-          from t in UserToken, where: t.user_id == ^user.id and t.context == "login"
-        )
-
-        confirm_user(user)
-      else
-        Repo.update_all(from(c in LoginCode, where: c.id == ^login_code.id),
-          inc: [attempts: 1]
-        )
-
-        {:error, :invalid_code}
-      end
+         {1, [login_code]} <- claim_login_attempt(user.id, email),
+         true <- LoginCode.matches?(login_code, code) do
+      Repo.delete_all(from c in LoginCode, where: c.user_id == ^user.id)
+      Repo.delete_all(from t in UserToken, where: t.user_id == ^user.id and t.context == "login")
+      confirm_user(user)
     else
       _ -> {:error, :invalid_code}
     end
+  end
+
+  # Spends one attempt *before* the code is compared, in a single conditional
+  # UPDATE. Reading the count and incrementing it later would let a burst of
+  # concurrent guesses all see the same count and slip past the limit. A
+  # right guess is consumed straight after, so spending its attempt is free.
+  defp claim_login_attempt(user_id, email) do
+    now = DateTime.utc_now(:second)
+
+    from(c in LoginCode,
+      where:
+        c.user_id == ^user_id and c.sent_to == ^email and c.expires_at > ^now and
+          c.attempts < ^LoginCode.max_attempts(),
+      select: c
+    )
+    |> Repo.update_all(inc: [attempts: 1])
   end
 
   @doc "Verifies a magic-link token (web). Returns `{:ok, user}` or `{:error, :invalid_code}`."

@@ -49,7 +49,8 @@ config :tspec, Oban,
        {"15 3 * * *", TSpec.Events.PartitionWorker},
        {"*/10 * * * *", TSpec.Feed.AffinitySweepWorker},
        {"*/5 * * * *", TSpec.Feed.TrendingWorker},
-       {"45 3 * * *", TSpec.Events.ImpressionPruneWorker}
+       {"45 3 * * *", TSpec.Events.ImpressionPruneWorker},
+       {"20 * * * *", TSpec.Content.ExpireUploadsWorker}
      ]}
   ]
 

@@ -36,7 +36,7 @@ web:
 test: test-server test-client api-check
 
 test-server: db
-	cd $(SERVER) && mix format --check-formatted && mix compile --warnings-as-errors && mix test
+	cd $(SERVER) && mix format --check-formatted && mix compile --warnings-as-errors && mix test --warnings-as-errors
 
 test-client:
 	npm run typecheck -w apps/client
