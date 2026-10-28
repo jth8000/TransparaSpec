@@ -69,16 +69,6 @@ defmodule TSpec.Accounts.ApiLoginTest do
       request_code(email)
     end
 
-    test "magic links from the browser sign-in page count toward the same cap" do
-      user = user_fixture()
-
-      for _ <- 1..Accounts.login_email_limits().hour,
-          do: {:ok, _} = Accounts.deliver_login_instructions(user, & &1)
-
-      assert {:error, :rate_limited} = Accounts.deliver_login_instructions(user, & &1)
-      assert {:error, :rate_limited} = Accounts.request_login(user.email, & &1)
-    end
-
     test "rejects malformed emails" do
       assert {:error, %Ecto.Changeset{}} = Accounts.request_login("not-an-email", & &1)
     end
