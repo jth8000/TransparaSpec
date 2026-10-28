@@ -16,9 +16,18 @@ In scope:
 - anything that would let one user read or change another user's data, or record events on their behalf.
 
 Known gaps, already tracked in [`docs/open-questions.md`](docs/open-questions.md) and the [roadmap](docs/roadmap.md), so no report is needed:
-- no rate limiting on sign-in requests beyond per-code attempt limits;
+- engagement events are client-reported, with no view attestation yet;
 - web sessions store the bearer token in `localStorage`;
 - no content moderation or CSAM scanning yet;
 - no account export or deletion yet.
 
 The dev-only `LocalProvider` routes (`/dev/...`) and the dev mailbox are compiled out of production builds and are out of scope.
+
+## Automated checks
+
+`make security` runs in CI on every push and weekly:
+- `mix hex.audit`: Hex security advisories and retired packages;
+- [Sobelow](https://github.com/sobelow/sobelow), a static security scanner for Phoenix. Each false positive is marked with a `# sobelow_skip` comment that says why;
+- `npm audit` on production dependencies, through `scripts/npm-audit.mjs`. Advisories that can't reach the app (so far, all inside Expo's build tooling) are listed with the reason in `scripts/npm-audit-allowlist.json`. Any other advisory fails the build.
+
+Dependabot proposes dependency updates weekly.

@@ -400,6 +400,9 @@ defmodule TSpec.Feed.Interests do
 
   defp upsert_affinities(_kind, _user_id, deltas, _now, _w) when deltas == %{}, do: :ok
 
+  # `upsert_sql/2` interpolates only a table and column picked from `kind`
+  # and the configured half-life; the values are bound parameters.
+  # sobelow_skip ["SQL.Query"]
   defp upsert_affinities(kind, user_id, deltas, now, w) do
     # Sorted, so concurrent writers (if the advisory lock were ever bypassed)
     # lock rows in the same order.

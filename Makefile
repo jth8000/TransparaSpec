@@ -3,7 +3,7 @@
 
 SERVER := apps/server
 
-.PHONY: setup db db-stop dev client android web test test-server test-client api-gen api-check e2e
+.PHONY: setup db db-stop dev client android web test test-server test-client api-gen api-check security e2e
 
 setup: db
 	cd $(SERVER) && mix setup
@@ -51,6 +51,15 @@ api-gen:
 # Fails if the committed spec/client are out of date with the server.
 api-check: api-gen
 	git diff --exit-code -- packages/api-schema
+
+# Dependency advisories and static security checks. Needs the network.
+# A Sobelow finding that is a false positive gets a `# sobelow_skip` comment
+# saying why; an npm advisory that can't reach production goes in
+# scripts/npm-audit-allowlist.json with the reason.
+security:
+	cd $(SERVER) && mix hex.audit
+	cd $(SERVER) && mix sobelow --skip --exit low --private --quiet
+	node scripts/npm-audit.mjs
 
 e2e:
 	npm test -w e2e

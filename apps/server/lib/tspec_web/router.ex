@@ -4,6 +4,9 @@ defmodule TSpecWeb.Router do
   import TSpecWeb.UserAuth
   import TSpecWeb.ApiAuth
 
+  # Sobelow only sees a CSP passed to `put_secure_browser_headers`; ours is
+  # set per request with a nonce by `TSpecWeb.ContentSecurityPolicy`.
+  # sobelow_skip ["Config.CSP"]
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -11,6 +14,7 @@ defmodule TSpecWeb.Router do
     plug :put_root_layout, html: {TSpecWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug TSpecWeb.ContentSecurityPolicy
     plug :fetch_current_scope_for_user
   end
 
@@ -115,8 +119,12 @@ defmodule TSpecWeb.Router do
     scope "/dev" do
       pipe_through :browser
 
-      live_dashboard "/dashboard", metrics: TSpecWeb.Telemetry
-      forward "/mailbox", Plug.Swoosh.MailboxPreview
+      live_dashboard "/dashboard",
+        metrics: TSpecWeb.Telemetry,
+        csp_nonce_assign_key: %{script: :csp_nonce, style: :csp_nonce}
+
+      forward "/mailbox", Plug.Swoosh.MailboxPreview,
+        csp_nonce_assign_key: %{script: :csp_nonce, style: :csp_nonce}
     end
   end
 

@@ -1,0 +1,46 @@
+version: 2
+
+# One grouped PR per ecosystem per week, so updates stay reviewable.
+# Security updates (a separate repo setting) still open their own PRs as
+# soon as an advisory lands.
+updates:
+  - package-ecosystem: mix
+    directory: /apps/server
+    schedule:
+      interval: weekly
+    groups:
+      mix:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        update-types: [minor, patch]
+    ignore:
+      # Expo, React and React Native majors move together in an Expo SDK
+      # upgrade (`npx expo install --fix`), never one package at a time.
+      - dependency-name: "expo"
+        update-types: [version-update:semver-major]
+      - dependency-name: "expo-*"
+        update-types: [version-update:semver-major]
+      - dependency-name: "@expo/*"
+        update-types: [version-update:semver-major]
+      - dependency-name: "react"
+        update-types: [version-update:semver-major]
+      - dependency-name: "react-dom"
+        update-types: [version-update:semver-major]
+      - dependency-name: "react-native"
+        update-types: [version-update:semver-major]
+      - dependency-name: "react-native-*"
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        update-types: [minor, patch]

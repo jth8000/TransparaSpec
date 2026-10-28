@@ -38,6 +38,9 @@ defmodule TSpec.Video.LocalProvider do
   end
 
   @doc "Stores an uploaded file for `asset_id` and queues the transcode."
+  # Dev/test only. `asset_dir!/1` rejects anything but a UUID, and
+  # `uploaded_path` is Plug's temp file, not a client-chosen path.
+  # sobelow_skip ["Traversal"]
   def store_upload(asset_id, uploaded_path) do
     dir = asset_dir!(asset_id)
 
@@ -52,6 +55,7 @@ defmodule TSpec.Video.LocalProvider do
   end
 
   @impl true
+  # sobelow_skip ["Traversal"]
   def delete_asset(asset_id) do
     {:ok, _} = File.rm_rf(asset_dir!(asset_id))
     :ok

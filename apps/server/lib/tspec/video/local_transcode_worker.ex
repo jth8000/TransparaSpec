@@ -90,6 +90,9 @@ defmodule TSpec.Video.LocalTranscodeWorker do
     end
   end
 
+  # Dev/test only. `cmd` is always "ffmpeg", and `args` is a list passed
+  # straight to the executable with no shell.
+  # sobelow_skip ["CI.System"]
   defp run(cmd, args) do
     case System.find_executable(cmd) do
       nil -> {"#{cmd} not found", 127}
