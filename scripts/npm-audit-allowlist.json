@@ -16,5 +16,11 @@
     "package": "uuid",
     "severity": "moderate",
     "reason": "Missing bounds check in uuid v3/v5/v6 when a caller passes its own buffer. Comes in through xcode <- @expo/config-plugins, which edits the iOS project during prebuild. Not in the app bundle. Clears when @expo/config-plugins drops uuid < 11.1.1."
+  },
+  {
+    "id": "GHSA-gcqx-w48m-w2h4",
+    "package": "deepmerge",
+    "severity": "low",
+    "reason": "Prototype poisoning in objects returned by deepmerge's mergeObject(). Comes in through @expo/config, which merges app.json at build time, and jest-config (dev only). The app never imports it, and it isn't in the app bundle. Clears when @expo/config drops or patches deepmerge."
   }
 ]
