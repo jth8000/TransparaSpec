@@ -1903,7 +1903,7 @@
             "bearer": []
           }
         ],
-        "summary": "Sign out (revokes this bearer token)",
+        "summary": "Sign out (revokes this bearer token and closes its sockets)",
         "tags": [
           "auth"
         ]

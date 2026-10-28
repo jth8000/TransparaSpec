@@ -86,7 +86,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Sign out (revokes this bearer token) */
+        /** Sign out (revokes this bearer token and closes its sockets) */
         delete: operations["TSpecWeb.AuthController.delete"];
         options?: never;
         head?: never;

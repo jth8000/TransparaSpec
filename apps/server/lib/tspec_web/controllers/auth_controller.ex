@@ -63,12 +63,14 @@ defmodule TSpecWeb.AuthController do
   end
 
   operation :delete,
-    summary: "Sign out (revokes this bearer token)",
+    summary: "Sign out (revokes this bearer token and closes its sockets)",
     security: [%{"bearer" => []}],
     responses: [no_content: "Signed out"]
 
   def delete(conn, _params) do
-    :ok = Accounts.delete_api_token(conn.assigns.api_token)
+    token = conn.assigns.api_token
+    :ok = Accounts.delete_api_token(token)
+    TSpecWeb.Endpoint.broadcast(TSpecWeb.UserSocket.id_for_token(token), "disconnect", %{})
     send_resp(conn, :no_content, "")
   end
 
