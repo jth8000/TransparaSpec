@@ -28,7 +28,7 @@ defmodule TSpecWeb.AuthController do
   def request(conn, _params) do
     %Schemas.AuthRequest{email: email} = conn.body_params
 
-    with :ok <- Accounts.request_login(email, &magic_link_url/1) do
+    with :ok <- Accounts.request_login(email, &magic_link_url(&1, email)) do
       conn |> put_status(:accepted) |> json(%{status: "sent"})
     end
   end
@@ -46,14 +46,14 @@ defmodule TSpecWeb.AuthController do
   def verify(conn, _params) do
     result =
       case conn.body_params do
-        %{token: token} when is_binary(token) ->
-          Accounts.verify_login_token(token)
+        %{email: email, token: token} when is_binary(email) and is_binary(token) ->
+          Accounts.verify_login_token(token, email)
 
         %{email: email, code: code} when is_binary(email) and is_binary(code) ->
           Accounts.verify_login_code(email, code)
 
         _ ->
-          {:error, :invalid_request, "Provide email and code, or token"}
+          {:error, :invalid_request, "Provide email with a code or a token"}
       end
 
     with {:ok, user} <- result do
@@ -72,7 +72,10 @@ defmodule TSpecWeb.AuthController do
     send_resp(conn, :no_content, "")
   end
 
-  defp magic_link_url(token) do
-    Application.fetch_env!(:tspec, :client_url) <> "/verify?token=" <> URI.encode_www_form(token)
+  # The link carries the email so the web client can show who it signs in as
+  # before the user confirms; verify checks that the two belong together.
+  defp magic_link_url(token, email) do
+    Application.fetch_env!(:tspec, :client_url) <>
+      "/verify?" <> URI.encode_query(%{"email" => email, "token" => token})
   end
 end

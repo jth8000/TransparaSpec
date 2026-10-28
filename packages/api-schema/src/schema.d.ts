@@ -461,7 +461,7 @@ export interface components {
         };
         /**
          * AuthVerify
-         * @description Either `email` + `code` (6-digit code from the email) or `token` (magic link).
+         * @description `email` plus either `code` (the 6-digit code from the email) or `token` (from the magic link).
          */
         AuthVerify: {
             code?: string;

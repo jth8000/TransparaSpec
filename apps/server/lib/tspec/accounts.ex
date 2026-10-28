@@ -404,10 +404,19 @@ defmodule TSpec.Accounts do
     |> Repo.update_all(inc: [attempts: 1])
   end
 
-  @doc "Verifies a magic-link token (web). Returns `{:ok, user}` or `{:error, :invalid_code}`."
-  def verify_login_token(token) when is_binary(token) do
+  @doc """
+  Verifies a magic-link token (web) issued to `email`. Returns `{:ok, user}`
+  or `{:error, :invalid_code}`.
+
+  The email must match because the web client shows it ("Sign in as …")
+  before the user confirms. Without the check, someone could send a link
+  carrying *their own* token with the victim's address on display, and sign
+  the victim into the sender's account (login CSRF).
+  """
+  def verify_login_token(token, email) when is_binary(token) and is_binary(email) do
     with {:ok, query} <- UserToken.verify_magic_link_token_query(token),
-         {%User{} = user, user_token} <- Repo.one(query) do
+         {%User{} = user, user_token} <-
+           Repo.one(from [_token, user] in query, where: user.email == ^email) do
       Repo.delete!(user_token)
       Repo.delete_all(from c in LoginCode, where: c.user_id == ^user.id)
       confirm_user(user)

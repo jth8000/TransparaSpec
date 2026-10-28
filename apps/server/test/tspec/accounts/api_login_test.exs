@@ -136,17 +136,33 @@ defmodule TSpec.Accounts.ApiLoginTest do
     end
   end
 
-  describe "verify_login_token/1" do
+  describe "verify_login_token/2" do
     test "signs in with the magic link once" do
       email = unique_user_email()
       {_code, token} = request_code(email)
 
-      assert {:ok, %User{}} = Accounts.verify_login_token(token)
-      assert {:error, :invalid_code} = Accounts.verify_login_token(token)
+      assert {:ok, %User{}} = Accounts.verify_login_token(token, email)
+      assert {:error, :invalid_code} = Accounts.verify_login_token(token, email)
+    end
+
+    test "matches the email case-insensitively" do
+      email = unique_user_email()
+      {_code, token} = request_code(email)
+
+      assert {:ok, %User{}} = Accounts.verify_login_token(token, String.upcase(email))
+    end
+
+    test "refuses a token presented with another address, and leaves it usable" do
+      # A link carrying the sender's token can't be shown as the victim's address.
+      sender = unique_user_email()
+      {_code, token} = request_code(sender)
+
+      assert {:error, :invalid_code} = Accounts.verify_login_token(token, unique_user_email())
+      assert {:ok, %User{email: ^sender}} = Accounts.verify_login_token(token, sender)
     end
 
     test "refuses garbage tokens" do
-      assert {:error, :invalid_code} = Accounts.verify_login_token("nope")
+      assert {:error, :invalid_code} = Accounts.verify_login_token("nope", unique_user_email())
     end
   end
 
