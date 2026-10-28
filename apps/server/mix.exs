@@ -80,7 +80,8 @@ defmodule TSpec.MixProject do
       {:pgvector, "~> 0.4.2"},
       {:uuidv7, "~> 1.0"},
       {:hammer, "~> 7.5"},
-      {:stream_data, "~> 1.4", only: [:dev, :test]}
+      {:stream_data, "~> 1.4", only: [:dev, :test]},
+      {:sobelow, "~> 0.16", only: [:dev, :test], runtime: false}
     ]
   end
 

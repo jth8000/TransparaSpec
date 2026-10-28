@@ -44,6 +44,10 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
   - Fixes from a review round go in their own PR (or as new commits on the open one), never folded into a later milestone.
   - In the PR description, split the line count into logic, tests and generated/vendored code, and say where to start reading.
   - Plan milestones with PR size in mind; a plan that implies one huge PR should be re-cut.
+- **Security checks** (`make security`):
+  - A Sobelow false positive gets `# sobelow_skip ["<Check>"]` above the function, with a comment saying why it's safe. Never skip a whole check class.
+  - An npm advisory that can't reach the app bundle goes in `scripts/npm-audit-allowlist.json` with the reason. Fix or upgrade anything else.
+  - Inline `<script>` and `<style>` tags in server-rendered HTML need `nonce={@csp_nonce}` (`TSpecWeb.ContentSecurityPolicy`).
 - **Decisions**: architecture-shaping decisions get a new ADR in `docs/adr/` and a row in its README. Resolve items in `docs/open-questions.md` as they're decided.
 - **Testing**: ExUnit + StreamData property tests on the server; Jest + RNTL on the client; Maestro/Playwright end-to-end.
 - **User background**: strongest in Go, some Elixir and Rust, new to recommender systems. Explain Elixir idioms and recommender concepts when introducing them.
@@ -53,6 +57,7 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
 - `cd apps/server && mix tspec.seed_demo`: demo creators and topic-labeled content for For You (dev, idempotent)
 - `make test`: `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test --warnings-as-errors`, client `tsc` + `expo lint` + `jest`, and `make api-check`
 - `make e2e`: Playwright web flow. It reads sign-in codes from `GET /dev/mailbox/json`.
+- `make security`: `mix hex.audit`, Sobelow and the npm advisory check. Needs the network; CI runs it on every push and weekly.
 - `make api-gen`: run after any API change, and commit the regenerated `packages/api-schema`
 - Shells need mise activated for Erlang/Elixir (`eval "$(mise env -s bash)"`) and Node 24 (`nvm use`).
 
