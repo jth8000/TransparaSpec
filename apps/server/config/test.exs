@@ -46,6 +46,11 @@ config :phoenix,
 
 config :tspec, :local_video, true
 
+config :tspec, :video_providers, %{
+  "local" => TSpec.Video.LocalProvider,
+  "cloudflare" => TSpec.Video.CloudflareStream
+}
+
 config :tspec, TSpec.Video.LocalProvider,
   base_url: "http://localhost:4002",
   media_root: Path.expand("../tmp/test_media", __DIR__),
