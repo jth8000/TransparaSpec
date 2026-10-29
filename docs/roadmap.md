@@ -62,12 +62,18 @@ Split into two parts. 1a uses creator-picked topics and must meet the "done when
 - CSAM hash matching + NCMEC reporting process; DMCA agent and flow.
 - Data export and account deletion.
 - ToS and privacy policy; beta invite system; basic admin tools.
-- Fly.io production deploy, backups, monitoring. Nothing exists yet: `infra/` is empty, and there's no release config, Dockerfile or `fly.toml` (`mix phx.gen.release --docker` / `fly launch` generate most of it). Feed sessions rely on `:global` across connected nodes (ADR 0011), so clustering is required:
-  - `DNS_CLUSTER_QUERY=<app>.internal`;
-  - a node name built from each machine's private IP (`RELEASE_NODE` in `rel/env.sh.eex`);
-  - the same `RELEASE_COOKIE` on every machine;
-  - IPv6 distribution (`ERL_AFLAGS="-proto_dist inet6_tcp"`), since Fly's private network is IPv6;
-  - then verify on two machines that a feed session keeps one owner.
+- Fly.io production deploy, backups, monitoring. Nothing exists yet: `infra/` is empty, and there's no release config, Dockerfile or `fly.toml` (`mix phx.gen.release --docker` / `fly launch` generate most of it).
+  - **One Phoenix machine for the private beta** ([ADR 0013](adr/0013-single-machine-private-beta.md)):
+    - deploy with Fly's rolling strategy, never blue-green or canary (both run two unclustered machines at once);
+    - pass `--ha=false` on the first `fly launch` or `fly deploy`, which otherwise creates two machines;
+    - in `fly.toml`, set `auto_stop_machines = "off"` and `auto_start_machines = false`. A stopped machine runs no Oban cron and drops feed sessions;
+    - check those `fly.toml` settings in CI, the way `prod_config_test` checks the production config.
+  - **Clustering comes later.** ADR 0013 lists its prerequisites (a partition test for feed sessions, a shared rate limiter). Then it needs:
+    - `DNS_CLUSTER_QUERY=<app>.internal`;
+    - a node name built from each machine's private IP (`RELEASE_NODE` in `rel/env.sh.eex`);
+    - the same `RELEASE_COOKIE` on every machine;
+    - IPv6 distribution (`ERL_AFLAGS="-proto_dist inet6_tcp"`), since Fly's private network is IPv6;
+    - a check on two machines that a feed session keeps one owner.
 
   Postgres connections use verified TLS by default, checked against the OS CA store, so the release image needs `ca-certificates`. Set `DATABASE_SSL=false` only for a database reachable solely over a private network that doesn't offer TLS.
 - **Done when:** invite-only US beta is live.

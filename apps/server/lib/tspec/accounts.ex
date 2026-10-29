@@ -118,7 +118,9 @@ defmodule TSpec.Accounts do
   # user row makes concurrent requests for one address count each other.
   defp within_login_email_limits(%User{id: user_id}, fun) do
     Repo.transact(fn ->
-      Repo.one!(from u in User, where: u.id == ^user_id, select: u.id, lock: "FOR UPDATE")
+      # FOR NO KEY UPDATE serializes sign-ins for this address without
+      # blocking other transactions' foreign-key checks on the user.
+      Repo.one!(from u in User, where: u.id == ^user_id, select: u.id, lock: "FOR NO KEY UPDATE")
       if login_emails_exceeded?(user_id), do: {:error, :rate_limited}, else: fun.()
     end)
   end

@@ -1,7 +1,7 @@
 # ADR 0012: Interest model v1 and user controls
 
 - **Status:** Accepted
-- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: forget boundaries and no parent fallback for forgotten topics, per-use view eligibility, distinct-user aggregates, no job dedupe)
+- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: forget boundaries and no parent fallback for forgotten topics, per-use view eligibility, distinct-user aggregates, no job dedupe; amended 2026-10-29: the mode change locks the user row `FOR NO KEY UPDATE`)
 
 ## Context
 The ranker (ADR 0006) needs a per-user interest profile: how much this person likes each topic and creator. It also needs controls whose meaning users can rely on:
@@ -73,7 +73,7 @@ Interest fades unless it's reinforced, with a half-life of 14 days:
 - **`learnable`** is set at view start and can only ever go from **true to false**.
   - It is true if the user was personalized at view start.
   - Turning non-personalized mode on sets `learnable = false` on the user's in-progress views, in the same transaction as the setting change.
-  - **No race:** `record/2` reads the mode under `FOR SHARE` on the user row, and the mode change takes `FOR UPDATE`. A view therefore can't be inserted as learnable from a stale read of the mode.
+  - **No race:** `record/2` reads the mode under `FOR SHARE` on the user row, and the mode change takes `FOR NO KEY UPDATE` (not `FOR UPDATE`, which deadlocked against the affinity worker's foreign-key checks). A view therefore can't be inserted as learnable from a stale read of the mode.
   - **The worker reads `learnable`, never the current mode.** Views that aren't learnable are marked applied without touching affinities, so a worker delayed past a mode change still respects the mode the viewing happened under.
   - Before a mode change, the client flushes its event queue and waits for the server's acknowledgement.
 

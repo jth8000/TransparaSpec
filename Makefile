@@ -3,7 +3,7 @@
 
 SERVER := apps/server
 
-.PHONY: setup db db-stop dev client android web test test-server test-client api-gen api-check security expo-check expo-fix e2e
+.PHONY: setup db db-stop dev client android web test test-server test-client api-gen api-check security expo-check expo-fix mutation-check e2e
 
 setup: db
 	cd $(SERVER) && mix setup
@@ -70,6 +70,11 @@ expo-check:
 
 expo-fix:
 	cd apps/client && npx expo install --fix
+
+# Breaks each concurrency/security guard listed in docs/review/concurrency.md
+# and checks its tests fail. Takes a few minutes; not part of `make test`.
+mutation-check: db
+	python3 scripts/mutation_checks.py
 
 e2e:
 	npm test -w e2e
