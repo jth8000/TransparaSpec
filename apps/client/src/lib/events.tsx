@@ -1,7 +1,8 @@
+import { createApiClient } from '@tspec/api-schema';
 import { createContext, use, useEffect, useMemo, type ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { api } from './api';
+import { API_URL } from './config';
 import { EventQueue } from './event-queue';
 import { useSession } from './session';
 import type { Track } from './view-tracker';
@@ -28,20 +29,29 @@ export function useFlushEvents(): () => Promise<boolean> {
 const SESSION_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 export function EventsProvider({ children }: { children: ReactNode }) {
-  const { token, me } = useSession();
+  const { token, me, beforeSignOut } = useSession();
   const enabled = !!token && !!me?.onboarded;
 
-  const queue = useMemo(
-    () =>
-      new EventQueue(async (events, { keepalive }) => {
-        const { response } = await api.POST('/api/events', { body: { events }, keepalive });
-        if (!response.ok && response.status >= 500) throw new Error('retry later');
-      }),
-    [],
-  );
+  // One queue per signed-in token, sending with that token only. Events
+  // queued by one account (say, while offline) can then never be sent under
+  // the next account to sign in on this device; a token that's been revoked
+  // gets a 4xx, and its leftovers are dropped.
+  const queue = useMemo(() => {
+    if (!token) return null;
+    const client = createApiClient(API_URL, () => token);
+    return new EventQueue(async (events, { keepalive }) => {
+      const { response } = await client.POST('/api/events', { body: { events }, keepalive });
+      if (!response.ok && response.status >= 500) throw new Error('retry later');
+    });
+  }, [token]);
+
+  // Send what's queued before sign-out revokes the token.
+  useEffect(() => {
+    if (queue) return beforeSignOut(() => queue.flushAll());
+  }, [queue, beforeSignOut]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !queue) return;
     queue.start();
 
     const appState = AppState.addEventListener('change', (state) => {
@@ -64,7 +74,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   const events = useMemo<Events>(
     () => ({
       track: (contentId, type, options = {}) => {
-        if (!enabled) return;
+        if (!enabled || !queue) return;
         queue.push({
           content_id: contentId,
           type,
@@ -75,7 +85,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
           ...(options.impressionId ? { impression_id: options.impressionId } : {}),
         });
       },
-      flushAll: () => queue.flushAll(),
+      flushAll: async () => (queue ? queue.flushAll() : true),
     }),
     [enabled, queue],
   );
