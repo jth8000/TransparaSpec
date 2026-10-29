@@ -36,26 +36,6 @@ defmodule TSpecWeb.ConnCase do
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
-  @doc """
-  Setup helper that registers and logs in users.
-
-      setup :register_and_log_in_user
-
-  It stores an updated connection and a registered user in the
-  test context.
-  """
-  def register_and_log_in_user(%{conn: conn} = context) do
-    user = TSpec.AccountsFixtures.user_fixture()
-    scope = TSpec.Accounts.Scope.for_user(user)
-
-    opts =
-      context
-      |> Map.take([:token_authenticated_at])
-      |> Enum.into([])
-
-    %{conn: log_in_user(conn, user, opts), user: user, scope: scope}
-  end
-
   @doc "A test conn that sends JSON, as the API clients do (the spec validates content-type)."
   def json_conn do
     Phoenix.ConnTest.build_conn() |> Plug.Conn.put_req_header("content-type", "application/json")
@@ -65,26 +45,5 @@ defmodule TSpecWeb.ConnCase do
   def api_auth(conn, user) do
     token = TSpec.AccountsFixtures.api_token_fixture(user)
     Plug.Conn.put_req_header(conn, "authorization", "Bearer " <> token)
-  end
-
-  @doc """
-  Logs the given `user` into the `conn`.
-
-  It returns an updated `conn`.
-  """
-  def log_in_user(conn, user, opts \\ []) do
-    token = TSpec.Accounts.generate_user_session_token(user)
-
-    maybe_set_token_authenticated_at(token, opts[:token_authenticated_at])
-
-    conn
-    |> Phoenix.ConnTest.init_test_session(%{})
-    |> Plug.Conn.put_session(:user_token, token)
-  end
-
-  defp maybe_set_token_authenticated_at(_token, nil), do: nil
-
-  defp maybe_set_token_authenticated_at(token, authenticated_at) do
-    TSpec.AccountsFixtures.override_token_authenticated_at(token, authenticated_at)
   end
 end

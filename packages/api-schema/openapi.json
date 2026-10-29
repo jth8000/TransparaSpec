@@ -56,7 +56,7 @@
         "x-validate": null
       },
       "AuthVerify": {
-        "description": "Either `email` + `code` (6-digit code from the email) or `token` (magic link).",
+        "description": "`email` plus either `code` (the 6-digit code from the email) or `token` (from the magic link).",
         "properties": {
           "code": {
             "pattern": "^[0-9]{6}$",
@@ -1903,7 +1903,7 @@
             "bearer": []
           }
         ],
-        "summary": "Sign out (revokes this bearer token)",
+        "summary": "Sign out (revokes this bearer token and closes its sockets)",
         "tags": [
           "auth"
         ]

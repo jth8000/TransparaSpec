@@ -86,7 +86,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Sign out (revokes this bearer token) */
+        /** Sign out (revokes this bearer token and closes its sockets) */
         delete: operations["TSpecWeb.AuthController.delete"];
         options?: never;
         head?: never;
@@ -461,7 +461,7 @@ export interface components {
         };
         /**
          * AuthVerify
-         * @description Either `email` + `code` (6-digit code from the email) or `token` (magic link).
+         * @description `email` plus either `code` (the 6-digit code from the email) or `token` (from the magic link).
          */
         AuthVerify: {
             code?: string;

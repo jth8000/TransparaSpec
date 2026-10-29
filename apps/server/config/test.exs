@@ -1,8 +1,5 @@
 import Config
 
-# Only in tests, remove the complexity from the password hashing algorithm
-config :bcrypt_elixir, :log_rounds, 1
-
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
@@ -48,6 +45,11 @@ config :phoenix,
   sort_verified_routes_query_params: true
 
 config :tspec, :local_video, true
+
+config :tspec, :video_providers, %{
+  "local" => TSpec.Video.LocalProvider,
+  "cloudflare" => TSpec.Video.CloudflareStream
+}
 
 config :tspec, TSpec.Video.LocalProvider,
   base_url: "http://localhost:4002",

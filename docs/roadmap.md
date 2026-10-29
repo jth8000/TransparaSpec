@@ -68,6 +68,8 @@ Split into two parts. 1a uses creator-picked topics and must meet the "done when
   - the same `RELEASE_COOKIE` on every machine;
   - IPv6 distribution (`ERL_AFLAGS="-proto_dist inet6_tcp"`), since Fly's private network is IPv6;
   - then verify on two machines that a feed session keeps one owner.
+
+  Postgres connections use verified TLS by default, checked against the OS CA store, so the release image needs `ca-certificates`. Set `DATABASE_SSL=false` only for a database reachable solely over a private network that doesn't offer TLS.
 - **Done when:** invite-only US beta is live.
 
 ## Phase 3: Monetization (creators first)
