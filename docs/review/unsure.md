@@ -12,7 +12,7 @@ Where an experienced Elixir or distributed-systems reviewer is most likely to fi
 **U2. `Session.ensure/3` retries with `Process.sleep/1`.**
 - **What we believe:** a session that just died can stay registered for a moment, because `:global` cleans up asynchronously, so when `ensure` finds a dead local pid it retries up to 20 times, 5 ms apart.
 - **Why we're not sure:** it's a timing-based workaround.
-  - After the 20th retry, it returns the dead pid anyway, and the caller's call exits.
+  - After the 20th retry, it returns the dead pid anyway. A call to it exits (`next_page`); a cast to it is silently lost (`at`, `sync_rev`).
   - A remote pid isn't checked at all.
   - `FeedChannel` matches `{:ok, pid} = Session.ensure(...)` on every message, so an error there crashes the channel process (the client rejoins).
 - **What would settle it:** a reviewer's view on monitoring the pid, or on retrying the call itself.

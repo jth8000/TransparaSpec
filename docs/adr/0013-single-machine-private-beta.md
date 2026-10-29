@@ -14,7 +14,12 @@ An invite-only beta is small. One machine handles its load, and a cluster's main
 
 ## Decision
 - **The private beta runs the Phoenix app on one Fly machine.** `DNS_CLUSTER_QUERY` stays unset. The machine scales vertically if it needs to.
-- **Deploys use Fly's rolling strategy (the default),** which replaces the machine in place. Blue-green and canary deploys run old and new machines side by side, unclustered, so one feed session could briefly have two owners. Don't use them.
+- **Deploys use Fly's rolling strategy (the default).** Blue-green boots a new machine alongside each running one, and canary first boots an extra machine to check its health. Either way, two unclustered machines run at once, so one feed session could briefly have two owners. Don't use them.
+- **Two Fly defaults must be overridden,** or they undo this decision:
+  - **Redundancy:** the first `fly launch` or `fly deploy` creates two machines for a process group with services. Use `--ha=false`.
+  - **Auto-stop:** `fly launch` writes `auto_stop_machines = "stop"`, `auto_start_machines = true` and `min_machines_running = 0`. A stopped machine runs no Oban cron jobs (partition creation, the affinity sweep, impression pruning, upload expiry) and drops every feed session. Set `auto_stop_machines = "off"` and `auto_start_machines = false`.
+
+  Both were checked against Fly's docs on 2026-10-29 ([app availability](https://docs.fly.io/apps/app-availability), [autostop/autostart](https://docs.fly.io/launch/autostop-autostart), [deploy strategies](https://docs.fly.io/launch/deploy)). When `fly.toml` is added, the Phase 2 deploy should check them in CI.
 - **What a restart costs:** a deploy or crash restarts the node. Clients reconnect, and feed sessions rebuild from Postgres (ADR 0011). Expect a few seconds of unavailability per deploy.
 - **The ML service** (Phase 1b) is a separate machine either way, and Postgres is managed separately, so neither changes.
 

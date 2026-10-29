@@ -63,7 +63,11 @@ Split into two parts. 1a uses creator-picked topics and must meet the "done when
 - Data export and account deletion.
 - ToS and privacy policy; beta invite system; basic admin tools.
 - Fly.io production deploy, backups, monitoring. Nothing exists yet: `infra/` is empty, and there's no release config, Dockerfile or `fly.toml` (`mix phx.gen.release --docker` / `fly launch` generate most of it).
-  - **One Phoenix machine for the private beta** ([ADR 0013](adr/0013-single-machine-private-beta.md)), deployed with Fly's rolling strategy. Never blue-green or canary: those run two unclustered machines at once.
+  - **One Phoenix machine for the private beta** ([ADR 0013](adr/0013-single-machine-private-beta.md)):
+    - deploy with Fly's rolling strategy, never blue-green or canary (both run two unclustered machines at once);
+    - pass `--ha=false` on the first `fly launch` or `fly deploy`, which otherwise creates two machines;
+    - in `fly.toml`, set `auto_stop_machines = "off"` and `auto_start_machines = false`. A stopped machine runs no Oban cron and drops feed sessions;
+    - check those `fly.toml` settings in CI, the way `prod_config_test` checks the production config.
   - **Clustering comes later.** ADR 0013 lists its prerequisites (a partition test for feed sessions, a shared rate limiter). Then it needs:
     - `DNS_CLUSTER_QUERY=<app>.internal`;
     - a node name built from each machine's private IP (`RELEASE_NODE` in `rel/env.sh.eex`);

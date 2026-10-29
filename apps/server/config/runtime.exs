@@ -134,8 +134,8 @@ if config_env() == :prod do
     IO.puts(
       :stderr,
       "note: DNS_CLUSTER_QUERY is not set, so this node runs alone. That's the " <>
-        "single-machine private beta (ADR 0013). Never run a second machine, or " <>
-        "a blue-green or canary deploy, without clustering first."
+        "single-machine private beta (ADR 0013). Never run a second machine (Fly: " <>
+        "--ha=false), or a blue-green or canary deploy, without clustering first."
     )
   end
 

@@ -59,7 +59,7 @@ One GenServer per `{user_id, session_id}`, registered with `:global`. It caches 
 | conditional `UPDATE login_codes … WHERE attempts < max` | `Accounts.claim_login_attempt/2` | spending one code guess | row lock for the statement |
 | `users` row `FOR NO KEY UPDATE` | `Transparency.update_settings/2`, `reset_settings/1` | `settings_version` increments; mode switch vs. recording | yes |
 | `users` row `FOR SHARE` | `Events.record/2` | reading the personalization mode for new views | yes, behind a pending `FOR NO KEY UPDATE` |
-| `users` row `FOR KEY SHARE` (implicit) | any insert of a row with a foreign key to `users`: affinities, views, events, impressions, tokens | the user still existing | only behind `FOR UPDATE`, which nothing takes |
+| `users` row `FOR KEY SHARE` (implicit) | any insert of a row with a foreign key to `users`: affinities, views, events, impressions, tokens | the user still existing | only behind a `FOR UPDATE`-strength lock. Besides `FOR UPDATE`, Postgres takes one for a `DELETE` of the row, and for an `UPDATE` that changes a uniquely indexed column (`users.email`, `users.handle`). That means onboarding (sets `handle`), the under-13 deletion, and account deletion in Phase 2. None of those waits on anything a foreign-key insert holds, so they can't form a cycle. |
 | `view_engagements` rows `FOR UPDATE` | `Interests.track_views/4` | merging concurrent batches into one view | yes |
 | advisory `affinity:<user_id>` (transaction-scoped) | `Interests.apply_dirty_views/2`, `Interests.forget/4` | all writes to one user's affinities | yes |
 | `view_engagements` rows `FOR UPDATE SKIP LOCKED` | `Interests.apply_dirty_views/2` | claiming dirty views; skips rows a recording transaction holds | never |
