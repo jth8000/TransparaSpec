@@ -6,12 +6,6 @@
     "reason": "Memory exhaustion when validating oversized collections. Zod 3 comes in only through @expo/cli and eslint-plugin-react-hooks, which validate developer-written config at build and lint time. It isn't in the app bundle and never sees user input. Clears when Expo moves to zod >= 4.6.6."
   },
   {
-    "id": "GHSA-86w9-cpqp-85rv",
-    "package": "node-forge",
-    "severity": "high",
-    "reason": "RSA PKCS#1 v1.5 signature verification accepts malformed signatures. Used only by @expo/cli for dev-server HTTPS and Expo Updates code signing. The app doesn't use Expo Updates, and node-forge isn't in the app bundle. Clears when @expo/cli takes node-forge > 1.4.0."
-  },
-  {
     "id": "GHSA-gcqx-w48m-w2h4",
     "package": "deepmerge",
     "severity": "low",
