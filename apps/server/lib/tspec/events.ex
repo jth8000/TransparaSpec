@@ -66,9 +66,9 @@ defmodule TSpec.Events do
       end
 
     Repo.transact(fn ->
-      # FOR SHARE on the user row: switching personalization takes FOR UPDATE
-      # on it, so a view can't be created as learnable from a mode read that
-      # the switch has already made stale (ADR 0012).
+      # FOR SHARE on the user row: switching personalization takes FOR NO
+      # KEY UPDATE on it, so a view can't be created as learnable from a mode
+      # read that the switch has already made stale (ADR 0012).
       personalized? = not lock_mode(scope.user.id)
 
       {inserted, _} = Repo.insert_all(Event, rows)

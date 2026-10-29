@@ -237,6 +237,41 @@ defmodule TSpec.Feed.InterestsConcurrencyTest do
     assert %{learnable: false} = unboxed(fn -> Repo.get!(ViewEngagement, v) end)
   end
 
+  test "the affinity worker and a switch to non-personalized can't deadlock",
+       %{viewer: viewer, cooking: cooking} do
+    # The worker claims a dirty view (a row lock), then inserts the viewer's
+    # first cooking affinity: that row's foreign-key check takes FOR KEY
+    # SHARE on the users row. Meanwhile the switch holds the users row, and
+    # its ratchet waits for the claimed view. If the switch held the row
+    # FOR UPDATE, the two waits would form a cycle and Postgres would abort
+    # one of them; FOR NO KEY UPDATE doesn't block foreign-key checks.
+    scope = Accounts.scope_for_user(viewer)
+    parent = self()
+
+    unboxed(fn ->
+      {:ok, _} = Events.record(scope, completed_view(cooking, Ecto.UUID.generate()))
+    end)
+
+    worker =
+      spawn_unboxed(fn ->
+        Interests.apply_dirty_views(viewer.id,
+          before_upsert: fn ->
+            send(parent, :claimed)
+            receive do: (:upsert -> :ok)
+          end
+        )
+      end)
+
+    assert_receive :claimed, 5_000
+
+    switching = spawn_unboxed(fn -> Transparency.set_non_personalized(scope, true) end)
+    assert blocked?(switching), "the ratchet should wait for the view the worker claimed"
+
+    send(worker.pid, :upsert)
+    assert {:ok, %{applied: 1}} = Task.await(worker)
+    assert {:ok, %{non_personalized: true}} = Task.await(switching)
+  end
+
   test "forgetting an interest can't be overwritten by a worker already in flight",
        %{viewer: viewer, cooking: cooking} do
     scope = Accounts.scope_for_user(viewer)

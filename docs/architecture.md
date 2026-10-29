@@ -21,7 +21,7 @@ Elixir / Phoenix core                          ── monolith, Phoenix contexts
 ```
 
 ### Hosting (beta default)
-- **Phoenix on Fly.io**: two small machines, clustered (Erlang distribution over Fly's private network) so PubSub and Channels work across nodes.
+- **Phoenix on Fly.io**: one machine for the private beta ([ADR 0013](adr/0013-single-machine-private-beta.md)). Later, two or more machines clustered with Erlang distribution over Fly's private network, so PubSub, Channels and feed-session ownership work across nodes, once ADR 0013's prerequisites are met.
 - **Python ML service on Fly.io**: one CPU machine. Beta volume is low enough that Whisper-small and CLIP can run on CPU from Oban jobs, asynchronously.
 - **Managed Postgres with pgvector.**
 - **Cloudflare**: Stream (video), R2 (objects), CDN.

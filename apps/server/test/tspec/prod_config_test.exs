@@ -41,6 +41,12 @@ defmodule TSpec.ProdConfigTest do
     refute config[:tspec][:local_video]
   end
 
+  test "production compiles out the dev routes (LiveDashboard, the mailbox)" do
+    config = Config.Reader.read!(Path.join(@config_dir, "config.exs"), env: :prod)
+
+    refute config[:tspec][:dev_routes]
+  end
+
   test "the database connection uses verified TLS unless DATABASE_SSL=false" do
     assert runtime_config(%{"DATABASE_SSL" => nil})[:tspec][TSpec.Repo][:ssl] == true
     assert runtime_config(%{"DATABASE_SSL" => "false"})[:tspec][TSpec.Repo][:ssl] == false
