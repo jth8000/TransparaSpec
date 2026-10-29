@@ -250,9 +250,11 @@ defmodule TSpec.Content do
   Applies a provider event (string-keyed, as stored in the job). Idempotent:
   replays and events for removed or unknown assets are no-ops.
   """
-  def apply_video_event(_provider_name, %{"type" => "ignored"}), do: :ok
+  def apply_video_event(provider_name, event, opts \\ [])
 
-  def apply_video_event(provider_name, %{"type" => type, "asset_id" => asset_id} = event) do
+  def apply_video_event(_provider_name, %{"type" => "ignored"}, _opts), do: :ok
+
+  def apply_video_event(provider_name, %{"type" => type, "asset_id" => asset_id} = event, opts) do
     query =
       from v in ShortVideo,
         join: i in Item,
@@ -261,40 +263,57 @@ defmodule TSpec.Content do
         select: {v, i}
 
     case Repo.one(query) do
-      {video, %Item{status: "processing"} = item} -> apply_event(type, event, video, item)
-      _ -> :ok
+      {video, %Item{status: "processing"} = item} ->
+        # Test seam: pause between the read above and the write.
+        if hook = Keyword.get(opts, :before_update), do: hook.()
+        apply_event(type, event, video, item)
+
+      _ ->
+        :ok
     end
   end
 
   defp apply_event("ready", event, video, item) do
-    {:ok, item} =
-      Repo.transact(fn ->
-        Repo.update!(
-          Ecto.Changeset.change(video,
-            playback_id: event["playback_id"],
-            duration_ms: event["duration_ms"],
-            width: event["width"],
-            height: event["height"]
-          )
+    finish(item, [status: "ready", published_at: DateTime.utc_now(:second)], fn ->
+      Repo.update!(
+        Ecto.Changeset.change(video,
+          playback_id: event["playback_id"],
+          duration_ms: event["duration_ms"],
+          width: event["width"],
+          height: event["height"]
         )
-
-        {:ok,
-         Repo.update!(
-           Ecto.Changeset.change(item, status: "ready", published_at: DateTime.utc_now())
-         )}
-      end)
-
-    broadcast_status(item)
+      )
+    end)
   end
 
   defp apply_event("failed", event, video, item) do
-    {:ok, item} =
+    finish(item, [status: "failed"], fn ->
+      Repo.update!(Ecto.Changeset.change(video, failure_reason: event["reason"]))
+    end)
+  end
+
+  # Moves the item out of `processing` and runs `update_video`, in one
+  # transaction. The status change is conditional, like the one in
+  # `expire_stale_uploads/1`: if expiry (or another event) got there first,
+  # the item isn't processing anymore, so nothing changes and nothing is
+  # broadcast. The item was read before this, without a lock.
+  defp finish(%Item{id: id}, changes, update_video) do
+    result =
       Repo.transact(fn ->
-        Repo.update!(Ecto.Changeset.change(video, failure_reason: event["reason"]))
-        {:ok, Repo.update!(Ecto.Changeset.change(item, status: "failed"))}
+        from(i in Item, where: i.id == ^id and i.status == "processing", select: i)
+        |> Repo.update_all(set: [{:updated_at, DateTime.utc_now(:second)} | changes])
+        |> case do
+          {1, [item]} ->
+            update_video.()
+            {:ok, item}
+
+          {0, _} ->
+            {:error, :not_processing}
+        end
       end)
 
-    broadcast_status(item)
+    with {:ok, item} <- result, do: broadcast_status(item)
+    :ok
   end
 
   ## Abandoned uploads

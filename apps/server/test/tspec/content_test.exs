@@ -118,6 +118,29 @@ defmodule TSpec.ContentTest do
       refute_enqueued(worker: DeleteAssetWorker)
     end
 
+    test "an event read before expiry commits can't revive the item", %{scope: scope} do
+      # The event job reads the item while it's processing; expiry commits
+      # before the job writes. The job must not publish an item whose asset
+      # is already queued for deletion.
+      for event <- [&ready_event/1, &failed_event/1] do
+        {:ok, {item, upload}} = Content.create_video_upload(scope, %{})
+        age_item(item, 25)
+        cutoff = DateTime.add(DateTime.utc_now(), -24, :hour)
+
+        expire = fn -> {:ok, 1} = Content.expire_stale_uploads(cutoff) end
+
+        assert :ok =
+                 Content.apply_video_event("local", event.(upload.asset_id),
+                   before_update: expire
+                 )
+
+        {:ok, item} = Content.get_item(scope, item.id)
+        assert item.status == "failed"
+        assert item.short_video.failure_reason == "upload_expired"
+        assert is_nil(item.short_video.playback_id)
+      end
+    end
+
     test "a ready event after expiry changes nothing", %{scope: scope} do
       {:ok, {item, upload}} = Content.create_video_upload(scope, %{})
       age_item(item, 25)
@@ -244,6 +267,9 @@ defmodule TSpec.ContentTest do
       )
     end
   end
+
+  defp failed_event(asset_id),
+    do: %{"type" => "failed", "asset_id" => asset_id, "reason" => "transcode_failed"}
 
   defp ready_event(asset_id) do
     %{
