@@ -48,6 +48,8 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
   - A Sobelow false positive gets `# sobelow_skip ["<Check>"]` above the function, with a comment saying why it's safe. Never skip a whole check class.
   - An npm advisory that can't reach the app bundle goes in `scripts/npm-audit-allowlist.json` with the reason. Fix or upgrade anything else.
   - Inline `<script>` and `<style>` tags in server-rendered HTML need `nonce={@csp_nonce}` (`TSpecWeb.ContentSecurityPolicy`).
+- **Expo-managed packages** (`expo`, `expo-*`, `@expo/*`, `react`, `react-dom`, `react-native`, `react-native-*`, `@react-native-community/*`, `eslint-config-expo`, `jest-expo`): change them only with `make expo-fix` or `npx expo install <pkg>`, never `npm install pkg@latest`. Dependabot ignores them. A red `expo-deps` job means Expo published SDK patches: run `make expo-fix`.
+  - After React's version changes, `npm ls react` must show a single version. npm can keep an older hoisted copy at the root for peer dependencies, and two Reacts make client tests fail with "Cannot read properties of null (reading 'useRef')". Fix it by deleting the stale `node_modules/react` and `node_modules/react-dom` entries from `package-lock.json` and running `npm install`.
 - **Decisions**: architecture-shaping decisions get a new ADR in `docs/adr/` and a row in its README. Resolve items in `docs/open-questions.md` as they're decided.
 - **Testing**: ExUnit + StreamData property tests on the server; Jest + RNTL on the client; Maestro/Playwright end-to-end.
 - **User background**: strongest in Go, some Elixir and Rust, new to recommender systems. Explain Elixir idioms and recommender concepts when introducing them.
@@ -58,6 +60,7 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
 - `make test`: `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test --warnings-as-errors`, client `tsc` + `expo lint` + `jest`, and `make api-check`
 - `make e2e`: Playwright web flow. It reads sign-in codes from `GET /dev/mailbox/json`.
 - `make security`: `mix hex.audit`, Sobelow and the npm advisory check. Needs the network; CI runs it on every push and weekly.
+- `make expo-check` / `make expo-fix`: check, or move together, the client packages Expo pins for our SDK (`npx expo install --check` / `--fix`). Needs the network; CI runs the check as `expo-deps`.
 - `make api-gen`: run after any API change, and commit the regenerated `packages/api-schema`
 - Shells need mise activated for Erlang/Elixir (`eval "$(mise env -s bash)"`) and Node 24 (`nvm use`).
 

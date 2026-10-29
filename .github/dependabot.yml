@@ -2,9 +2,13 @@ version: 2
 
 # One grouped PR per ecosystem per week for minor and patch updates, so
 # updates stay reviewable. Major updates open their own PRs, except for
-# GitHub Actions (grouped: CI exercises them directly) and the packages an
-# Expo SDK upgrade owns (ignored below). Security updates (a separate repo
-# setting) still open their own PRs as soon as an advisory lands.
+# GitHub Actions (grouped: CI exercises them directly). Packages Expo pins
+# aren't updated here at all (see the npm ignores).
+#
+# Security updates (a separate repo setting) open their own PRs as soon as
+# an advisory lands, but they honor these ignores too. Advisories in
+# Expo-pinned packages still surface in Dependabot alerts and fail the npm
+# audit check (`make security`).
 updates:
   - package-ecosystem: mix
     directory: /apps/server
@@ -22,33 +26,28 @@ updates:
       npm:
         update-types: [minor, patch]
     ignore:
-      # These majors move together in an Expo SDK upgrade
-      # (`npx expo install --fix`), never one package at a time. That
-      # includes the toolchain the SDK is tested with: TypeScript, ESLint
-      # (eslint-config-expo) and Jest (jest-expo).
+      # Expo pins these to exact versions or narrow ranges for each SDK
+      # (`make expo-check`). Dependabot doesn't know the pins: it proposed
+      # react 19.3.1 and react-native-gesture-handler 3.4.0 against SDK
+      # 58's 19.3.0 and ~3.3.0. So it leaves them alone, and `make expo-fix`
+      # (`npx expo install --fix`) moves them together.
       - dependency-name: "expo"
-        update-types: [version-update:semver-major]
       - dependency-name: "expo-*"
-        update-types: [version-update:semver-major]
       - dependency-name: "@expo/*"
-        update-types: [version-update:semver-major]
       - dependency-name: "react"
-        update-types: [version-update:semver-major]
       - dependency-name: "react-dom"
-        update-types: [version-update:semver-major]
       - dependency-name: "react-native"
-        update-types: [version-update:semver-major]
       - dependency-name: "react-native-*"
-        update-types: [version-update:semver-major]
+      - dependency-name: "@react-native-community/*"
+      - dependency-name: "eslint-config-expo"
+      - dependency-name: "jest-expo"
+      # The toolchain the SDK is tested with isn't pinned, but its majors
+      # wait for an Expo SDK upgrade too (ESLint 10 breaks `expo lint`).
       - dependency-name: "typescript"
         update-types: [version-update:semver-major]
       - dependency-name: "eslint"
         update-types: [version-update:semver-major]
-      - dependency-name: "eslint-config-expo"
-        update-types: [version-update:semver-major]
       - dependency-name: "jest"
-        update-types: [version-update:semver-major]
-      - dependency-name: "jest-expo"
         update-types: [version-update:semver-major]
       - dependency-name: "@types/react"
         update-types: [version-update:semver-major]
