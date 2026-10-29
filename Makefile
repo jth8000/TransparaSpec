@@ -3,7 +3,7 @@
 
 SERVER := apps/server
 
-.PHONY: setup db db-stop dev client android web test test-server test-client api-gen api-check security e2e
+.PHONY: setup db db-stop dev client android web test test-server test-client api-gen api-check security expo-check expo-fix e2e
 
 setup: db
 	cd $(SERVER) && mix setup
@@ -60,6 +60,16 @@ security:
 	cd $(SERVER) && mix hex.audit
 	cd $(SERVER) && mix sobelow --skip --exit low --private --quiet
 	node scripts/npm-audit.mjs
+
+# Expo-managed packages (expo-*, react, react-native, ...) must match the
+# versions Expo publishes for our SDK. Checked against Expo's versions API,
+# so it needs the network and goes stale when Expo ships SDK patches;
+# `expo-fix` moves them all together. Dependabot doesn't touch them.
+expo-check:
+	npm run expo-check -w apps/client
+
+expo-fix:
+	cd apps/client && npx expo install --fix
 
 e2e:
 	npm test -w e2e
