@@ -24,9 +24,21 @@ defmodule TSpecWeb.RateLimitTest do
     end)
   end
 
-  # Hammer's counters outlive a test, so each test uses fresh addresses.
-  defp ipv4, do: {10, 0, rem(System.unique_integer([:positive]), 250), 1}
-  defp ipv6_prefix, do: {0x2001, 0xDB8, System.unique_integer([:positive]), 0}
+  # Hammer's counters outlive a test, so every address must be one no other
+  # test has used. System.unique_integer/1 is shared by the whole run, so take
+  # all its low bits: two calls can't map to the same address (keeping only
+  # `rem(n, 250)` made collisions, and flaky 429s, likely).
+  defp ipv4 do
+    <<_::8, a, b, c>> = <<System.unique_integer([:positive])::32>>
+    {10, a, b, c}
+  end
+
+  defp ipv6_prefix do
+    <<c::16, d::16>> = <<System.unique_integer([:positive])::32>>
+    {0x2001, 0xDB8, c, d}
+  end
+
+  defp to_ip_string(ip), do: ip |> :inet.ntoa() |> to_string()
 
   defp request_from(ip) do
     %{json_conn() | remote_ip: ip}
@@ -59,7 +71,9 @@ defmodule TSpecWeb.RateLimitTest do
     for host <- 1..3, do: assert(request_from({a, b, c, d, 0, 0, 0, host}).status == 202)
 
     assert request_from({a, b, c, d, 0xFFFF, 1, 2, 3}).status == 429
-    assert request_from({a, b, c, d + 1, 0, 0, 0, 1}).status == 202
+
+    {a, b, c, d} = ipv6_prefix()
+    assert request_from({a, b, c, d, 0, 0, 0, 1}).status == 202
   end
 
   test "IPv4-mapped IPv6 addresses are keyed by the whole address" do
@@ -71,7 +85,9 @@ defmodule TSpecWeb.RateLimitTest do
   describe "client address" do
     test "comes from the configured proxy header, so limits are per real client" do
       Application.put_env(:tspec, :client_ip_header, "fly-client-ip")
-      {_, _, n, _} = ipv4()
+      v4 = to_ip_string(ipv4())
+      {a, b, c, d} = ipv6_prefix()
+      v6 = to_ip_string({a, b, c, d, 0, 0, 0, 1})
 
       from = fn client ->
         json_conn()
@@ -79,9 +95,9 @@ defmodule TSpecWeb.RateLimitTest do
         |> post(~p"/api/auth/request", %{email: unique_user_email()})
       end
 
-      for _ <- 1..3, do: assert(from.("198.51.100.#{n}").status == 202)
-      assert from.("198.51.100.#{n}").status == 429
-      assert from.("2001:db8:#{n}::1").status == 202
+      for _ <- 1..3, do: assert(from.(v4).status == 202)
+      assert from.(v4).status == 429
+      assert from.(v6).status == 202
     end
 
     test "ignores the header unless one is configured" do
