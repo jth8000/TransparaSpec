@@ -40,14 +40,14 @@ Expo client ──HTTPS/WSS──▶ Phoenix API ──▶ Postgres
 
 ## Entry points
 
-`/dev/*` routes and the local video provider are compiled into dev and test only. [prod_config_test](../../apps/server/test/tspec/prod_config_test.exs): "production never registers or serves the local video provider".
+`/dev/*` routes (LiveDashboard, the mailbox) and the local video provider are compiled into dev and test only. [prod_config_test](../../apps/server/test/tspec/prod_config_test.exs): "production compiles out the dev routes (LiveDashboard, the mailbox)"; [prod_config_test](../../apps/server/test/tspec/prod_config_test.exs): "production never registers or serves the local video provider".
 
 | Entry point | Auth | Limits | Notes |
 |---|---|---|---|
-| `POST /api/auth/request` | none | per client address: 10 per 10 minutes (per node); per email address: 5 an hour, 10 a day (Postgres, exact) | Always 202 for a well-formed email, so it doesn't reveal whether an account exists. Creates the account on first use. |
+| `POST /api/auth/request` | none | per client address: 10 per 10 minutes (per node); per email address: 5 an hour, 10 a day (counted from `login` tokens in Postgres, so exact across nodes; a successful sign-in deletes them, which resets the count) | Always 202 for a well-formed email, so it doesn't reveal whether an account exists. Creates the account on first use. |
 | `POST /api/auth/verify` | none | per client address: 30 per 10 minutes (per node); per code: 5 guesses | `{email, code}` or `{email, token}`. The token must match the email (I3 in [concurrency.md](concurrency.md)). |
 | `DELETE /api/auth/session` | bearer | — | Revokes the token and closes its sockets (I4). |
-| Public `GET`s: `/api/health`, `/consent/current`, `/topics`, `/users/:handle`, `/content/:id`, `/feed/latest` | none | — | `content/:id` shows ready public items, or the caller's own non-removed items. |
+| Public `GET`s: `/api/health`, `/api/openapi`, `/consent/current`, `/topics`, `/users/:handle`, `/content/:id`, `/feed/latest` | none | — | `content/:id` shows ready public items, or the caller's own non-removed items. `/api/openapi` is the public API spec. |
 | `GET /api/me`, `POST /api/onboarding` | bearer | — | Onboarding rejects under-13s and deletes the account. |
 | Everything else under `/api` (content, follows, feeds, events, algorithm settings, interests, impressions) | bearer and onboarded | none yet on `POST /api/events` | Owner checks are in the contexts (`get_own_item/2`, user-scoped queries). Events: at most 100 per batch, timestamps within 7 days, only content the caller can see. |
 | WebSocket `/socket?token=` | bearer (at connect) | — | The token is filtered from logs. `user:<id>` is joinable only for your own id. `feed_session:<uuid>` is namespaced by user id in both the `:global` name and the PubSub topic, so a guessed session id reaches only your own session. |

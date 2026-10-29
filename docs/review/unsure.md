@@ -7,15 +7,18 @@ Where an experienced Elixir or distributed-systems reviewer is most likely to fi
 **U1. Feed sessions across a netsplit.**
 - **What we believe:** `:global` gives one session process per `{user_id, session_id}` among *connected* nodes (I5 in [concurrency.md](concurrency.md)).
 - **Why we're not sure:** during a partition, each side can start its own process for the same session. If one client's requests land on both sides, both write impressions with overlapping `rev` values. When the partition heals, `:global`'s default resolver keeps one process and kills the other, but the stored impressions stay interleaved. Later, `rebuild/1` replays them in `(rev, position)` order and may build a list the client never had. Nothing tests partitions.
-- **What would settle it:** a `:peer` test that disconnects the nodes, serves on both sides, reconnects and rebuilds. For the private beta, the plan is a single node, which sidesteps this ([roadmap](../roadmap.md), Phase 2).
+- **What would settle it:** a `:peer` test that disconnects the nodes, serves on both sides, reconnects and rebuilds. Running the private beta on a single machine would sidestep this until the test exists. That's undecided: the [roadmap](../roadmap.md)'s Phase 2 currently plans a two-machine cluster ([open-questions](../open-questions.md), "Private beta topology").
 
 **U2. `Session.ensure/3` retries with `Process.sleep/1`.**
-- **What we believe:** a session that just died can stay registered for a moment, because `:global` cleans up asynchronously, so `ensure` retries up to 20 times, 5 ms apart, before handing out a local pid.
-- **Why we're not sure:** it's a timing-based workaround. A remote pid isn't checked at all; a call to a dead remote pid exits, and the request fails.
+- **What we believe:** a session that just died can stay registered for a moment, because `:global` cleans up asynchronously, so when `ensure` finds a dead local pid it retries up to 20 times, 5 ms apart.
+- **Why we're not sure:** it's a timing-based workaround.
+  - After the 20th retry, it returns the dead pid anyway, and the caller's call exits.
+  - A remote pid isn't checked at all.
+  - `FeedChannel` matches `{:ok, pid} = Session.ensure(...)` on every message, so an error there crashes the channel process (the client rejoins).
 - **What would settle it:** a reviewer's view on monitoring the pid, or on retrying the call itself.
 
 **U3. Per-node state that assumes one node.**
-- **What we believe:** the per-client-address rate limits (Hammer ETS) and `TSpec.TaskSupervisor` are per node. That's fine on one machine.
+- **What we believe:** the per-client-address rate limits (Hammer ETS) and `TSpec.TaskSupervisor` are per node. That's fine on one machine, but the roadmap's Phase 2 plans two (see U1).
 - **Why we're not sure:** on N machines, an address gets N times the limit. The per-email sign-in caps live in Postgres, so they stay exact.
 - **What would settle it:** a decision before clustering, either a Postgres- or Redis-backed limiter or accepting N times the limit.
 
@@ -38,9 +41,9 @@ Where an experienced Elixir or distributed-systems reviewer is most likely to fi
 
 ## Locking
 
-**U7. Deadlocks are argued, not tested.**
-- **What we believe:** the lock order in [concurrency.md](concurrency.md) avoids cycles.
-- **Why we're not sure:** no test runs recording, settings changes, forgetting and the affinity worker concurrently at volume.
+**U7. Deadlocks are mostly argued, not tested.**
+- **What we believe:** the lock order in [concurrency.md](concurrency.md) avoids cycles, now that user-row locks are `FOR NO KEY UPDATE`.
+- **Why we're not sure:** the first version of this packet said the affinity worker "never touches the users row". A reviewer pointed out that its foreign-key checks do, and that this deadlocked against the switch to non-personalized mode. A test reproduced it, and it's fixed (I20). That cycle was invisible in the code because the lock is implicit, so others like it may exist. Only that one interleaving is tested; no test runs recording, settings changes, forgetting and the affinity worker concurrently at volume.
 - **What would settle it:** a concurrency soak test, perhaps with StreamData generating interleavings of those operations.
 
 **U8. Concurrent settings changes.**
