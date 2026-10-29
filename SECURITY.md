@@ -23,6 +23,10 @@ Known gaps, already tracked in [`docs/open-questions.md`](docs/open-questions.md
 
 The dev-only `LocalProvider` routes (`/dev/...`) and the dev mailbox are compiled out of production builds and are out of scope.
 
+## For reviewers
+
+[`docs/review/`](docs/review/README.md) has the threat model, every concurrency guard with the test and mutation that prove it, and a list of what we're unsure about.
+
 ## Automated checks
 
 `make security` runs in CI on every push and weekly:
