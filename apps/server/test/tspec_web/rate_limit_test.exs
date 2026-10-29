@@ -47,7 +47,8 @@ defmodule TSpecWeb.RateLimitTest do
 
   test "verify attempts are limited per address too" do
     ip = ipv4()
-    verify = fn -> post(%{json_conn() | remote_ip: ip}, ~p"/api/auth/verify", %{token: "x"}) end
+    body = %{email: "nobody@example.com", token: "x"}
+    verify = fn -> post(%{json_conn() | remote_ip: ip}, ~p"/api/auth/verify", body) end
 
     for _ <- 1..3, do: assert(verify.().status == 401)
     assert json_response(verify.(), 429)["error"] == "rate_limited"

@@ -39,6 +39,21 @@ export async function latestCode(email: string): Promise<string> {
   return code!;
 }
 
+/** Reads the newest magic link sent to `email` from the dev mailbox. */
+export async function latestLink(email: string): Promise<URL> {
+  let link: string | undefined;
+  await expect
+    .poll(async () => {
+      const res = await fetch(`${API}/dev/mailbox/json`);
+      const { data } = (await res.json()) as { data: { to: string[][] | string[]; text_body: string }[] };
+      const mail = data.find((m) => JSON.stringify(m.to).includes(email));
+      link = mail?.text_body.match(/https?:\/\/\S+\/verify\?\S+/)?.[0];
+      return link;
+    })
+    .toBeTruthy();
+  return new URL(link!);
+}
+
 /** Signs up through the UI: email → code → onboarding. Ends on the feed. */
 export async function signUp(page: Page, handle: string) {
   const email = `${handle}@example.com`;

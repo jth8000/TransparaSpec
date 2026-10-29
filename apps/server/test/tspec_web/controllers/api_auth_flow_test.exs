@@ -101,6 +101,31 @@ defmodule TSpecWeb.ApiAuthFlowTest do
     assert TSpec.Accounts.get_user_by_email("kid@example.com") == nil
   end
 
+  test "the magic link names its address, and only signs in with it", %{conn: conn} do
+    conn |> post(~p"/api/auth/request", %{email: "erin@example.com"}) |> json_response(202)
+    assert_email_sent(fn email -> send(self(), {:email, email}) end)
+    assert_received {:email, sent}
+
+    [_, link] = Regex.run(~r{(http\S+/verify\?\S+)}, sent.text_body)
+    %{"email" => email, "token" => token} = URI.parse(link).query |> URI.decode_query()
+    assert email == "erin@example.com"
+
+    assert %{"error" => "invalid_code"} =
+             json_conn()
+             |> post(~p"/api/auth/verify", %{email: "mallory@example.com", token: token})
+             |> json_response(401)
+
+    assert %{"token" => _} =
+             json_conn()
+             |> post(~p"/api/auth/verify", %{email: email, token: token})
+             |> json_response(200)
+  end
+
+  test "a magic-link token alone is not enough", %{conn: conn} do
+    assert %{"error" => "invalid_request"} =
+             conn |> post(~p"/api/auth/verify", %{token: "x"}) |> json_response(422)
+  end
+
   test "wrong codes are rejected", %{conn: conn} do
     conn |> post(~p"/api/auth/request", %{email: "dave@example.com"}) |> json_response(202)
 

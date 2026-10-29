@@ -81,6 +81,11 @@ config :swoosh, :api_client, false
 # served at /dev_media. Webhooks are POSTed to our own endpoint.
 config :tspec, :local_video, true
 
+config :tspec, :video_providers, %{
+  "local" => TSpec.Video.LocalProvider,
+  "cloudflare" => TSpec.Video.CloudflareStream
+}
+
 config :tspec, TSpec.Video.LocalProvider,
   base_url: "http://localhost:4000",
   media_root: Path.expand("../tmp/dev_media", __DIR__),

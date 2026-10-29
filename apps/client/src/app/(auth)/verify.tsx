@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { Button, ErrorText, Field, Screen } from '@/components/ui';
 import { api, ApiError, unwrap } from '@/lib/api';
@@ -7,7 +7,12 @@ import { useSession } from '@/lib/session';
 
 /**
  * Enter the 6-digit code from the email. Also the landing page for the magic
- * link on web (`/verify?token=…`), which signs in without typing anything.
+ * link on web (`/verify?email=…&token=…`).
+ *
+ * The link never signs in on its own: it shows the address and waits for a
+ * tap. Mail scanners that open links can't use up the token, and a link
+ * someone else sent can't quietly sign you into their account; the server
+ * checks the token belongs to the address shown.
  */
 export default function Verify() {
   const { email, token } = useLocalSearchParams<{ email?: string; token?: string }>();
@@ -15,9 +20,8 @@ export default function Verify() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string>();
   const [verifying, setVerifying] = useState(false);
-  const usedLink = useRef(false);
 
-  const verify = async (body: { email: string; code: string } | { token: string }) => {
+  const verify = async (body: { email: string; code: string } | { email: string; token: string }) => {
     setError(undefined);
     setVerifying(true);
     try {
@@ -28,18 +32,24 @@ export default function Verify() {
     }
   };
 
-  useEffect(() => {
-    if (token && !usedLink.current) {
-      usedLink.current = true;
-      void verify({ token });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
-
   if (token) {
+    if (!email) {
+      return (
+        <Screen title="Link incomplete" subtitle="Request a new sign-in email.">
+          <Button title="Back to sign in" onPress={() => router.replace('/sign-in')} />
+        </Screen>
+      );
+    }
     return (
-      <Screen title={verifying ? 'Signing you in…' : 'Link expired'} subtitle={error}>
-        {!verifying && <Button title="Back to sign in" onPress={() => router.replace('/sign-in')} />}
+      <Screen title="Sign in" subtitle={`Sign in as ${email}?`}>
+        <ErrorText>{error}</ErrorText>
+        <Button
+          title={`Continue as ${email}`}
+          testID="confirm-link"
+          onPress={() => verify({ email, token })}
+          loading={verifying}
+        />
+        <Button title="Not you? Back to sign in" variant="secondary" onPress={() => router.replace('/sign-in')} />
       </Screen>
     );
   }

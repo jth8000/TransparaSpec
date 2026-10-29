@@ -58,11 +58,9 @@ config :tspec, Oban,
 config :tspec, :cors_origins, []
 
 # Video providers (ADR 0005). New uploads go to `:video_provider`; existing
-# rows keep the provider they were created with.
-config :tspec, :video_providers, %{
-  "local" => TSpec.Video.LocalProvider,
-  "cloudflare" => TSpec.Video.CloudflareStream
-}
+# rows keep the provider they were created with. dev.exs and test.exs add
+# the local ffmpeg emulator; production never registers it.
+config :tspec, :video_providers, %{"cloudflare" => TSpec.Video.CloudflareStream}
 
 config :tspec, :video_provider, "local"
 
