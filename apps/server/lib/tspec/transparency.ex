@@ -6,7 +6,7 @@ defmodule TSpec.Transparency do
 
   Stored sparsely in `user_algorithm_settings` (only what differs from the
   default) and read as a `TSpec.Feed.Settings`. Every change, in one
-  transaction under `FOR UPDATE` on the user row:
+  transaction under `FOR NO KEY UPDATE` on the user row:
 
     * applies the changes and bumps `users.settings_version`
     * turning non-personalized mode **on** ratchets the user's open views to
@@ -121,7 +121,7 @@ defmodule TSpec.Transparency do
   is learned — even by a worker that runs after the mode is turned back off
   (ADR 0012). `learnable` never goes back to true.
 
-  Takes `FOR UPDATE` on the user row, which `Events.record/2` reads under
+  Takes `FOR NO KEY UPDATE` on the user row, which `Events.record/2` reads under
   `FOR SHARE`: a recording transaction either finishes first (and its views
   are then ratcheted here) or starts after and sees the new mode.
   """
@@ -144,8 +144,13 @@ defmodule TSpec.Transparency do
 
   defp settings_topic(user_id), do: "feed_settings:#{user_id}"
 
+  # FOR NO KEY UPDATE, not FOR UPDATE: it still conflicts with FOR SHARE
+  # (Events.record/2) and with itself, but not with the FOR KEY SHARE that
+  # foreign-key checks take. With FOR UPDATE, the affinity worker inserting
+  # a new affinity row (an FK check on this user) while holding a claimed
+  # view, and this transaction's ratchet waiting for that view, deadlocked.
   defp lock_user(user_id),
-    do: from(u in User, where: u.id == ^user_id, lock: "FOR UPDATE") |> Repo.one!()
+    do: from(u in User, where: u.id == ^user_id, lock: "FOR NO KEY UPDATE") |> Repo.one!()
 
   defp ratchet_open_views(user_id) do
     since = DateTime.add(DateTime.utc_now(), -@open_view_window_days, :day)
