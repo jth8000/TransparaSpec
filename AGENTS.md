@@ -93,6 +93,7 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
   - `jsonb` stores numbers as decimals and has no `-0.0`; ranker contributions are normalized so stored traces stay bit-identical to what ranked.
   - A partitioned table's primary key must include the partition key: `impressions` is keyed `(id, served_at)`, with `served_at` taken from the UUIDv7 id (`Impression.served_at_for/1`).
   - Concurrency-sensitive code gets a mutation check: break the guard (a lock, the delta-of-delta, the stale-version check) and confirm a test fails.
+  - Lock a row that other tables reference (above all `users`) with `FOR NO KEY UPDATE`, never `FOR UPDATE`. Inserting a referencing row checks the foreign key with an implicit `FOR KEY SHARE`, which `FOR UPDATE` blocks. That deadlocked the affinity worker against the switch to non-personalized mode (`docs/review/concurrency.md`, I20).
   - `make dev` runs `iex`, which exits immediately without a terminal. For a background server use `cd apps/server && mix phx.server`.
 - **Client**:
   - Don't start Expo with `CI=1` while developing: it turns off Metro's file watching, so edits never reach the running bundle.
