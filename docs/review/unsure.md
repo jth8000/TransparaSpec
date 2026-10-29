@@ -7,7 +7,7 @@ Where an experienced Elixir or distributed-systems reviewer is most likely to fi
 **U1. Feed sessions across a netsplit.**
 - **What we believe:** `:global` gives one session process per `{user_id, session_id}` among *connected* nodes (I5 in [concurrency.md](concurrency.md)).
 - **Why we're not sure:** during a partition, each side can start its own process for the same session. If one client's requests land on both sides, both write impressions with overlapping `rev` values. When the partition heals, `:global`'s default resolver keeps one process and kills the other, but the stored impressions stay interleaved. Later, `rebuild/1` replays them in `(rev, position)` order and may build a list the client never had. Nothing tests partitions.
-- **What would settle it:** a `:peer` test that disconnects the nodes, serves on both sides, reconnects and rebuilds. Running the private beta on a single machine would sidestep this until the test exists. That's undecided: the [roadmap](../roadmap.md)'s Phase 2 currently plans a two-machine cluster ([open-questions](../open-questions.md), "Private beta topology").
+- **What would settle it:** a `:peer` test that disconnects the nodes, serves on both sides, reconnects and rebuilds. The private beta runs on one machine ([ADR 0013](../adr/0013-single-machine-private-beta.md)), so this can't happen there. The test is a prerequisite for clustering.
 
 **U2. `Session.ensure/3` retries with `Process.sleep/1`.**
 - **What we believe:** a session that just died can stay registered for a moment, because `:global` cleans up asynchronously, so when `ensure` finds a dead local pid it retries up to 20 times, 5 ms apart.
@@ -18,9 +18,9 @@ Where an experienced Elixir or distributed-systems reviewer is most likely to fi
 - **What would settle it:** a reviewer's view on monitoring the pid, or on retrying the call itself.
 
 **U3. Per-node state that assumes one node.**
-- **What we believe:** the per-client-address rate limits (Hammer ETS) and `TSpec.TaskSupervisor` are per node. That's fine on one machine, but the roadmap's Phase 2 plans two (see U1).
+- **What we believe:** the per-client-address rate limits (Hammer ETS) and `TSpec.TaskSupervisor` are per node. That's fine on one machine, which is the plan for the private beta ([ADR 0013](../adr/0013-single-machine-private-beta.md)).
 - **Why we're not sure:** on N machines, an address gets N times the limit. The per-email sign-in caps live in Postgres, so they stay exact.
-- **What would settle it:** a decision before clustering, either a Postgres- or Redis-backed limiter or accepting N times the limit.
+- **What would settle it:** a decision before clustering (an ADR 0013 prerequisite), either a Postgres- or Redis-backed limiter or accepting N times the limit.
 
 ## Process design
 

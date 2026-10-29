@@ -24,9 +24,7 @@ Undecided items. When one is resolved, record the answer here and write an ADR i
 - [ ] **Topic classification approach**: zero-shot embeddings alone, or plus an LLM pass over caption + transcript? Weigh cost per upload against accuracy.
 - [ ] **Impression retention**: how long to keep raw *exposed* impressions before aggregating them? It must cover any attribution and audit window. Served-but-never-exposed impressions are pruned after 30 days ([ADR 0011](adr/0011-feed-sessions-and-live-rerank.md)).
 - [ ] **Postgres host** with pgvector: Fly managed Postgres, Neon, or Supabase.
-- [ ] **Private beta topology**: one machine, or the two-machine cluster the [roadmap](roadmap.md)'s Phase 2 plans?
-  - **One machine:** sidesteps two problems ([review packet](review/unsure.md)). Feed sessions across a netsplit (U1) is untested, and the per-address rate limits are per node (U3).
-  - **A cluster:** needs a partition test for feed sessions, and a shared rate limiter or an accepted N× limit, before it's safe.
+- [x] ~~**Private beta topology**~~ One machine ([ADR 0013](adr/0013-single-machine-private-beta.md)). A cluster first needs a partition test for feed sessions and a decision on per-node rate limits ([review packet](review/unsure.md), U1 and U3).
 - [ ] **Web sessions**: Phase 0 uses bearer tokens everywhere, with web storing the token in localStorage. Before beta, decide whether web moves to an httpOnly cookie session (XSS exposure vs. one auth path).
 - [x] ~~**Sign-in abuse**~~ Each code allows 5 guesses, claimed atomically before the comparison. Sign-in emails are capped per address at 5 an hour and 10 a day (counted in Postgres, so the cap holds across nodes; signing in resets it), which bounds brute force at 50 guesses a day against a million codes. `/api/auth/request` and `/api/auth/verify` are also limited per client address (per node, in memory; IPv6 per /64). Behind Fly the address comes from `Fly-Client-IP`.
 - [ ] **Engagement abuse**: events are client-reported, so an account can fabricate views. Phase 1a counts distinct users in trending, quality and co-engagement, so one account counts once per item. Still open for Phase 2:

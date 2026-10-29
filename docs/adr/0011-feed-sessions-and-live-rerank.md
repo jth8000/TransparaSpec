@@ -83,7 +83,7 @@ Joining sends `{rev}` (the revision the client holds); see "The process is a cac
 - Multiple devices work independently, while sharing one set of preferences.
 - A process crash, idle timeout or deploy costs a cache rebuild from Postgres, never correctness.
 - A session's calls may cross nodes to reach its owner (one extra hop at most).
-- **Deployment requirement:** `:global` only spans nodes that are connected. In production the machines must actually cluster, or the app must run on one machine. On Fly, clustering takes four things (the Phase 2 deploy item has the details):
+- **Deployment requirement:** `:global` only spans nodes that are connected. In production the machines must actually cluster, or the app must run on one machine. (Amended 2026-10-29: the private beta runs on one machine, per [ADR 0013](0013-single-machine-private-beta.md).) On Fly, clustering takes four things (the Phase 2 deploy item has the details):
   - `DNS_CLUSTER_QUERY`;
   - a node name built from each machine's private IP;
   - a shared release cookie;

@@ -71,5 +71,5 @@ Tracked elsewhere, listed here so a reviewer sees the whole picture:
 - **Engagement events are client-reported.** There's no view attestation and no rate limit on `POST /api/events`. Shared rankings count distinct users, but sybil accounts are cheap. ([open-questions](../open-questions.md))
 - **The web client keeps its bearer token in `localStorage`.** ([open-questions](../open-questions.md), "Web sessions")
 - **No moderation, reporting, CSAM matching, account export or account deletion yet.** (Phase 2, [roadmap](../roadmap.md))
-- **Per-address rate limits are per node.** With N nodes, each address effectively gets N times the limit. The per-email caps are exact.
+- **Per-address rate limits are per node.** With N nodes, each address effectively gets N times the limit. The private beta runs one node ([ADR 0013](../adr/0013-single-machine-private-beta.md)). The per-email caps are exact either way.
 - **No admin interface or role.** LiveDashboard is dev-only.
