@@ -1,6 +1,6 @@
 # Threat model (server)
 
-Covers the Phoenix API as it is now: pre-beta, never deployed, with no money flowing yet. The client side comes in a later part of this packet. Known gaps that already have a decision pending are in [`SECURITY.md`](../../SECURITY.md) and [`docs/open-questions.md`](../open-questions.md); this page doesn't repeat them beyond a pointer.
+Covers the Phoenix API as it is now: pre-beta, never deployed, with no money flowing yet. The client's side (credentials, session lifecycle, rendering, deep links, the web build) is in [client.md](client.md). Known gaps that already have a decision pending are in [`SECURITY.md`](../../SECURITY.md) and [`docs/open-questions.md`](../open-questions.md); this page doesn't repeat them beyond a pointer.
 
 ## What we protect
 

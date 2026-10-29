@@ -26,30 +26,42 @@ defmodule TSpec.Docs.ReviewPacketTest do
     assert missing == []
   end
 
+  # ExUnit (`test "…"`, `property "…"`) and Jest (`it('…'`, `it("…"`).
+  defp defines_test?(source, name) do
+    Enum.any?(
+      [~s(test "#{name}"), ~s(property "#{name}"), ~s(it('#{name}'), ~s(it("#{name}")],
+      &String.contains?(source, &1)
+    )
+  end
+
   test "every cited test exists in the file it's linked to" do
     citations =
       for {path, text} <- docs(),
-          [_, file, name] <- Regex.scan(~r/\]\(([^)]+_test\.exs)\):\s*"([^"]+)"/, text),
+          [_, file, name] <-
+            Regex.scan(~r/\]\(([^)]+(?:_test\.exs|\.test\.tsx?))\):\s*"([^"]+)"/, text),
           do: {Path.expand(file, Path.dirname(path)), name}
 
-    assert length(citations) > 20
+    assert length(citations) > 30
 
     missing =
       for {file, name} <- citations,
-          source = File.read!(file),
-          not String.contains?(source, ~s(test "#{name}")),
-          not String.contains?(source, ~s(property "#{name}")),
+          not defines_test?(File.read!(file), name),
           do: "#{Path.relative_to(file, @root)}: #{name}"
 
     assert missing == []
   end
 
-  test "the invariant table and scripts/mutation_checks.py cite the same mutations" do
+  test "the invariant tables and scripts/mutation_checks.py cite the same mutations" do
     ids = fn text, regex ->
       regex |> Regex.scan(text) |> Enum.map(&List.last/1) |> MapSet.new()
     end
 
-    in_doc = ids.(File.read!(Path.join(@review, "concurrency.md")), ~r/\bM(\d+)\b/)
+    in_doc =
+      docs()
+      |> Enum.map(&elem(&1, 1))
+      |> Enum.map(&ids.(&1, ~r/\bM(\d+)\b/))
+      |> Enum.reduce(&MapSet.union/2)
+
     in_script = ids.(File.read!(@mutations), ~r/\("M(\d+) /)
 
     assert MapSet.size(in_script) > 0
