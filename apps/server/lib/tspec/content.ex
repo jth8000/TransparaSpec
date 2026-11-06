@@ -36,23 +36,35 @@ defmodule TSpec.Content do
   All topics, tier 1 first, each tier by name. The taxonomy is reference data
   seeded by migration, so it's cached for the life of the node.
   """
-  def list_topics do
-    case :persistent_term.get({__MODULE__, :topics}, nil) do
-      nil ->
-        topics = Repo.all(from t in Topic, order_by: [asc: t.tier, asc: t.name])
-        :persistent_term.put({__MODULE__, :topics}, topics)
-        topics
-
-      topics ->
-        topics
-    end
-  end
+  def list_topics, do: taxonomy().list
 
   @doc "Topics keyed by slug."
-  def topics_by_slug, do: Map.new(list_topics(), &{&1.slug, &1})
+  def topics_by_slug, do: taxonomy().by_slug
 
   @doc "Topics keyed by id."
-  def topics_by_id, do: Map.new(list_topics(), &{&1.id, &1})
+  def topics_by_id, do: taxonomy().by_id
+
+  # The taxonomy is seeded by a migration and never changes at runtime, so
+  # it's read once and kept in :persistent_term with its two lookup maps:
+  # the ranker asks for `topics_by_id/0` several times per page.
+  defp taxonomy do
+    case :persistent_term.get({__MODULE__, :taxonomy}, nil) do
+      nil ->
+        topics = Repo.all(from t in Topic, order_by: [asc: t.tier, asc: t.name])
+
+        taxonomy = %{
+          list: topics,
+          by_id: Map.new(topics, &{&1.id, &1}),
+          by_slug: Map.new(topics, &{&1.slug, &1})
+        }
+
+        :persistent_term.put({__MODULE__, :taxonomy}, taxonomy)
+        taxonomy
+
+      taxonomy ->
+        taxonomy
+    end
+  end
 
   # Resolves the `:topics` slugs in creator attrs. `:keep` when absent (an
   # edit that doesn't touch topics).
