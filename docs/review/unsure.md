@@ -53,10 +53,9 @@ Where an experienced Elixir or distributed-systems reviewer is most likely to fi
 
 ## Deployment
 
-**U9. WebSocket origin checks in production.**
-- **What we believe:** Phoenix's default `check_origin` accepts only the endpoint's host (`PHX_HOST`).
-- **Why we're not sure:** the Expo web client is served from `CLIENT_URL`. If that's a different host, browsers' socket connections would be refused. Native clients are unaffected. Nothing is deployed, so this is untested.
-- **What would settle it:** setting `check_origin` from `CLIENT_URL` in `runtime.exs`, with a test like `prod_config_test`. Also, the `/live` socket is mounted in production although only the dev-only LiveDashboard uses it.
+**U9. WebSocket origin checks in production.** *Fixed 2026-11-06.*
+- **What it was:** Phoenix's default `check_origin` accepts only `PHX_HOST`, so a web client served from a different `CLIENT_URL` would have had its socket refused.
+- **Now:** `runtime.exs` allows both origins, and production no longer mounts the `/live` socket. See the WebSocket row in [threat-model.md](threat-model.md). What remains untested is a real browser against a real deploy, which belongs to the Phase 2 deploy check.
 
 **U10. Oban cron leadership and rolling deploys.**
 - **What we believe:** cron jobs (partitions, sweeps, pruning, expiry) are inserted by the Oban leader, and every job is safe to run twice.

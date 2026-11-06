@@ -19,9 +19,13 @@ defmodule TSpecWeb.Endpoint do
     websocket: true,
     longpoll: false
 
-  socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+  # LiveView's socket serves only LiveDashboard, a dev route, so production
+  # doesn't mount it.
+  if Application.compile_env(:tspec, :dev_routes) do
+    socket "/live", Phoenix.LiveView.Socket,
+      websocket: [connect_info: [session: @session_options]],
+      longpoll: [connect_info: [session: @session_options]]
+  end
 
   # Serve at "/" the static files from "priv/static" directory.
   #

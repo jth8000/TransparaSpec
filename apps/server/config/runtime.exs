@@ -70,12 +70,11 @@ if config_env() == :prod do
   # origin is scheme://host[:port], so drop any path from CLIENT_URL.
   client_uri = URI.parse(System.fetch_env!("CLIENT_URL"))
 
-  config :tspec,
-         :cors_origins,
-         [
-           %URI{scheme: client_uri.scheme, host: client_uri.host, port: client_uri.port}
-           |> URI.to_string()
-         ]
+  client_origin =
+    %URI{scheme: client_uri.scheme, host: client_uri.host, port: client_uri.port}
+    |> URI.to_string()
+
+  config :tspec, :cors_origins, [client_origin]
 
   # Fly's proxy sets Fly-Client-IP on every request (overwriting any value a
   # client sent), and the app is only reachable through it. Rate limits key
@@ -141,6 +140,11 @@ if config_env() == :prod do
 
   config :tspec, TSpecWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
+    # WebSocket Origin check. Phoenix's default allows only `host`, but the
+    # web client is served from CLIENT_URL, which may be another host.
+    # Native apps send an Origin derived from the API URL, so `host` stays.
+    # A connection with no Origin header (some native clients) is allowed.
+    check_origin: ["https://" <> host, client_origin],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
