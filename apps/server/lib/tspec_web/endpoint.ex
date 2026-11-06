@@ -15,13 +15,23 @@ defmodule TSpecWeb.Endpoint do
   # for the Expo web client.
   plug CORSPlug, origin: &TSpecWeb.CORS.allowed_origins/1
 
+  # Sobelow's Config.CSWH flags these sockets because it can't read the
+  # check_origin list runtime.exs builds from PHX_HOST and CLIENT_URL
+  # (prod_config_test checks it with Phoenix's own origin check). /live
+  # and the live-reload socket exist only in dev. Skipped by fingerprint
+  # in .sobelow-skips (comment skips don't reach socket calls), so moving
+  # these lines brings the findings back for another look.
   socket "/socket", TSpecWeb.UserSocket,
     websocket: true,
     longpoll: false
 
-  socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+  # LiveView's socket serves only LiveDashboard, a dev route, so production
+  # doesn't mount it.
+  if Application.compile_env(:tspec, :dev_routes) do
+    socket "/live", Phoenix.LiveView.Socket,
+      websocket: [connect_info: [session: @session_options]],
+      longpoll: [connect_info: [session: @session_options]]
+  end
 
   # Serve at "/" the static files from "priv/static" directory.
   #

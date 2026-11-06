@@ -56,7 +56,7 @@ No universal or app links (`https://`) are configured. Magic links go to the web
 
 ## Web build
 
-`app.json` has `web.output: "single"`, a static single-page app. **Where it will be hosted, and with which headers, isn't decided.** So there's no Content-Security-Policy or other security header for the web client yet (U11 in [unsure.md](unsure.md)). The server's CORS allows only `CLIENT_URL`'s origin in production. The socket's origin check is U9.
+`app.json` has `web.output: "single"`, a static single-page app. **Where it will be hosted, and with which headers, isn't decided.** So there's no Content-Security-Policy or other security header for the web client yet (U11 in [unsure.md](unsure.md)). In production, the server's CORS and its WebSocket origin check both accept `CLIENT_URL`'s origin ([threat-model.md](threat-model.md), WebSocket row).
 
 ## Invariants
 
