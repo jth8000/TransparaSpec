@@ -31,7 +31,7 @@ The dev-only `LocalProvider` routes (`/dev/...`) and the dev mailbox are compile
 
 `make security` runs in CI on every push and weekly:
 - `mix hex.audit`: Hex security advisories and retired packages;
-- [Sobelow](https://github.com/sobelow/sobelow), a static security scanner for Phoenix. Each false positive is marked with a `# sobelow_skip` comment that says why;
+- [Sobelow](https://github.com/sobelow/sobelow), a static security scanner for Phoenix. Each false positive is marked with a `# sobelow_skip` comment that says why. The exception is the endpoint's sockets, which comment skips can't reach: they're skipped by fingerprint in `apps/server/.sobelow-skips`, with the reason beside them in `endpoint.ex`;
 - `npm audit` on production dependencies, through `scripts/npm-audit.mjs`. Advisories that can't reach the app (so far, all inside Expo's build tooling) are listed with the reason in `scripts/npm-audit-allowlist.json`. Any other advisory fails the build.
 
 Dependabot proposes dependency updates weekly.

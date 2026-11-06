@@ -46,6 +46,7 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
   - Plan milestones with PR size in mind; a plan that implies one huge PR should be re-cut.
 - **Security checks** (`make security`):
   - A Sobelow false positive gets `# sobelow_skip ["<Check>"]` above the function, with a comment saying why it's safe. Never skip a whole check class.
+  - Comment skips don't reach an endpoint's `socket` calls, so `Config.CSWH` findings there are skipped by fingerprint in `apps/server/.sobelow-skips`, with the reason as a comment above the sockets. Fingerprints include the line, so editing `endpoint.ex` above the sockets brings the findings back. Review them, then re-record only the CSWH lines (`mix sobelow --root . --private --mark-skip-all` writes every finding; keep just `Config.CSWH`).
   - An npm advisory that can't reach the app bundle goes in `scripts/npm-audit-allowlist.json` with the reason. Fix or upgrade anything else.
   - Inline `<script>` and `<style>` tags in server-rendered HTML need `nonce={@csp_nonce}` (`TSpecWeb.ContentSecurityPolicy`).
 - **Review packet** (`docs/review/`, for outside reviewers): a PR that adds or changes a lock, process, channel, Oban job, auth path, entry point, money path, or the client's handling of credentials, sessions or untrusted content updates it in the same PR:

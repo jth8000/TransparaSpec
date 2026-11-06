@@ -1,0 +1,3 @@
+Config.CSWH: Cross-Site Websocket Hijacking,lib/tspec_web/endpoint.ex:24,1C06EFD
+Config.CSWH: Cross-Site Websocket Hijacking,lib/tspec_web/endpoint.ex:31,7402027
+Config.CSWH: Cross-Site Websocket Hijacking,lib/tspec_web/endpoint.ex:59,6EA0DF5
