@@ -62,3 +62,26 @@ Where an experienced Elixir or distributed-systems reviewer is most likely to fi
 - **What we believe:** cron jobs (partitions, sweeps, pruning, expiry) are inserted by the Oban leader, and every job is safe to run twice.
 - **Why we're not sure:** `Events.PartitionWorker` runs DDL, which deadlocks against concurrent sandboxed tests. Its behavior next to production traffic is untested.
 - **What would settle it:** watching it in staging, and possibly creating partitions further ahead.
+
+## Client
+
+**U11. The web token is in `localStorage`, and the web build has no CSP.**
+- **What we believe:** React Native `<Text>` never interprets HTML, and the client has no other HTML sink ([client.md](client.md)), so there's no known XSS.
+- **Why we're not sure:** if script injection ever happens (a compromised dependency, or a future feature that renders HTML), it can read the bearer token from `localStorage`. And there's no Content-Security-Policy to limit it, because where the web build is hosted, and with which headers, isn't decided.
+- **What would settle it:** decide on hosting with a strict CSP before beta, and resolve the web-sessions question in [open-questions](../open-questions.md) (an httpOnly cookie instead of `localStorage`).
+
+**U12. The bearer token travels in the WebSocket URL.**
+- **What we believe:** Phoenix's JS client sends connect params as a query string (`/socket/websocket?token=…`). Our server filters `token` from its logs.
+- **Why we're not sure:** any proxy or load balancer in front of the server that logs request URLs (Fly's edge, a future CDN) may record it.
+- **What would settle it:** checking what Fly's proxy logs, or passing the token another way (a short-lived socket token from the API, or Phoenix's `authToken` option, which sends it in the `Sec-WebSocket-Protocol` header).
+
+**U13. Native builds are untested in CI, and iOS has never run.**
+- **What we believe:** the native code paths (`expo-secure-store`, `expo-video`, the upload's `expo-file-system` `File`) work on Android, which was checked by hand.
+- **Why we're not sure:** iOS has never been built. CI exercises only web and Jest. `npx expo install --fix` recently added config plugins (`expo-image`, `expo-web-browser`) that only a native build runs.
+- **What would settle it:** an EAS development build for iOS (an Apple developer account is needed), and a Maestro smoke test on each native platform in CI.
+
+**U14. Sign-out gives queued events 3 s.**
+- **What we believe:** sign-out flushes the event queue before revoking the token (I25, I27), and anything still unsent is dropped, never misattributed.
+- **Why we're not sure:** offline or on a slow connection, the last few events of a session are lost. Today that only costs some interest-model signal. Once events drive dividends or creator payouts, lost events are lost money.
+- **What would settle it:** before the Ledger credits engagement, decide whether events must be durable on the device (persisted per account) or whether loss at sign-out is acceptable.
+
