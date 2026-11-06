@@ -48,9 +48,9 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
   - A Sobelow false positive gets `# sobelow_skip ["<Check>"]` above the function, with a comment saying why it's safe. Never skip a whole check class.
   - An npm advisory that can't reach the app bundle goes in `scripts/npm-audit-allowlist.json` with the reason. Fix or upgrade anything else.
   - Inline `<script>` and `<style>` tags in server-rendered HTML need `nonce={@csp_nonce}` (`TSpecWeb.ContentSecurityPolicy`).
-- **Review packet** (`docs/review/`, for outside reviewers): a PR that adds or changes a lock, process, channel, Oban job, auth path, entry point or money path updates it in the same PR:
+- **Review packet** (`docs/review/`, for outside reviewers): a PR that adds or changes a lock, process, channel, Oban job, auth path, entry point, money path, or the client's handling of credentials, sessions or untrusted content updates it in the same PR:
   - `threat-model.md`'s entry points;
-  - the invariant table in `concurrency.md`, with the test that proves the invariant and, for a concurrency or security guard, a mutation in `scripts/mutation_checks.py` that breaks it (run `make mutation-check`);
+  - the invariant tables in `concurrency.md` and `client.md`, with the test that proves the invariant and, for a concurrency or security guard, a mutation in `scripts/mutation_checks.py` that breaks it (run `make mutation-check`);
   - `unsure.md`, when something is argued but not tested.
 
   `review_packet_test.exs` checks the links, the cited test names and the mutation ids.
@@ -66,7 +66,7 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
 - `make test`: `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test --warnings-as-errors`, client `tsc` + `expo lint` + `jest`, and `make api-check`
 - `make e2e`: Playwright web flow. It reads sign-in codes from `GET /dev/mailbox/json`.
 - `make security`: `mix hex.audit`, Sobelow and the npm advisory check. Needs the network; CI runs it on every push and weekly.
-- `make mutation-check`: breaks each guard in `docs/review/concurrency.md` and checks that its tests fail. Takes a few minutes; not part of `make test`.
+- `make mutation-check`: breaks each guard in `docs/review/` (server and client) and checks that its tests fail. Takes a few minutes; not part of `make test`.
 - `make expo-check` / `make expo-fix`: check, or move together, the client packages Expo pins for our SDK (`npx expo install --check` / `--fix`). Needs the network; CI runs the check as `expo-deps`.
 - `make api-gen`: run after any API change, and commit the regenerated `packages/api-schema`
 - Shells need mise activated for Erlang/Elixir (`eval "$(mise env -s bash)"`) and Node 24 (`nvm use`).
