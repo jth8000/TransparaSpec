@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
+import { Button, Screen } from '@/components/ui';
 import { EventsProvider } from '@/lib/events';
 import { SessionProvider, useSession } from '@/lib/session';
 import { colors } from '@/theme';
@@ -38,13 +39,23 @@ export default function RootLayout() {
  * onboarded → the app.
  */
 function RootStack() {
-  const { isLoading, token, me } = useSession();
+  const { isLoading, restoreFailed, retryRestore, token, me } = useSession();
 
   useEffect(() => {
     if (!isLoading) SplashScreen.hide();
   }, [isLoading]);
 
   if (isLoading) return null;
+
+  // The stored session couldn't be checked (offline, or a server error).
+  // It's kept, so retrying, or the next launch, signs straight back in.
+  if (restoreFailed) {
+    return (
+      <Screen title="Can't reach T-Spec" subtitle="Check your connection and try again.">
+        <Button title="Try again" testID="retry-restore" onPress={() => void retryRestore()} />
+      </Screen>
+    );
+  }
 
   const signedIn = !!token && !!me;
   const onboarded = signedIn && me.onboarded;
