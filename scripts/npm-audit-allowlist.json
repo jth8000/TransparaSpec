@@ -1,14 +1,20 @@
 [
   {
-    "id": "GHSA-mrhx-c7xc-m3w5",
-    "package": "zod",
-    "severity": "high",
-    "reason": "Memory exhaustion when validating oversized collections. Zod 3 comes in only through @expo/cli and eslint-plugin-react-hooks, which validate developer-written config at build and lint time. It isn't in the app bundle and never sees user input. Clears when Expo moves to zod >= 4.6.6."
-  },
-  {
     "id": "GHSA-gcqx-w48m-w2h4",
     "package": "deepmerge",
     "severity": "low",
     "reason": "Prototype poisoning in objects returned by deepmerge's mergeObject(). Comes in through @expo/config, which merges app.json at build time, and jest-config (dev only). The app never imports it, and it isn't in the app bundle. Clears when @expo/config drops or patches deepmerge."
+  },
+  {
+    "id": "GHSA-3g3m-2fjr-6pw4",
+    "package": "glob",
+    "severity": "moderate",
+    "reason": "An AbortSignal timeout doesn't stop glob's filesystem walk. glob 10 and 13 come in through @expo/cli and @expo/fingerprint (build time) and Jest (test time), which glob our own repo's files. The app never imports it, and it never sees user input. Clears when those tools move to glob > 14.0.1."
+  },
+  {
+    "id": "GHSA-g3hv-75wg-m249",
+    "package": "minimatch",
+    "severity": "moderate",
+    "reason": "Denial of service through brace-pattern amplification. minimatch 10 comes in through @expo/fingerprint, glob, Jest's coverage tooling and typescript-eslint, all matching patterns we write against our own files at build, test or lint time. Not in the app bundle. Clears when they move to minimatch >= 11.0.1."
   }
 ]
