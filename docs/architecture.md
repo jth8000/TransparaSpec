@@ -31,7 +31,7 @@ Elixir / Phoenix core                          ── monolith, Phoenix contexts
 - **Video**: `expo-video` (HLS) for playback; a feed list with preload and recycling for vertical swipe.
 - **Data**: TanStack Query on top of a typed client generated from the server's OpenAPI spec (`packages/api-schema`, via `openapi-typescript` + `openapi-fetch`).
 - **Real time**: the `phoenix` npm client joins `feed_session:<session_id>` (live re-rank, ADR 0011), `user:<user_id>` (upload status) and later `notifications:<user_id>` channels.
-- **Auth storage**: bearer token in `expo-secure-store` on native; httpOnly cookie session on web.
+- **Auth storage**: bearer token in `expo-secure-store` on native, and in `localStorage` on web. Whether web moves to an httpOnly cookie session before beta is an [open question](open-questions.md) ("Web sessions").
 - **Video uploads**: the client asks the server for a one-time direct-upload URL and uploads straight to the provider. Video bytes never pass through Phoenix.
 
 ## Server (`apps/server`)
