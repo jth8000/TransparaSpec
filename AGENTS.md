@@ -58,7 +58,7 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
   - After React's version changes, `npm ls react` must show a single version. npm can keep an older hoisted copy at the root for peer dependencies, and two Reacts make client tests fail with "Cannot read properties of null (reading 'useRef')". Fix it by deleting the stale `node_modules/react` and `node_modules/react-dom` entries from `package-lock.json` and running `npm install`.
 - **Decisions**: architecture-shaping decisions get a new ADR in `docs/adr/` and a row in its README. Resolve items in `docs/open-questions.md` as they're decided.
 - **Testing**: ExUnit + StreamData property tests on the server; Jest + RNTL on the client; Maestro/Playwright end-to-end.
-- **User background**: strongest in Go, some Elixir and Rust, new to recommender systems. Explain Elixir idioms and recommender concepts when introducing them.
+- **User background**: strongest in Go, some Elixir and Rust, new to recommender systems. Explain Elixir idioms and recommender concepts when introducing them. Longer walkthroughs in Go terms live in `docs/learn/`; add one when introducing an OTP-heavy component, and keep its exercises runnable (`learn_docs_test.exs` checks its references).
 
 ## Commands
 - `make setup` / `make dev` (API :4000) / `make web` (:8081) / `make android`
