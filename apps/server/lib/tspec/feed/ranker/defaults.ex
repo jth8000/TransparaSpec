@@ -1,11 +1,12 @@
 defmodule TSpec.Feed.Ranker.Defaults do
   @moduledoc """
-  Default feature weights for ranker v1 — hand-tuned starting points
+  Default feature weights for the ranker — hand-tuned starting points
   (docs/open-questions.md). A user's settings multiply these; they never
   replace them.
 
   **Slider monotonicity** (ADR 0012): a topic slider `m` contributes
-  `c·(w_aff·m·a + w_pref·(m − 1))`, whose slope in `m` is `c·(w_aff·a + w_pref)`.
+  `s·(w_aff·m·a + w_pref·(m − 1))`, whose slope in `m` is `s·(w_aff·a + w_pref)`,
+  where `s > 0` is the label's share of the item (ADR 0014).
   Affinity values `a` lie in (−1, 1), so `topic_preference > topic_affinity`
   makes moving a slider toward "more" always raise that topic's score. This
   module refuses to compile otherwise.

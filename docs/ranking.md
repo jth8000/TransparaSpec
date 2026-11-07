@@ -1,11 +1,11 @@
 # How the For You ranker works
 
-This is the plain-language specification of T-Spec's recommendation math as it is **actually implemented** (ranker `v1`, Phase 1a). It's written for three readers:
+This is the plain-language specification of T-Spec's recommendation math as it is **actually implemented** (ranker `v1.1`). It's written for three readers:
 - people working on T-Spec;
 - AI agents working on the repo;
 - eventually, curious users who want more than the "Why?" sheet.
 
-The design decisions behind it are in [ADR 0006](adr/0006-interpretable-ranker-persisted-traces.md) (explainable scores), [ADR 0011](adr/0011-feed-sessions-and-live-rerank.md) (feed sessions and live re-ranking) and [ADR 0012](adr/0012-interest-model-and-controls.md) (interest model and controls).
+The design decisions behind it are in [ADR 0006](adr/0006-interpretable-ranker-persisted-traces.md) (explainable scores), [ADR 0011](adr/0011-feed-sessions-and-live-rerank.md) (feed sessions and live re-ranking) [ADR 0012](adr/0012-interest-model-and-controls.md) (interest model and controls) and [ADR 0014](adr/0014-label-shares.md) (how an item's topic labels share it).
 
 > **Keep this in sync.** The numbers in the [defaults table](#all-the-tunable-numbers) are checked against the code by `test/tspec/docs/ranking_doc_test.exs`. Change a weight in code without updating this page, and `make test` fails.
 
@@ -83,8 +83,8 @@ Re-running the worker applies nothing (Δ = 0), so retries are harmless. The res
 A video's topic labels are **snapshotted when the view starts**. A creator editing the labels mid-view can't redirect what you've already watched.
 
 Each Δ is credited:
-- to each labeled topic, × the label's confidence (creator labels are 1.0 in Phase 1a);
-- to that topic's tier-1 parent at **half** weight. For example, Fitness and Exercise → Healthy Living gets 0.5× (a topic labeled at both levels takes the larger);
+- to each labeled topic, × the label's **share** of the video (see [Several labels share the item](#several-labels-share-the-item)). A video with one label gets full credit; one with three labels at full confidence gives each topic a third;
+- to that topic's tier-1 parent at **half** of that share. For example, Fitness and Exercise → Healthy Living gets 0.5× (a topic labeled at both levels takes the larger);
 - to the video's creator, × 1.
 
 ### Interests fade: 14-day half-life
@@ -144,7 +144,7 @@ Before scoring, cheap database queries nominate a few hundred plausible videos. 
 - not already sent in this feed session;
 - not hard-off.
 
-**Hard-off is a filter, not a low score.** An item is removed if it has a label with confidence **≥ 0.5** on a topic you switched off, or on a subtopic of one. Switching off Healthy Living also removes Fitness and Exercise.
+**Hard-off is a filter, not a low score.** An item is removed if it has a label with confidence **≥ 0.5** on a topic you switched off, or on a subtopic of one. Switching off Healthy Living also removes Fitness and Exercise. This uses the label's own confidence, never its share: a video labeled Fitness alongside two other topics is still removed.
 
 In Phase 1a, labels come only from creators. So the guarantee is "nothing *labeled* Fitness", not "no fitness content": a mislabeled video can slip through. Phase 1b adds automatic labels.
 
@@ -165,8 +165,8 @@ The score is not a probability. It only orders candidates.
 
 | Feature | Value | Default weight | Your control |
 |---|---|---|---|
-| `topic_affinity` (one per topic label) | your interest in the topic (−1…1) × label confidence | 1.0 | × topic slider *m* |
-| `topic_preference` (one per topic label, only when *m* ≠ 1) | label confidence | 1.5 | weight is 1.5 × (*m* − 1) |
+| `topic_affinity` (one per topic label) | your interest in the topic (−1…1) × the label's share | 1.0 | × topic slider *m* |
+| `topic_preference` (one per topic label, only when *m* ≠ 1) | the label's share | 1.5 | weight is 1.5 × (*m* − 1) |
 | `creator_affinity` | your learned interest in the creator (−1…1) | 0.6 | — |
 | `following` | 1 if you follow the creator | 0.5 | follow / unfollow |
 | `source_prior` | 1, for the best source that found the item | per source (see below) | × source slider |
@@ -180,6 +180,25 @@ A learned feature with value 0 is left out of the trace rather than shown as "+0
 
 **Topic sliders apply to subtopics:** a subtopic without its own slider follows its parent's slider.
 
+### Several labels share the item
+A video can have several topic labels. They split the video's topic signal rather than each adding its own:
+
+```
+share = label confidence / max(1, sum of the video's label confidences)
+```
+
+| Labels (confidence) | Shares |
+|---|---|
+| Cooking (1.0) | Cooking 1.0 |
+| Cooking (1.0), Travel (1.0), Music (1.0) | ⅓ each |
+| Fitness (1.0) and its parent Healthy Living (1.0) | ½ each |
+| Cooking (0.3) | Cooking 0.3 |
+
+- So a video labeled with three topics you like scores no higher on topics than one labeled with one, and labeling a subtopic together with its own parent doesn't count your interest twice.
+- A lone uncertain label stays uncertain: shares only shrink when the confidences add up to more than 1.
+- Learning uses the same shares, so a video teaches T-Spec about you in the same proportions it's ranked by.
+- Each topic row in "Why?" records the label's confidence and share.
+
 ### Topic sliders: why "more" always means more
 A topic slider *m* (from 0 to 2, default 1) does two things, and each shows up separately in "Why?":
 - **Learned interest:** it scales your learned interest: `1.0 × m × affinity × confidence`.
@@ -187,14 +206,14 @@ A topic slider *m* (from 0 to 2, default 1) does two things, and each shows up s
 
 The explicit part is what lets "more Cooking" work even when you've never watched Cooking, and when your learned interest is negative.
 
-**The guarantee.** The topic's total is `c × (1.0 × m × a + 1.5 × (m − 1))`, and its rate of change as the slider moves is `c × (1.0 × a + 1.5)`.
-- The learned value `a` is always above −1, so that rate is always above `c × 0.5`, which is positive.
+**The guarantee.** With `s` the label's share, the topic's total is `s × (1.0 × m × a + 1.5 × (m − 1))`, and its rate of change as the slider moves is `s × (1.0 × a + 1.5)`.
+- The learned value `a` is always above −1, so that rate is always above `s × 0.5`, which is positive.
 - So moving a slider toward "more" **always** raises that topic's score, even for a topic you've skipped a lot.
 - The code refuses to compile if `topic_preference` isn't larger than `topic_affinity`, and a property test sweeps the slider.
 
 One caveat: this is about the item's *score*. Its final *position* can still shift because of the diversity pass.
 
-Example: your learned Cooking value is −0.5 (you skip it), and the label confidence is 1.0.
+Example: your learned Cooking value is −0.5 (you skip it), and Cooking is the video's only label, at confidence 1.0 (share 1).
 
 | Slider | Learned | Explicit | Topic total |
 |---|---|---|---|
@@ -220,6 +239,10 @@ Every item starts as if 10 people had watched it at a 30% completion rate. That 
 
 Viewers are counted as **distinct people**, so replaying (or faking) views from one account counts once. Completion rate is a signal of behavior, not an objective measure of worth.
 
+Only views of videos count. A text post has no end to reach, so its quality stays at the prior (0.3) instead of falling as more people read it.
+
+Known limitation: short videos are finished far more often than long ones, so this favors short videos. Comparing each video with typical completion for its length is planned before the private beta (`docs/open-questions.md`).
+
 ### Diversity: the greedy pass
 Sorting purely by score could show you five videos in a row from one creator. So the first 50 positions are filled **one at a time**. Each remaining candidate gets a penalty against the items picked just before it, and the best adjusted score wins:
 
@@ -233,6 +256,7 @@ The window continues across pages and re-ranks: the items already sent count as 
 
 ### A worked example (real numbers)
 A Cooking video, computed by the actual ranker:
+- it has one label, Cooking, at confidence 1.0 (so its share is 1);
 - your Cooking interest has an effective score of 1.8, so its value is `tanh(0.6)` = 0.537;
 - your Cooking slider is at 1.5×;
 - you've watched this creator before (score 1.0, value 0.322), and you follow them;
@@ -261,7 +285,7 @@ The `topic_affinity` weight is 1.5, which is the default 1.0 × your 1.5× slide
 Every item sent to you creates an **impression** row, saved at that moment. It holds:
 - the full contribution list and the score;
 - the candidate sources;
-- the ranker version (`v1`);
+- the ranker version (`v1.1`; explanations saved under `v1` stay as they were);
 - your settings version, and a snapshot of your settings at that moment;
 - your consent version.
 

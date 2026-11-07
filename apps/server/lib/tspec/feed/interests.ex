@@ -34,7 +34,7 @@ defmodule TSpec.Feed.Interests do
   alias TSpec.Repo
   alias TSpec.Content
   alias TSpec.Content.{ContentTopic, Item}
-  alias TSpec.Feed.{AffinityWorker, CreatorAffinity, TopicAffinity, ViewEngagement}
+  alias TSpec.Feed.{AffinityWorker, CreatorAffinity, LabelShares, TopicAffinity, ViewEngagement}
   alias TSpec.Feed.Interests.Weights
 
   # Client-reported seconds are clamped to a day (also keeps watched_ms well
@@ -79,25 +79,28 @@ defmodule TSpec.Feed.Interests do
   def feature_value(score, w \\ Weights.get()), do: :math.tanh(score / w.squash)
 
   @doc """
-  The topic weights a view will credit: each label's confidence, and half of
-  it (`parent_share`) to a tier-2 topic's tier-1 parent. A topic reached
-  twice keeps the larger weight. Keys are topic id strings (stored as JSON).
+  The topic weights a view will credit: each label's share of the item
+  (`TSpec.Feed.LabelShares`, the same shares the ranker uses), and half of
+  that share (`parent_share`) to a tier-2 topic's tier-1 parent. A topic
+  reached twice keeps the larger weight. Keys are topic id strings (stored
+  as JSON).
+
+  Shares come from the item's own labels first, so a child and its parent
+  both labeled split the item rather than counting twice.
   """
   def topic_snapshot(labels, topics_by_id, w \\ Weights.get()) do
-    Enum.reduce(labels, %{}, fn {topic_id, confidence}, acc ->
-      acc = Map.update(acc, topic_id, confidence, &max(&1, confidence))
+    shares = LabelShares.shares(labels)
+
+    Enum.reduce(labels, %{}, fn {topic_id, _confidence}, acc ->
+      share = shares[topic_id]
+      acc = Map.update(acc, topic_id, share, &max(&1, share))
 
       case topics_by_id[topic_id] do
         %{parent_id: nil} ->
           acc
 
         %{parent_id: parent} ->
-          Map.update(
-            acc,
-            parent,
-            confidence * w.parent_share,
-            &max(&1, confidence * w.parent_share)
-          )
+          Map.update(acc, parent, share * w.parent_share, &max(&1, share * w.parent_share))
 
         nil ->
           acc

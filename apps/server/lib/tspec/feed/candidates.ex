@@ -293,9 +293,14 @@ defmodule TSpec.Feed.Candidates do
   # Smoothed completion rate per item, over distinct viewers: replaying an
   # item (or fabricating views) from one account counts once. Aggregate, so
   # every view counts regardless of personalization mode (ADR 0012).
+  #
+  # Only views with a duration count. A text post has nothing to finish, so
+  # its views would all count as non-completions and its quality would sink
+  # toward 0 the more people read it; leaving them out keeps text posts at
+  # the prior.
   defp quality(ids) do
     from(v in ViewEngagement,
-      where: v.content_id in ^ids,
+      where: v.content_id in ^ids and v.duration_ms > 0,
       group_by: v.content_id,
       select:
         {v.content_id, count(v.user_id, :distinct),

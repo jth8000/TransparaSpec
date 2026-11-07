@@ -28,6 +28,15 @@ export type ExplanationRow = {
 const fmt = (n: number) => (Math.abs(n) >= 10 ? n.toFixed(1) : n.toFixed(2));
 const times = (m: number) => `${Number(m.toFixed(2))}×`;
 
+/**
+ * How much of the item a topic stands for, when its labels share it
+ * (ranker v1.1+, ADR 0014). Nothing for a whole share or an older trace.
+ */
+const shareNote = (c: Contribution) =>
+  c.label_share != null && c.label_share < 1
+    ? `; ${Math.round(c.label_share * 100)}% of this item's topics`
+    : '';
+
 function label(c: Contribution, name: (slug: string) => string): string {
   const topic = c.topic ? name(c.topic) : '';
   switch (c.feature) {
@@ -67,7 +76,7 @@ export function explanationRows(e: Explanation): ExplanationRow[] {
         c.user_multiplier !== 1 && c.feature !== 'topic_preference'
           ? ` (your ${times(c.user_multiplier)})`
           : ''
-      }`,
+      }${shareNote(c)}`,
       contribution: c.contribution,
       topic: c.topic ?? undefined,
       source: c.feature === 'source_prior' ? (c.source ?? undefined) : undefined,
@@ -84,5 +93,8 @@ export function labelSources(e: Explanation): { topic: string; sources: string[]
   for (const c of e.contributions) {
     if (c.topic && c.label_sources && !seen.has(c.topic)) seen.set(c.topic, c.label_sources);
   }
-  return [...seen].map(([topic, sources]) => ({ topic: e.topic_names[topic] ?? topic, sources }));
+  return [...seen].map(([topic, sources]) => ({
+    topic: e.topic_names[topic] ?? topic,
+    sources,
+  }));
 }

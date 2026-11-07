@@ -17,3 +17,4 @@ Each ADR captures one decision: its context, the decision itself, its consequenc
 | [0011](0011-feed-sessions-and-live-rerank.md) | Feed sessions (one per client feed) and live re-rank | Accepted |
 | [0012](0012-interest-model-and-controls.md) | Interest model v1 (per-view deltas, decay) and user controls | Accepted |
 | [0013](0013-single-machine-private-beta.md) | One machine for the private beta; prerequisites for clustering | Accepted |
+| [0014](0014-label-shares.md) | Topic labels share an item (ranker v1.1), in ranking and learning; hard-off keeps raw confidence | Accepted |

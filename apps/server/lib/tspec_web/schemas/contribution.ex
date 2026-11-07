@@ -24,6 +24,18 @@ defmodule TSpecWeb.Schemas.Contribution do
         items: %Schema{type: :string},
         description: "Who labeled the item with this topic"
       },
+      confidence: %Schema{
+        type: :number,
+        nullable: true,
+        description: "The topic label's confidence, for topic features (ranker v1.1+)"
+      },
+      label_share: %Schema{
+        type: :number,
+        nullable: true,
+        description:
+          "The label's share of the item: confidence / max(1, sum of the item's label " <>
+            "confidences). Topic values are scaled by it (ranker v1.1+)"
+      },
       source: %Schema{
         type: :string,
         nullable: true,

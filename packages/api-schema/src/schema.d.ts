@@ -734,10 +734,14 @@ export interface components {
          *     the sum of its contributions, in order.
          */
         Contribution: {
+            /** @description The topic label's confidence, for topic features (ranker v1.1+) */
+            confidence?: number | null;
             contribution: number;
             default_weight: number;
             /** @enum {string} */
             feature: "topic_affinity" | "topic_preference" | "creator_affinity" | "following" | "source_prior" | "freshness" | "quality" | "diversity";
+            /** @description The label's share of the item: confidence / max(1, sum of the item's label confidences). Topic values are scaled by it (ranker v1.1+) */
+            label_share?: number | null;
             /** @description Who labeled the item with this topic */
             label_sources?: string[] | null;
             /** @description Candidate source, for source_prior */

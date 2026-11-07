@@ -76,6 +76,33 @@ describe('explanationRows', () => {
     expect(rows[3].source).toBe('trending');
   });
 
+  it('says how much of the item a topic stands for when its labels share it', () => {
+    const shared = explanationRows(
+      explanation([
+        c({
+          feature: 'topic_affinity',
+          topic: 'cooking',
+          value: 0.2,
+          contribution: 0.2,
+          confidence: 1,
+          label_share: 1 / 3,
+        }),
+        c({
+          feature: 'topic_preference',
+          topic: 'cooking',
+          value: 1,
+          contribution: 0.1,
+          confidence: 1,
+          label_share: 1,
+        }),
+      ]),
+    );
+    expect(shared.map((r) => r.detail)).toEqual([
+      "1.00 weight × 0.20; 33% of this item's topics",
+      '1.00 weight × 1.00',
+    ]);
+  });
+
   it('reports who labeled each topic', () => {
     expect(labelSources(e)).toEqual([{ topic: 'Cooking', sources: ['creator'] }]);
   });

@@ -1,7 +1,7 @@
 # ADR 0012: Interest model v1 and user controls
 
 - **Status:** Accepted
-- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: forget boundaries and no parent fallback for forgotten topics, per-use view eligibility, distinct-user aggregates, no job dedupe; amended 2026-10-29: the mode change locks the user row `FOR NO KEY UPDATE`)
+- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: forget boundaries and no parent fallback for forgotten topics, per-use view eligibility, distinct-user aggregates, no job dedupe; amended 2026-10-29: the mode change locks the user row `FOR NO KEY UPDATE`; amended 2026-11-06 by [ADR 0014](0014-label-shares.md): labels share an item in ranking and learning)
 
 ## Context
 The ranker (ADR 0006) needs a per-user interest profile: how much this person likes each topic and creator. It also needs controls whose meaning users can rely on:
@@ -69,7 +69,7 @@ Interest fades unless it's reinforced, with a half-life of 14 days:
 ### Frozen per-view state
 - **"View start"** is when the server **accepts the first event of a `view_id`**. Normally that's `view_start`, which the client queues first. If `view_start` is rejected, the first accepted event initializes the view.
   - The client buffers events for up to 10 s, so a creator's topic edit inside that window is captured in the snapshot. That's accepted.
-- **`topic_snapshot`** (immutable): the item's effective topic weights at view start (label confidence, including the parent roll-up). All of a view's deltas go to these topics, so relabeling mid-view can't split one view across topics.
+- **`topic_snapshot`** (immutable): the item's effective topic weights at view start (each label's share of the item, including the parent roll-up; [ADR 0014](0014-label-shares.md)). All of a view's deltas go to these topics, so relabeling mid-view can't split one view across topics.
 - **`learnable`** is set at view start and can only ever go from **true to false**.
   - It is true if the user was personalized at view start.
   - Turning non-personalized mode on sets `learnable = false` on the user's in-progress views, in the same transaction as the setting change.
@@ -82,8 +82,10 @@ Each topic slider `m` runs from 0 to 2, with a default of 1. It has two effects,
 
 | Contribution | Weight | Value |
 |---|---|---|
-| `topic_affinity` (learned) | `w_aff · m` | affinity × label confidence |
-| `topic_preference` (explicit) | `w_pref · (m − 1)` | label confidence |
+| `topic_affinity` (learned) | `w_aff · m` | affinity × label share |
+| `topic_preference` (explicit) | `w_pref · (m − 1)` | label share |
+
+A label's share is `confidence / max(1, Σ confidences)` over the item's labels ([ADR 0014](0014-label-shares.md)). Below, `c` is that share.
 
 - "More Cooking" now works for someone with no cooking history, because the preference term doesn't depend on affinity.
 - The topic's total is `C(m) = c·(w_aff·m·a + w_pref·(m − 1))`, so `dC/dm = c·(w_aff·a + w_pref)`. Since `a ∈ (−1, 1)`, **requiring `w_pref > w_aff`** makes moving the slider toward "more" *always* raise that topic's score, even when the learned affinity is negative.
