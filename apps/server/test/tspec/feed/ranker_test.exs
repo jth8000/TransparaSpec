@@ -1,9 +1,9 @@
 defmodule TSpec.Feed.RankerTest do
-  @moduledoc "Ranker v1 invariants (ADR 0006/0012), as properties over random inputs."
+  @moduledoc "Ranker invariants (ADR 0006/0012), as properties over random inputs."
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias TSpec.Feed.Ranker
+  alias TSpec.Feed.{LabelShares, Ranker}
   alias TSpec.Feed.Ranker.{Candidate, Defaults}
   alias TSpec.Feed.Settings
 
@@ -98,6 +98,16 @@ defmodule TSpec.Feed.RankerTest do
     end
   end
 
+  defp item_with(labels) do
+    %Candidate{
+      content_id: "c1",
+      author_id: "a1",
+      published_at: @now,
+      sources: ["fresh"],
+      labels: for({t, c} <- labels, do: %{topic_id: t, confidence: c, sources: ["creator"]})
+    }
+  end
+
   defp rank(cands, feats, settings, opts \\ []),
     do: Ranker.rank(cands, feats, settings, @taxonomy, opts)
 
@@ -152,6 +162,66 @@ defmodule TSpec.Feed.RankerTest do
     end
   end
 
+  property "hard-off reads raw confidence: other labels can't dilute an off topic past the filter" do
+    check all(
+            cand <- candidate(),
+            feats <- features(),
+            off <- member_of(@topics),
+            others <- list_of(member_of(@topics -- [off]), min_length: 1, max_length: 2)
+          ) do
+      # Up to three labels at full confidence: each one's share is ⅓.
+      labels =
+        for t <- Enum.uniq([off | others]),
+            do: %{topic_id: t, confidence: 1.0, sources: ["creator"]}
+
+      cand = %{cand | labels: labels}
+      s = %Settings{topics: %{off => %{multiplier: 1.0, hard_off: true}}}
+
+      refute Ranker.eligible?(cand, s, @taxonomy)
+      assert rank([cand], feats, s) == []
+    end
+  end
+
+  property "topic rows are scaled by the label's share, and an item's shares sum to at most 1" do
+    check all(cands <- candidates(), feats <- features(), s <- settings()) do
+      by_id = Map.new(cands, &{&1.content_id, &1})
+
+      for item <- rank(cands, feats, s) do
+        labels = by_id[item.content_id].labels
+        shares = LabelShares.shares(Enum.map(labels, &{&1.topic_id, &1.confidence}))
+        assert Enum.sum(Map.values(shares)) <= 1.0 + 1.0e-12
+
+        for c <- item.contributions, c.feature in ["topic_affinity", "topic_preference"] do
+          assert c.label_share == shares[c.topic]
+          assert c.label_share <= c.confidence
+          if c.feature == "topic_preference", do: assert(c.value == c.label_share)
+        end
+      end
+    end
+  end
+
+  property "more labels never add up to more than one fully-matching label" do
+    check all(
+            feats <- features(),
+            labels <- map(subset(@topics), &Enum.take(&1, 3)),
+            a <- affinity()
+          ) do
+      feats = %{feats | personalized: true, topic_affinity: Map.new(@topics, &{&1, a})}
+      cand = item_with(Enum.map(labels, &{&1, 1.0}))
+      one = item_with([{"music", 1.0}])
+
+      topic_total = fn c ->
+        Ranker.score(c, feats, %Settings{}, @taxonomy).contributions
+        |> Enum.filter(&(&1.feature == "topic_affinity"))
+        |> Ranker.sum()
+      end
+
+      # Every topic has affinity value a, so the labels can at most add up to
+      # one label's worth: |Σ| ≤ |a|.
+      assert abs(topic_total.(cand)) <= abs(topic_total.(one)) + 1.0e-12
+    end
+  end
+
   property "a slider at the default contributes no topic_preference" do
     check all(cands <- candidates(), feats <- features()) do
       for item <- rank(cands, feats, %Settings{}), c <- item.contributions do
@@ -171,6 +241,21 @@ defmodule TSpec.Feed.RankerTest do
 
       scores =
         for m <- [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0] do
+          s = %Settings{topics: %{topic => %{multiplier: m, hard_off: false}}}
+          Ranker.score(cand, %{feats | personalized: true}, s, @taxonomy).final_score
+        end
+
+      assert scores == Enum.sort(scores), "not monotonic: #{inspect(scores)}"
+    end
+  end
+
+  property "moving a slider up never lowers a multi-label item's score" do
+    check all(cand <- candidate(), feats <- features(), topic <- member_of(@topics)) do
+      extra = Enum.reject(cand.labels, &(&1.topic_id == topic))
+      cand = %{cand | labels: [%{topic_id: topic, confidence: 1.0, sources: ["creator"]} | extra]}
+
+      scores =
+        for m <- [0.0, 0.5, 1.0, 1.5, 2.0] do
           s = %Settings{topics: %{topic => %{multiplier: m, hard_off: false}}}
           Ranker.score(cand, %{feats | personalized: true}, s, @taxonomy).final_score
         end
@@ -248,6 +333,44 @@ defmodule TSpec.Feed.RankerTest do
 
       assert [%{feature: "topic_affinity", topic: "fitness", value: 0.4}] =
                Enum.filter(scored.contributions, &(&1[:topic] == "fitness"))
+    end
+
+    test "three labels split the topic signal three ways, and say so in the trace" do
+      feats = %{@feats | topic_affinity: %{"cooking" => 0.6, "fitness" => 0.6, "music" => 0.6}}
+      three = item("c1", "a1", [{"cooking", 1.0}, {"fitness", 1.0}, {"music", 1.0}])
+      one = item("c2", "a1", [{"cooking", 1.0}])
+
+      rows = fn c ->
+        Ranker.score(c, feats, %Settings{}, @taxonomy).contributions
+        |> Enum.filter(&(&1.feature == "topic_affinity"))
+      end
+
+      assert [%{value: 0.6, confidence: 1.0, label_share: 1.0}] = rows.(one)
+      assert [_, _, _] = rows.(three)
+
+      for r <- rows.(three) do
+        assert r.label_share == 1 / 3
+        assert r.value == 0.6 * (1 / 3)
+      end
+    end
+
+    test "a topic labeled with its own parent splits the item rather than counting twice" do
+      feats = %{@feats | topic_affinity: %{"health" => 0.8, "fitness" => 0.8}}
+      both = item("c1", "a1", [{"fitness", 1.0}, {"health", 1.0}])
+
+      rows =
+        Ranker.score(both, feats, %Settings{}, @taxonomy).contributions
+        |> Enum.filter(&(&1.feature == "topic_affinity"))
+
+      assert Enum.map(rows, &{&1.topic, &1.value}) == [{"fitness", 0.4}, {"health", 0.4}]
+    end
+
+    test "a lone low-confidence label keeps its low weight" do
+      feats = %{@feats | topic_affinity: %{"cooking" => 0.5}}
+      scored = Ranker.score(item("c1", "a1", [{"cooking", 0.3}]), feats, %Settings{}, @taxonomy)
+
+      assert [%{value: 0.15, label_share: 0.3}] =
+               Enum.filter(scored.contributions, &(&1.feature == "topic_affinity"))
     end
 
     test "a tier-2 topic inherits its parent's slider and hard-off" do

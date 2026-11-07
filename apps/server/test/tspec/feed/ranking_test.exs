@@ -172,6 +172,25 @@ defmodule TSpec.Feed.RankingTest do
       assert_in_delta candidate.quality, (1 + 10 * Candidates.prior_rate()) / (1 + 10), 1.0e-9
     end
 
+    test "reading a text post doesn't count against its quality", %{viewer: viewer} do
+      post = text_post_fixture(onboarded_user_fixture())
+      now = DateTime.utc_now()
+
+      # A text post has no end to reach: its views only ever start.
+      for _ <- 1..5 do
+        reader = Accounts.scope_for_user(onboarded_user_fixture())
+        v = Ecto.UUID.generate()
+
+        {:ok, _} =
+          Events.record(reader, [
+            %{content_id: post.id, view_id: v, type: "view_start", occurred_at: now}
+          ])
+      end
+
+      candidate = Enum.find(gather(viewer), &(&1.content_id == post.id))
+      assert candidate.quality == Candidates.prior_rate()
+    end
+
     test "non-personalized mode uses no source that reads the user's profile or history",
          %{viewer: viewer, scope: scope} do
       creator = onboarded_user_fixture()
