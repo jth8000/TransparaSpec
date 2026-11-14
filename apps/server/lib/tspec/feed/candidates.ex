@@ -7,8 +7,8 @@ defmodule TSpec.Feed.Candidates do
   | Source          | Nominates                                                    |
   |-----------------|--------------------------------------------------------------|
   | `following`     | recent items from accounts the user follows                  |
-  | `topic`         | recent items in the user's top affinity topics; and, with    |
-  |                 | their own budget, every boosted topic and `:topic_slugs`     |
+  | `topic`         | recent items in the user's top affinity topics; and, with a  |
+  |                 | budget per topic, every boosted topic and `:topic_slugs`     |
   |                 | (subtopics included)                                         |
   | `trending`      | the global trending pool (`TSpec.Feed.TrendingWorker`)       |
   | `co_engagement` | items completed by people who completed what you completed   |
@@ -44,6 +44,9 @@ defmodule TSpec.Feed.Candidates do
     explore: 50,
     fresh: 100
   }
+  # Each topic asked for explicitly (boosted, or targeted by a refill) gets
+  # at least this many of the `topic` source's explicit budget.
+  @explicit_per_topic_min 50
   # Bayesian smoothing for completion rate: pretend every item starts with
   # @prior_views views at the @prior_rate completion rate.
   @prior_views 10
@@ -159,26 +162,31 @@ defmodule TSpec.Feed.Candidates do
     |> Repo.all()
   end
 
-  # Two queries, each with its own budget: the user's top learned topics,
-  # and the topics asked for explicitly (boosted, or `:topic_slugs` from a
-  # targeted refill). One shared, newest-first query would let a big
-  # favorite topic crowd out the one the refill was for. Explicit topics
+  # The user's top learned topics, newest first; and, separately, the topics
+  # asked for explicitly (boosted, or `:topic_slugs` from a targeted
+  # refill), each with a budget of its own: a big topic, learned or
+  # boosted, can't crowd out a small one a refill was for. Explicit topics
   # include their subtopics, as sliders do.
   defp nominate("topic", base, _user_id, settings, features, _now, opts) do
     taxonomy = Content.topics_by_id()
     by_slug = Content.topics_by_slug()
 
-    explicit =
+    requested =
       (Settings.boosted_slugs(settings) ++ Keyword.get(opts, :topic_slugs, []))
       |> Enum.flat_map(&List.wrap(by_slug[&1] && by_slug[&1].id))
       |> MapSet.new()
 
-    explicit =
+    # Label topic => the requested topic it counts for (itself, or its
+    # parent). A subtopic requested along with its parent counts for itself.
+    groups =
       for {id, t} <- taxonomy,
-          MapSet.member?(explicit, id) or MapSet.member?(explicit, t.parent_id),
-          do: id
+          MapSet.member?(requested, id) or MapSet.member?(requested, t.parent_id),
+          into: %{},
+          do: {id, if(MapSet.member?(requested, id), do: id, else: t.parent_id)}
 
-    Enum.uniq(topic_query(base, top_topic_ids(features)) ++ topic_query(base, explicit))
+    Enum.uniq(
+      topic_query(base, top_topic_ids(features)) ++ per_topic_query(base, groups, requested)
+    )
   end
 
   defp nominate("trending", base, _user_id, _settings, _features, _now, _opts) do
@@ -272,6 +280,37 @@ defmodule TSpec.Feed.Candidates do
       limit: ^@limits.topic,
       select: i.id
     )
+    |> Repo.all()
+  end
+
+  # The newest items for each requested topic, `max(50, 150 / n)` each, in
+  # one query: `row_number()` over a window partitioned by requested topic
+  # numbers each topic's items newest first, and the outer query keeps the
+  # first few of each.
+  defp per_topic_query(_base, groups, _requested) when groups == %{}, do: []
+
+  defp per_topic_query(base, groups, requested) do
+    per_topic = max(@explicit_per_topic_min, div(@limits.topic, MapSet.size(requested)))
+    {label_ids, group_ids} = Enum.unzip(groups)
+
+    ranked =
+      from(i in base,
+        join: ct in ContentTopic,
+        on: ct.content_id == i.id,
+        join:
+          g in fragment(
+            "SELECT * FROM unnest(?::uuid[], ?::uuid[]) AS g(label_id, group_id)",
+            type(^label_ids, {:array, Ecto.UUID}),
+            type(^group_ids, {:array, Ecto.UUID})
+          ),
+        on: g.label_id == ct.topic_id,
+        windows: [
+          per_topic: [partition_by: g.group_id, order_by: [desc: i.published_at, desc: i.id]]
+        ],
+        select: %{id: i.id, rank: over(row_number(), :per_topic)}
+      )
+
+    from(r in subquery(ranked), where: r.rank <= ^per_topic, distinct: true, select: r.id)
     |> Repo.all()
   end
 

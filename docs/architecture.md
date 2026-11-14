@@ -162,7 +162,7 @@ The full explanation, with worked examples and every default, is in [ranking.md]
   | `diversity` | 0.5 × (−1 per repeat creator in the last 5, −0.5 per repeat topic in the last 3) |
 
   `topic_preference > topic_affinity` is a compile-time requirement, because it is what makes sliders monotonic. A label's share is `confidence / max(1, Σ confidences)`, so an item's labels split its topic signal instead of adding up; learning uses the same shares, and hard-off uses raw confidence ([ADR 0014](adr/0014-label-shares.md)).
-- **Candidate pool:** up to about 700 per session (following 150, topic 150, trending 150, co-engagement 100, fresh 100, explore 50). Seen items (viewed in the last 48 h) and items already served in the session are excluded.
+- **Candidate pool:** up to about 850 per session (following 150, topic 150 for the top learned topics plus 150 shared among boosted and targeted topics, at least 50 each, trending 150, co-engagement 100, fresh 100, explore 50; more with four or more boosted or targeted topics). Seen items (viewed in the last 48 h) and items already served in the session are excluded.
 - **Explore slots:** every `round(10 / m)`-th position (Explore slider `m`) goes to the best item whose topics are all in areas (tier-1 families) new to the user, chosen inside the diversity pass; none until the user knows some topic. The impression records `placement: "explore"`; the score is unchanged ([ADR 0015](adr/0015-explore-slots.md)).
 - **The trace:** each contribution is stored as `{feature, topic?, label_sources?, confidence?, label_share?, source?, default_weight, user_multiplier, weight, value, contribution}`, and `final_score` is their sum in list order.
 - **Endpoints:**

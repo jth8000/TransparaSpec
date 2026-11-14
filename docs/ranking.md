@@ -128,7 +128,7 @@ Before scoring, cheap database queries nominate a few hundred plausible videos. 
 | Source | Finds | Limit |
 |---|---|---|
 | `following` | recent items from accounts you follow | 150 |
-| `topic` | recent items in your top 5 interest topics; and, with a budget of their own, **every topic you've boosted** (slider above 1×, subtopics included) and any topic a feed asks for by name | 150 + 150 |
+| `topic` | recent items in your top 5 interest topics; and, separately, **every topic you've boosted** (slider above 1×, subtopics included) and any topic a feed asks for by name, each with a budget of its own: 150 ÷ the number of such topics, but at least 50 | 150 + 150 (more with 4+ such topics) |
 | `trending` | the global trending pool | 150 |
 | `co_engagement` | items finished by people who finished what you finished (last 14 days) | 100 |
 | `explore` | random recent items in areas new to you (see [Explore slots](#explore-slots)); off when the Explore slider is at 0 | 50 |

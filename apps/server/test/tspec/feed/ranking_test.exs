@@ -36,6 +36,58 @@ defmodule TSpec.Feed.RankingTest do
     Candidates.gather(viewer.id, settings, Ranking.features(viewer.id, settings), opts)
   end
 
+  # `n` text posts labeled cooking, newest a second old: their ids.
+  defp cooking_posts!(creator, n) do
+    now = DateTime.utc_now()
+    cooking = Content.topics_by_slug()["cooking"].id
+
+    rows =
+      for i <- 1..n do
+        %{
+          id: UUIDv7.generate(),
+          author_id: creator.id,
+          kind: "text_post",
+          status: "ready",
+          visibility: "public",
+          published_at: DateTime.add(now, -i, :second),
+          inserted_at: DateTime.truncate(now, :second),
+          updated_at: DateTime.truncate(now, :second)
+        }
+      end
+
+    Repo.insert_all(Content.Item, rows)
+    Repo.insert_all(Content.TextPost, for(r <- rows, do: %{content_id: r.id, body: "cooking"}))
+
+    Repo.insert_all(
+      Content.ContentTopic,
+      for(
+        r <- rows,
+        do: %{content_id: r.id, topic_id: cooking, source: "creator", confidence: 1.0}
+      )
+    )
+
+    MapSet.new(rows, & &1.id)
+  end
+
+  # One video per slug, published a day ago (older than any cooking post).
+  defp day_old!(creator, slugs) do
+    items = for slug <- slugs, do: ready_video_fixture(creator, topics: [slug])
+
+    Repo.update_all(
+      from(i in Content.Item, where: i.id in ^Enum.map(items, & &1.id)),
+      set: [published_at: DateTime.add(DateTime.utc_now(), -1, :day)]
+    )
+
+    items
+  end
+
+  # What the `topic` source alone nominates.
+  defp topic_ids(viewer, settings, opts) do
+    for c <- gather(viewer, settings, [sources: ["topic"]] ++ opts),
+        into: MapSet.new(),
+        do: c.content_id
+  end
+
   describe "candidate sources" do
     test "following, fresh and topic nominate, and say so", %{viewer: viewer, scope: scope} do
       friend = onboarded_user_fixture()
@@ -179,56 +231,31 @@ defmodule TSpec.Feed.RankingTest do
 
       # More recent cooking than the topic source's budget, all newer than
       # the one travel and one fitness item.
-      now = DateTime.utc_now()
-      cooking = Content.topics_by_slug()["cooking"].id
-
-      rows =
-        for n <- 1..160 do
-          %{
-            id: UUIDv7.generate(),
-            author_id: creator.id,
-            kind: "text_post",
-            status: "ready",
-            visibility: "public",
-            published_at: DateTime.add(now, -n, :second),
-            inserted_at: DateTime.truncate(now, :second),
-            updated_at: DateTime.truncate(now, :second)
-          }
-        end
-
-      Repo.insert_all(Content.Item, rows)
-      Repo.insert_all(Content.TextPost, for(r <- rows, do: %{content_id: r.id, body: "cooking"}))
-
-      Repo.insert_all(
-        Content.ContentTopic,
-        for(
-          r <- rows,
-          do: %{content_id: r.id, topic_id: cooking, source: "creator", confidence: 1.0}
-        )
-      )
-
-      travel = ready_video_fixture(creator, topics: ["travel"])
-      fitness = ready_video_fixture(creator, topics: ["fitness-and-exercise"])
-
-      Repo.update_all(
-        from(i in Content.Item, where: i.id in ^[travel.id, fitness.id]),
-        set: [published_at: DateTime.add(now, -1, :day)]
-      )
-
-      topic_ids = fn settings, opts ->
-        for c <- gather(viewer, settings, [sources: ["topic"]] ++ opts),
-            into: MapSet.new(),
-            do: c.content_id
-      end
+      cooking_posts!(creator, 160)
+      [travel, fitness] = day_old!(creator, ["travel", "fitness-and-exercise"])
 
       # Without asking, the budget goes to cooking.
-      refute MapSet.member?(topic_ids.(%Settings{}, []), travel.id)
+      refute MapSet.member?(topic_ids(viewer, %Settings{}, []), travel.id)
 
       # A targeted refill's topic, and a boosted tier-1 topic's subtopic.
-      assert MapSet.member?(topic_ids.(%Settings{}, topic_slugs: ["travel"]), travel.id)
+      assert MapSet.member?(topic_ids(viewer, %Settings{}, topic_slugs: ["travel"]), travel.id)
 
       boosted = %Settings{topics: %{"healthy-living" => %{multiplier: 1.5, hard_off: false}}}
-      assert MapSet.member?(topic_ids.(boosted, []), fitness.id)
+      assert MapSet.member?(topic_ids(viewer, boosted, []), fitness.id)
+    end
+
+    test "a big boosted topic can't crowd out a refill's topic either", %{viewer: viewer} do
+      creator = onboarded_user_fixture()
+      cooking = cooking_posts!(creator, 160)
+      [travel] = day_old!(creator, ["travel"])
+      boosted = %Settings{topics: %{"cooking" => %{multiplier: 2.0, hard_off: false}}}
+
+      # One requested topic keeps the whole explicit budget; two get 75 each.
+      assert MapSet.size(MapSet.intersection(topic_ids(viewer, boosted, []), cooking)) == 150
+
+      found = topic_ids(viewer, boosted, topic_slugs: ["travel"])
+      assert MapSet.member?(found, travel.id)
+      assert MapSet.size(MapSet.intersection(found, cooking)) == 75
     end
 
     test "explore nominates only items whose topics are all new to the viewer",
