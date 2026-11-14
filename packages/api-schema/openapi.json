@@ -1032,6 +1032,13 @@
       "Contribution": {
         "description": "One line of a ranking trace: `contribution = weight × value`, where\n`weight = default_weight × user_multiplier` (for `topic_preference`,\n`weight = default_weight × (user_multiplier − 1)`). An item's score is\nthe sum of its contributions, in order.\n",
         "properties": {
+          "confidence": {
+            "description": "The topic label's confidence, for topic features (ranker v1.1+)",
+            "nullable": true,
+            "type": "number",
+            "x-struct": null,
+            "x-validate": null
+          },
           "contribution": {
             "type": "number",
             "x-struct": null,
@@ -1054,6 +1061,13 @@
               "diversity"
             ],
             "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
+          "label_share": {
+            "description": "The label's share of the item: confidence / max(1, sum of the item's label confidences). Topic values are scaled by it (ranker v1.1+)",
+            "nullable": true,
+            "type": "number",
             "x-struct": null,
             "x-validate": null
           },

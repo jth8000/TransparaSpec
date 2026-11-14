@@ -150,6 +150,33 @@ defmodule TSpec.Feed.InterestsTest do
       assert %ViewEngagement{dirty: false, applied_delta: 1.0, learnable: true} = view(v)
     end
 
+    test "labels split a view's credit instead of each taking all of it (ADR 0014)",
+         %{viewer: viewer, scope: scope, creator: creator} do
+      three = ready_video_fixture(creator, topics: ["fitness-and-exercise", "cooking", "travel"])
+      v = Ecto.UUID.generate()
+      record!(scope, [ev(three, v, "view_start"), ev(three, v, "complete", 2.0)])
+      apply!(viewer, DateTime.utc_now())
+
+      s = scores(viewer)
+
+      for slug <- ~w(fitness-and-exercise cooking travel),
+          do: assert_in_delta(s[slug], 1 / 3, 1.0e-12)
+
+      # The parent gets half of its child's share, not half of its confidence.
+      assert_in_delta s["healthy-living"], 1 / 6, 1.0e-12
+    end
+
+    test "a topic labeled with its own parent splits the item, it doesn't count twice",
+         %{viewer: viewer, scope: scope, creator: creator} do
+      both = ready_video_fixture(creator, topics: ["fitness-and-exercise", "healthy-living"])
+      v = Ecto.UUID.generate()
+      record!(scope, [ev(both, v, "view_start"), ev(both, v, "complete", 2.0)])
+      apply!(viewer, DateTime.utc_now())
+
+      # Shares ½ each; the parent keeps max(its own ½, ½ × the child's ½).
+      assert scores(viewer) == %{"fitness-and-exercise" => 0.5, "healthy-living" => 0.5}
+    end
+
     test "one view contributes one delta, however many batches it spans",
          %{viewer: viewer, scope: scope, fitness: fitness} do
       now = DateTime.utc_now()

@@ -1,6 +1,6 @@
 defmodule TSpec.Feed.Ranker do
   @moduledoc """
-  Ranker v1: a decomposable, explainable scorer (ADR 0006).
+  Ranker v1.1: a decomposable, explainable scorer (ADR 0006).
 
       final_score = Σ contribution,   contribution = weight × value
 
@@ -13,10 +13,11 @@ defmodule TSpec.Feed.Ranker do
 
     * `topic_affinity` (per topic label) — learned interest. Value is the
       squashed affinity at the label's topic (or half its parent's, if the
-      user has no history with the topic itself) × label confidence.
+      user has no history with the topic itself) × the label's share of the
+      item (`TSpec.Feed.LabelShares`: confidence / max(1, Σ confidences)).
       Weight `w × m`, where `m` is the user's slider for the topic.
     * `topic_preference` (per topic label, only when `m ≠ 1`) — the explicit
-      part of the slider: value = label confidence, weight `w × (m − 1)`.
+      part of the slider: value = the label's share, weight `w × (m − 1)`.
       Moving a slider up always raises the topic's score (see `Defaults`).
     * `creator_affinity` — learned interest in the creator.
     * `following` — 1 if the viewer follows the creator (an explicit choice).
@@ -34,10 +35,11 @@ defmodule TSpec.Feed.Ranker do
   explanations readable; it changes no sums.
   """
 
+  alias TSpec.Feed.LabelShares
   alias TSpec.Feed.Ranker.Defaults
   alias TSpec.Feed.Settings
 
-  @version "v1"
+  @version "v1.1"
   @hard_off_threshold 0.5
   @diversity_depth 50
   @creator_window 5
@@ -78,7 +80,9 @@ defmodule TSpec.Feed.Ranker do
 
   @doc """
   Whether hard-off settings allow the item: no label at confidence ≥ 0.5 on a
-  hard-off topic or on a child of one.
+  hard-off topic or on a child of one. Raw confidence, never the label's
+  share: three labels at 1.0 have a share of ⅓ each, and a switched-off
+  topic must not slip under the threshold that way.
   """
   def eligible?(%Candidate{labels: labels}, %Settings{} = settings, taxonomy) do
     off = MapSet.new(Settings.hard_off_slugs(settings))
@@ -146,26 +150,33 @@ defmodule TSpec.Feed.Ranker do
   @doc "The defining sum: contributions added in list order."
   def sum(contributions), do: Enum.reduce(contributions, 0.0, &(&1.contribution + &2))
 
+  # One `topic_affinity` (and, off the default slider, one `topic_preference`)
+  # row per label, each scaled by the label's share of the item
+  # (`LabelShares`), so labels split the item's topic signal rather than
+  # adding up.
   defp topic_contributions(c, features, settings, taxonomy) do
     labels = Enum.sort_by(c.labels, &{-&1.confidence, taxonomy[&1.topic_id].slug})
+    shares = LabelShares.shares(Enum.map(labels, &{&1.topic_id, &1.confidence}))
 
     Enum.flat_map(labels, fn %{topic_id: id, confidence: conf} = label ->
       topic = taxonomy[id]
       parent = topic.parent_id && taxonomy[topic.parent_id]
       m = Settings.topic_multiplier(settings, topic.slug, parent && parent.slug)
-      label_sources = Map.get(label, :sources, [])
+      share = shares[id]
+
+      trace = [
+        topic: topic.slug,
+        label_sources: Map.get(label, :sources, []),
+        confidence: z(conf / 1),
+        label_share: z(share)
+      ]
 
       learned =
         if features.personalized do
-          value = affinity_value(features.topic_affinity, topic, parent) * conf
+          value = affinity_value(features.topic_affinity, topic, parent) * share
 
           if value != 0.0,
-            do: [
-              contribution("topic_affinity", :topic_affinity, m, value,
-                topic: topic.slug,
-                label_sources: label_sources
-              )
-            ],
+            do: [contribution("topic_affinity", :topic_affinity, m, value, trace)],
             else: []
         else
           []
@@ -176,16 +187,17 @@ defmodule TSpec.Feed.Ranker do
           w = Defaults.feature(:topic_preference)
 
           [
-            %{
-              feature: "topic_preference",
-              topic: topic.slug,
-              label_sources: label_sources,
-              default_weight: w,
-              user_multiplier: m,
-              weight: z(w * (m - 1.0)),
-              value: z(conf / 1),
-              contribution: z(w * (m - 1.0) * conf)
-            }
+            Map.merge(
+              %{
+                feature: "topic_preference",
+                default_weight: w,
+                user_multiplier: m,
+                weight: z(w * (m - 1.0)),
+                value: z(share),
+                contribution: z(w * (m - 1.0) * share)
+              },
+              Map.new(trace)
+            )
           ]
         else
           []
