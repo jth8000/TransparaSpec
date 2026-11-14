@@ -128,7 +128,7 @@ Before scoring, cheap database queries nominate a few hundred plausible videos. 
 | Source | Finds | Limit |
 |---|---|---|
 | `following` | recent items from accounts you follow | 150 |
-| `topic` | recent items in your top 5 interest topics, **plus every topic you've boosted** (slider above 1×) | 150 |
+| `topic` | recent items in your top 5 interest topics; and, separately, **every topic you've boosted** (slider above 1×, subtopics included) and any topic a feed asks for by name, each with a budget of its own: 150, 75 and 50 for one to three such topics, 50 each up to six, then shrinking so they total about 300 | 150 + up to 300 |
 | `trending` | the global trending pool | 150 |
 | `co_engagement` | items finished by people who finished what you finished (last 14 days) | 100 |
 | `explore` | random recent items in areas new to you (see [Explore slots](#explore-slots)); off when the Explore slider is at 0 | 50 |
@@ -262,7 +262,7 @@ Once your profile has formed, items from topics you've never watched would almos
 - **Every 10th position** in your feed (the 10th, 20th, ...) goes to the best *explorable* item. Positions are counted across the whole feed session, so pages and live re-ranks keep the spacing.
 - **Explorable** means the item has topic labels, and none of them is in an *area* you know. An area is a tier-1 topic with its subtopics, like Healthy Living with Fitness and Exercise. You know an area when you know any topic in it, and you know a topic when:
   - your learned interest in it is at least **0.05** away from 0 (either way, so topics you skip count too). One finished video fades below that in about five weeks;
-  - this feed has already shown you an item about it, even before your learned interest catches up. (Known limitation: until the feed refreshes your learned interests, at its next start or settings change, a topic you just discovered this way gets neither a slot nor its learned boost.)
+  - this feed has already shown you an item about it, even before your learned interest catches up. Your learned interest follows within seconds: the feed refreshes it whenever new views are applied, so a topic you just discovered keeps coming up on its own merit (see [section 5](#5-changing-settings-live));
   - you set its slider (or its parent's) **below** 1×. A topic you've boosted stays explorable: nudging up a topic an explore slot introduced never takes it out of the slots;
   - you forgot it in the last **30 days**. A forgotten topic isn't offered back as "new" right away.
 
@@ -336,6 +336,10 @@ When you move a slider or flip a switch:
 4. **New explanations:** newly sent items get new impressions with the new settings version.
 
 Measured end to end in the browser test: about 230 ms from tap to re-ranked feed, including a deliberate 150 ms pause that batches slider movements.
+
+Your learned interests change between settings changes too, and open feeds follow:
+- **As you watch:** once the background worker has applied your new views, every open feed re-reads your interests before its next page. Nothing already sent is replaced. If you've just come to like a topic (say, one an explore slot showed you) and the feed has few of its posts left, it fetches more, however that topic ranks among your interests.
+- **"Forget this interest"** is an explicit control, so it works like a slider: open feeds re-read your interests and re-rank everything after the item you're watching.
 
 ---
 
@@ -413,7 +417,7 @@ Fixed in code and described above (not yet tunable):
 - **Sessions:**
   - page size 10;
   - idle stop after 10 minutes;
-  - refill below 30 candidates, or when a boosted topic has fewer than 5;
+  - refill below 30 candidates, or when a boosted topic (on a settings change) or a newly liked topic (up to 3 per refill) has fewer than 5 unserved;
   - 60 s back-off after an empty or failed refill.
 
 ## Where it lives in the code

@@ -3,7 +3,7 @@
 
 SERVER := apps/server
 
-.PHONY: setup db db-stop dev client android web test test-server test-client api-gen api-check security expo-check expo-fix mutation-check e2e
+.PHONY: setup db db-stop dev client android web test test-server test-client api-gen api-check security expo-check expo-fix mutation-check mutation-patterns e2e
 
 setup: db
 	cd $(SERVER) && mix setup
@@ -33,7 +33,11 @@ android:
 web:
 	npm run web -w apps/client -- --port 8081
 
-test: test-server test-client api-check
+test: mutation-patterns test-server test-client api-check
+
+# Every mutation check's pattern still matches its code (under a second).
+mutation-patterns:
+	python3 scripts/mutation_checks.py --check-patterns
 
 test-server: db
 	cd $(SERVER) && mix format --check-formatted && mix compile --warnings-as-errors && mix test --warnings-as-errors
@@ -72,7 +76,8 @@ expo-fix:
 	cd apps/client && npx expo install --fix
 
 # Breaks each concurrency/security guard listed in docs/review/concurrency.md
-# and checks its tests fail. Takes a few minutes; not part of `make test`.
+# and checks its tests fail. Takes a few minutes; not part of `make test`
+# (which runs only `mutation-patterns`).
 mutation-check: db
 	python3 scripts/mutation_checks.py
 

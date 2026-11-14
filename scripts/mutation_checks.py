@@ -14,6 +14,11 @@ reported, not skipped.
 
 Usage: make mutation-check, or python3 scripts/mutation_checks.py [M1 M5 ...]
 Takes a few minutes; it isn't part of `make test`.
+
+`--check-patterns` only checks that every pattern still matches its file
+exactly once and that its test files exist, without running anything. It
+takes well under a second, so `make test` and CI run it: a code change that
+silently disables a mutation check fails at once, not at the next full run.
 """
 import os
 import re
@@ -73,8 +78,8 @@ MUTATIONS = [
     ("M8 refill merged only under the settings it ran with",
      "server",
      "lib/tspec/feed/session.ex",
-     "defp apply_refill(%{settings: %{version: version}} = state, version, candidates) do",
-     "defp apply_refill(state, _version, candidates) do",
+     "defp apply_refill(%{settings: %{version: version}} = state, version, targeted, candidates) do",
+     "defp apply_refill(state, _version, targeted, candidates) do",
      ["test/tspec/feed/session_test.exs"]),
     ("M9 crashed refill task is noticed (DOWN handler)",
      "server",
@@ -154,6 +159,30 @@ MUTATIONS = [
      "      &MapSet.union(&1, state.seen_topic_ids)\n",
      "      & &1\n",
      ["test/tspec/feed/session_test.exs"]),
+    ("M32 sessions hear when the affinity worker applied views",
+     "server",
+     "lib/tspec/feed/affinity_worker.ex",
+     "    if result.applied > 0, do: Transparency.broadcast_interests_changed(user_id, :learned)\n",
+     "",
+     ["test/tspec/feed/session_test.exs"]),
+    ("M33 a forget re-ranks the live feed's tail",
+     "server",
+     "lib/tspec/feed/session.ex",
+     "    state = if state.served != [], do: rerank_tail(state), else: state\n",
+     "    state = if false, do: rerank_tail(state), else: state\n",
+     ["test/tspec/feed/session_test.exs"]),
+    ("M34 a stale learned profile is re-read before the next page",
+     "server",
+     "lib/tspec/feed/session.ex",
+     "    state = refresh_if_stale(state)\n    page = next_items(state, limit)\n",
+     "    page = next_items(state, limit)\n",
+     ["test/tspec/feed/session_test.exs"]),
+    ("M35 a refill's topics count as covered only once it lands",
+     "server",
+     "lib/tspec/feed/session.ex",
+     "    %{state | refilling: settings.version, refill_ref: task.ref}\n",
+     "    %{state | refilling: settings.version, refill_ref: task.ref, gathered_topic_ids: MapSet.union(state.gathered_topic_ids, targeted)}\n",
+     ["test/tspec/feed/session_test.exs"]),
     ("M27 the socket's origin check accepts CLIENT_URL's origin",
      "server",
      "config/runtime.exs",
@@ -217,6 +246,25 @@ MUTATIONS = [
 ]
 
 
+def check_patterns():
+    problems = 0
+    for name, app, path, old, new, tests in MUTATIONS:
+        cwd, _command = APPS[app]
+        count = open(os.path.join(cwd, path)).read().count(old)
+        if count != 1:
+            print(f"{name}: PATTERN NOT FOUND ({count} matches in {app}/{path})")
+            problems += 1
+        if old == new:
+            print(f"{name}: the mutation changes nothing")
+            problems += 1
+        for test in tests:
+            if not os.path.exists(os.path.join(cwd, test)):
+                print(f"{name}: test file missing ({app}/{test})")
+                problems += 1
+    print(f"{len(MUTATIONS)} mutation patterns checked, {problems} problem(s)")
+    return problems
+
+
 def run(selected):
     problems = 0
     for name, app, path, old, new, tests in MUTATIONS:
@@ -247,4 +295,7 @@ def run(selected):
 
 
 if __name__ == "__main__":
-    sys.exit(1 if run(set(sys.argv[1:])) else 0)
+    args = sys.argv[1:]
+    if args == ["--check-patterns"]:
+        sys.exit(1 if check_patterns() else 0)
+    sys.exit(1 if run(set(args)) else 0)

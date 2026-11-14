@@ -25,7 +25,7 @@ Where an experienced Elixir or distributed-systems reviewer is most likely to fi
 ## Process design
 
 **U4. Database work inside the session GenServer.**
-- **What we believe:** `Feed.Session` writes impressions from inside its own process (`Ranking.serve`), and gathers its first candidates synchronously in `handle_continue(:load)`.
+- **What we believe:** `Feed.Session` writes impressions from inside its own process (`Ranking.serve`), and gathers its first candidates synchronously in `handle_continue(:load)`. It also re-reads the learned profile there (a few queries) on a settings change, on a forget, and before the first page after the affinity worker applied views (lazily, so at most once per page).
 - **Why we're not sure:** a slow database stalls that one session's mailbox. `at` casts queue up, and `next_page` calls can hit their 15 s timeout. A refill already runs in a task.
 - **What would settle it:** load testing with a slow database. Possibly move the initial gather into a task too.
 
