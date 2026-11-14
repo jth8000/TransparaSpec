@@ -4,6 +4,7 @@ import {
   explanationRows,
   explanationTotal,
   labelSources,
+  placementNote,
   sourceLabel,
   type Explanation as ExplanationData,
 } from '@/lib/explanation';
@@ -26,6 +27,7 @@ export function Explanation({ explanation: e, onAdjust }: Props) {
   const rows = explanationRows(e);
   const max = Math.max(...rows.map((r) => Math.abs(r.contribution)), 0.0001);
   const labels = labelSources(e);
+  const placement = placementNote(e);
 
   return (
     <View style={styles.container} testID="explanation">
@@ -39,6 +41,11 @@ export function Explanation({ explanation: e, onAdjust }: Props) {
           : ''}
         .
       </Text>
+      {placement ? (
+        <Text style={styles.placement} testID="why-placement">
+          {placement}
+        </Text>
+      ) : null}
 
       <View style={styles.rows}>
         {rows.map((r) => (
@@ -99,6 +106,7 @@ const styles = StyleSheet.create({
   container: { gap: space.lg },
   lead: { color: colors.text, fontSize: 16 },
   strong: { fontWeight: '700' },
+  placement: { color: colors.text, fontSize: 14 },
   rows: { gap: space.md },
   row: { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' },
   rowText: { flex: 1, gap: 2 },

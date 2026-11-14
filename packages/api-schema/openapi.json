@@ -1330,6 +1330,16 @@
             "x-struct": null,
             "x-validate": null
           },
+          "placement": {
+            "description": "Why the item sits where it does beyond its score: `explore` means an explore slot placed it, to broaden the feed (ranker v1.2+). The score is unaffected.",
+            "enum": [
+              "explore"
+            ],
+            "nullable": true,
+            "type": "string",
+            "x-struct": null,
+            "x-validate": null
+          },
           "position": {
             "type": "integer",
             "x-struct": null,

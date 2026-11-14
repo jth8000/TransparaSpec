@@ -806,6 +806,11 @@ export interface components {
             final_score: number;
             /** Format: uuid */
             impression_id: string;
+            /**
+             * @description Why the item sits where it does beyond its score: `explore` means an explore slot placed it, to broaden the feed (ranker v1.2+). The score is unaffected.
+             * @enum {string|null}
+             */
+            placement?: "explore" | null;
             position: number;
             ranker_version: string;
             /** Format: date-time */

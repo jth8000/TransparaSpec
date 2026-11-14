@@ -20,6 +20,14 @@ defmodule TSpecWeb.Schemas.Explanation do
       position: %Schema{type: :integer},
       final_score: %Schema{type: :number},
       contributions: %Schema{type: :array, items: TSpecWeb.Schemas.Contribution},
+      placement: %Schema{
+        type: :string,
+        enum: ["explore"],
+        nullable: true,
+        description:
+          "Why the item sits where it does beyond its score: `explore` means an explore " <>
+            "slot placed it, to broaden the feed (ranker v1.2+). The score is unaffected."
+      },
       settings_version: %Schema{type: :integer},
       settings: TSpecWeb.Schemas.AlgorithmSettings,
       topic_names: %Schema{

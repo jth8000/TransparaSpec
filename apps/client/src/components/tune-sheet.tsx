@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sourceMultiplier, topicControl, useAlgorithmSettings, useSettingsEditor } from '@/lib/algorithm';
 import { api, unwrap } from '@/lib/api';
-import { sourceLabel } from '@/lib/explanation';
+import { sourceControlLabel } from '@/lib/explanation';
 import type { SettingsChange } from '@/lib/settings-batch';
 import { useTopics } from '@/lib/topics';
 import { colors, radius, space } from '@/theme';
@@ -88,7 +88,7 @@ export function TuneSheet({ focus, send, onClose }: Props) {
           (settings?.available_sources ?? []).map((source) => (
             <TopicControl
               key={source}
-              label={sourceLabel(source)}
+              label={sourceControlLabel(source)}
               multiplier={sourceMultiplier(settings, pending, source)}
               onChange={(ch) =>
                 ch.multiplier !== undefined && change({ sources: { [source]: ch.multiplier } })

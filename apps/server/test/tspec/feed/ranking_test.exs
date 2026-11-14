@@ -172,6 +172,50 @@ defmodule TSpec.Feed.RankingTest do
       assert_in_delta candidate.quality, (1 + 10 * Candidates.prior_rate()) / (1 + 10), 1.0e-9
     end
 
+    test "explore nominates only items whose topics are all new to the viewer",
+         %{viewer: viewer, scope: scope} do
+      creator = onboarded_user_fixture()
+      watch!(scope, ready_video_fixture(creator, topics: ["cooking"]))
+
+      new = ready_video_fixture(creator, topics: ["travel"])
+      mixed = ready_video_fixture(creator, topics: ["travel", "cooking"])
+      unlabeled = ready_video_fixture(creator, topics: [])
+
+      explored =
+        for c <- gather(viewer), "explore" in c.sources, into: MapSet.new(), do: c.content_id
+
+      assert MapSet.member?(explored, new.id)
+      refute MapSet.member?(explored, mixed.id)
+      refute MapSet.member?(explored, unlabeled.id)
+
+      # At 0 the Explore slider turns the source off.
+      off = %Settings{sources: %{"explore" => 0.0}}
+      refute Enum.any?(gather(viewer, off), &("explore" in &1.sources))
+    end
+
+    test "a forgotten topic is held back from explore for 30 days, then offered again",
+         %{viewer: viewer} do
+      cooking = Content.topics_by_slug()["cooking"].id
+      now = DateTime.utc_now()
+      :ok = Interests.forget(viewer.id, :topic, cooking, now)
+
+      known = fn at -> Ranking.features(viewer.id, %Settings{}, at).known_topic_ids end
+      assert MapSet.member?(known.(now), cooking)
+      assert MapSet.member?(known.(DateTime.add(now, 29, :day)), cooking)
+      refute MapSet.member?(known.(DateTime.add(now, 31, :day)), cooking)
+    end
+
+    test "an interest that has faded stops counting as known", %{viewer: viewer, scope: scope} do
+      watch!(scope, ready_video_fixture(onboarded_user_fixture(), topics: ["travel"]))
+      travel = Content.topics_by_slug()["travel"].id
+      now = DateTime.utc_now()
+
+      known = fn at -> Ranking.features(viewer.id, %Settings{}, at).known_topic_ids end
+      assert MapSet.member?(known.(now), travel)
+      # One finished view (score 1.0) falls under the threshold in ~38 days.
+      refute MapSet.member?(known.(DateTime.add(now, 40, :day)), travel)
+    end
+
     test "reading a text post doesn't count against its quality", %{viewer: viewer} do
       post = text_post_fixture(onboarded_user_fixture())
       now = DateTime.utc_now()

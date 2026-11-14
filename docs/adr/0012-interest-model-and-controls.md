@@ -1,7 +1,7 @@
 # ADR 0012: Interest model v1 and user controls
 
 - **Status:** Accepted
-- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: forget boundaries and no parent fallback for forgotten topics, per-use view eligibility, distinct-user aggregates, no job dedupe; amended 2026-10-29: the mode change locks the user row `FOR NO KEY UPDATE`; amended 2026-11-06 by [ADR 0014](0014-label-shares.md): labels share an item in ranking and learning)
+- **Date:** 2026-10-21 (amended 2026-10-23 and 2026-10-24 after reviews: forget boundaries and no parent fallback for forgotten topics, per-use view eligibility, distinct-user aggregates, no job dedupe; amended 2026-10-29: the mode change locks the user row `FOR NO KEY UPDATE`; amended 2026-11-06 by [ADR 0014](0014-label-shares.md): labels share an item in ranking and learning; amended 2026-11-13 by [ADR 0015](0015-explore-slots.md): the Explore slider sets the explore slot rate, not a source weight)
 
 ## Context
 The ranker (ADR 0006) needs a per-user interest profile: how much this person likes each topic and creator. It also needs controls whose meaning users can rely on:

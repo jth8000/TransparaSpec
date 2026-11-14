@@ -15,13 +15,29 @@ defmodule TSpec.Feed.Ranking do
   alias TSpec.Feed.{Candidates, Interests, Ranker, Settings}
   alias TSpec.Feed.Interests.Weights
 
+  # A forgotten topic isn't offered back as "something new" this soon.
+  @forget_hold_days 30
+
+  def forget_hold_days, do: @forget_hold_days
+
   @doc """
   The user features the ranker reads, at `now`. In non-personalized mode the
   learned maps are empty and `personalized` is false (ADR 0012).
+
+  `known_topic_ids` are the topics the user has history with, for explore
+  slots (ADR 0015): a learned value at least `Ranker.explore_known_value/0`
+  from 0, or forgotten within the last #{@forget_hold_days} days. Faded
+  interests and old forgets become explorable again.
   """
   def features(user_id, %Settings{} = settings, now \\ DateTime.utc_now()) do
     if settings.non_personalized do
-      %{now: now, personalized: false, topic_affinity: %{}, creator_affinity: %{}}
+      %{
+        now: now,
+        personalized: false,
+        topic_affinity: %{},
+        creator_affinity: %{},
+        known_topic_ids: MapSet.new()
+      }
     else
       w = Weights.get()
 
@@ -29,16 +45,22 @@ defmodule TSpec.Feed.Ranking do
         Map.new(affinities, fn {k, a} -> {k, Interests.feature_value(a.score, w)} end)
       end
 
+      learned = squash.(Interests.topic_affinities(user_id, now))
+      hold_since = DateTime.add(now, -@forget_hold_days, :day)
+
+      known =
+        for({id, v} <- learned, abs(v) >= Ranker.explore_known_value(), do: id)
+        |> Enum.concat(Interests.forgotten_topic_ids(user_id, since: hold_since))
+        |> MapSet.new()
+
       %{
         now: now,
         personalized: true,
         # Forgotten topics are a known zero: no parent fallback.
         topic_affinity:
-          Map.merge(
-            Map.new(Interests.forgotten_topic_ids(user_id), &{&1, 0.0}),
-            squash.(Interests.topic_affinities(user_id, now))
-          ),
-        creator_affinity: squash.(Interests.creator_affinities(user_id, now))
+          Map.merge(Map.new(Interests.forgotten_topic_ids(user_id), &{&1, 0.0}), learned),
+        creator_affinity: squash.(Interests.creator_affinities(user_id, now)),
+        known_topic_ids: known
       }
     end
   end
@@ -78,6 +100,7 @@ defmodule TSpec.Feed.Ranking do
           sources: s.sources,
           final_score: s.final_score,
           contributions: s.contributions,
+          placement: s.placement,
           settings_version: ctx.settings.version,
           settings_snapshot_id: snapshot_id
         }

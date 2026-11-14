@@ -124,7 +124,7 @@ Comments and replies are `content_items` with `parent_id` set and `root_id` poin
    - `topic`: top recent or quality items from the user's highest-affinity topics.
    - `co_engagement`: "people who completed X also completed Y". Starts as a SQL aggregate over recent completions and evolves into a Pixie-style random walk over the user–item bipartite graph.
    - `trending`: per-topic and global velocity pools, refreshed by Oban.
-   - `explore`: under-sampled topics, so the profile doesn't narrow into a filter bubble.
+   - `explore`: items whose topics are all new to the user, so the profile doesn't narrow into a filter bubble. They're guaranteed reserved positions (every 10th by default) rather than a score bonus ([ADR 0015](adr/0015-explore-slots.md)).
 2. **Filtering.** Remove seen, blocked, muted, hard-off topics, and anything moderated or unready.
 3. **Scoring.**
    `score = Σ_k  w_k(user) · f_k(item, user)`
@@ -145,7 +145,7 @@ When the user changes a weight, every one of their sessions re-scores its cache 
 - Topic sliders add an explicit `topic_preference` contribution as well as scaling the learned affinity, and are monotonic by construction. Non-personalized mode turns off every inferred signal (ADR 0012).
 - Users can see the evidence count and recent contributing events for each affinity, and edit or delete it.
 
-### Ranker v1 as built (Phase 1a, v1.1 since ADR 0014)
+### Ranker v1 as built (Phase 1a; v1.1 since ADR 0014, v1.2 since ADR 0015)
 The full explanation, with worked examples and every default, is in [ranking.md](ranking.md). This section is the summary.
 
 - **Features and default weights** (`Feed.Ranker.Defaults`):
@@ -163,6 +163,7 @@ The full explanation, with worked examples and every default, is in [ranking.md]
 
   `topic_preference > topic_affinity` is a compile-time requirement, because it is what makes sliders monotonic. A label's share is `confidence / max(1, Σ confidences)`, so an item's labels split its topic signal instead of adding up; learning uses the same shares, and hard-off uses raw confidence ([ADR 0014](adr/0014-label-shares.md)).
 - **Candidate pool:** up to about 700 per session (following 150, topic 150, trending 150, co-engagement 100, fresh 100, explore 50). Seen items (viewed in the last 48 h) and items already served in the session are excluded.
+- **Explore slots:** every `round(10 / m)`-th position (Explore slider `m`) goes to the best item whose topics are all new to the user, chosen inside the diversity pass. The impression records `placement: "explore"`; the score is unchanged ([ADR 0015](adr/0015-explore-slots.md)).
 - **The trace:** each contribution is stored as `{feature, topic?, label_sources?, confidence?, label_share?, source?, default_weight, user_multiplier, weight, value, contribution}`, and `final_score` is their sum in list order.
 - **Endpoints:**
   - `GET /api/feed/for-you`, plus channel `feed_session:<id>`

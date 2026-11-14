@@ -17,7 +17,7 @@ import {
 } from '@/lib/algorithm';
 import { api, unwrap } from '@/lib/api';
 import { useFlushEvents } from '@/lib/events';
-import { sourceLabel } from '@/lib/explanation';
+import { sourceControlLabel } from '@/lib/explanation';
 import { filterTree, topicTree, useTopics } from '@/lib/topics';
 import { colors, radius, space } from '@/theme';
 
@@ -189,7 +189,7 @@ export default function AlgorithmScreen() {
         {(settings?.available_sources ?? []).map((source) => (
           <TopicControl
             key={source}
-            label={sourceLabel(source)}
+            label={sourceControlLabel(source)}
             multiplier={sourceMultiplier(settings, pending, source)}
             onChange={(ch) => ch.multiplier !== undefined && change({ sources: { [source]: ch.multiplier } })}
             testID={`algo-source-${source}`}
