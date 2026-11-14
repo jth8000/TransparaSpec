@@ -15,7 +15,7 @@ For experienced Elixir, distributed-systems and security reviewers looking at T-
 
 ## Checking the claims
 
-- **`make mutation-check`** ([`scripts/mutation_checks.py`](../../scripts/mutation_checks.py)) breaks each guard in the invariant tables (a lock, a conditional `UPDATE`, a version check, a client-side check), runs the tests that should catch it (ExUnit or Jest), and restores the file. Every row with a mutation id should report CAUGHT. It takes a few minutes.
+- **`make mutation-check`** ([`scripts/mutation_checks.py`](../../scripts/mutation_checks.py)) breaks each guard in the invariant tables (a lock, a conditional `UPDATE`, a version check, a client-side check), runs the tests that should catch it (ExUnit or Jest), and restores the file. Every row with a mutation id should report CAUGHT. It takes a few minutes. `make mutation-patterns` (part of `make test` and CI) checks in under a second that every pattern still matches its code, so an edit can't quietly disable a check.
 - **`test/tspec/docs/review_packet_test.exs`** runs in `make test`. It fails if this packet links to a file that doesn't exist, cites a test (ExUnit or Jest) that isn't in its file, or the mutation ids cited here and the script's disagree.
 - **Running the tests:** `make setup`, then `make test`. `AGENTS.md` lists the gotchas, such as which tests must be `async: false` and why.
 
