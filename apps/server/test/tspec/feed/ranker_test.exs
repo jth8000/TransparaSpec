@@ -350,6 +350,40 @@ defmodule TSpec.Feed.RankerTest do
       end
     end
 
+    property "boosting a topic never takes its items out of explore slots" do
+      check all(
+              feats <- features(),
+              s <- settings(),
+              topic <- member_of(@topics),
+              m <- member_of([1.25, 1.5, 2.0])
+            ) do
+        at = fn mult ->
+          %{s | topics: Map.put(s.topics, topic, %{multiplier: mult, hard_off: false})}
+        end
+
+        assert Ranker.explore_blocked_topic_ids(feats, at.(m), @taxonomy) ==
+                 Ranker.explore_blocked_topic_ids(feats, at.(1.0), @taxonomy)
+      end
+    end
+
+    property "blocked topics come in whole tier-1 families" do
+      check all(feats <- features(), s <- settings()) do
+        blocked = Ranker.explore_blocked_topic_ids(feats, s, @taxonomy)
+
+        for {id, %{parent_id: parent}} <- @taxonomy, parent != nil do
+          assert MapSet.member?(blocked, id) == MapSet.member?(blocked, parent)
+        end
+      end
+    end
+
+    property "no slots when nothing is blocked" do
+      check all(cands <- candidates(), feats <- features(), s <- settings()) do
+        if Ranker.explore_blocked_topic_ids(feats, s, @taxonomy) == MapSet.new() do
+          for item <- rank(cands, feats, s), do: assert(item.placement == nil)
+        end
+      end
+    end
+
     test "the slider sets the spacing" do
       every = fn m -> Ranker.explore_every(%Settings{sources: %{"explore" => m}}) end
       assert Enum.map([0.0, 0.25, 0.5, 1.0, 1.5, 2.0], every) == [nil, 40, 20, 10, 7, 5]
@@ -517,28 +551,67 @@ defmodule TSpec.Feed.RankerTest do
       assert value <= -1.0
     end
 
-    test "known topics, their children, and topics on a moved slider aren't explorable" do
-      feats = %{@feats | topic_affinity: %{"health" => 0.4, "music" => 0.01}}
+    test "a known topic blocks its whole tier-1 family, parents included" do
+      # Fitness is known; its parent Health has faded below the threshold.
+      feats = %{@feats | topic_affinity: %{"fitness" => 0.4, "health" => 0.01, "music" => 0.01}}
       blocked = Ranker.explore_blocked_topic_ids(feats, %Settings{}, @taxonomy)
-
-      # Health is known, and so is its child Fitness; a faded Music isn't.
       assert MapSet.equal?(blocked, MapSet.new(["health", "fitness"]))
 
-      boosted = %Settings{topics: %{"food" => %{multiplier: 1.5, hard_off: false}}}
-      blocked = Ranker.explore_blocked_topic_ids(feats, boosted, @taxonomy)
-      assert MapSet.subset?(MapSet.new(["food", "cooking"]), blocked)
+      refute Ranker.explorable?(item("c1", "a1", [{"health", 1.0}]), blocked)
+      refute Ranker.explorable?(item("c2", "a1", [{"music", 1.0}, {"fitness", 0.2}]), blocked)
+      assert Ranker.explorable?(item("c3", "a1", [{"music", 1.0}]), blocked)
+      refute Ranker.explorable?(item("c4", "a1", []), blocked)
 
-      # A forget the caller marks as known (Ranking.features) holds too.
-      held = Map.put(feats, :known_topic_ids, MapSet.new(["music"]))
+      # Known through the caller (a recent forget, or shown in this session).
+      held = Map.put(feats, :known_topic_ids, MapSet.new(["cooking"]))
 
-      assert MapSet.member?(
+      assert MapSet.equal?(
                Ranker.explore_blocked_topic_ids(held, %Settings{}, @taxonomy),
-               "music"
+               MapSet.new(["food", "cooking"])
+             )
+    end
+
+    test "a slider below 1× blocks a topic's family; a boost doesn't" do
+      less = %Settings{topics: %{"food" => %{multiplier: 0.5, hard_off: false}}}
+
+      assert MapSet.equal?(
+               Ranker.explore_blocked_topic_ids(@feats, less, @taxonomy),
+               MapSet.new(["food", "cooking"])
              )
 
-      refute Ranker.explorable?(item("c1", "a1", [{"music", 1.0}, {"fitness", 0.2}]), blocked)
-      assert Ranker.explorable?(item("c2", "a1", [{"music", 1.0}]), blocked)
-      refute Ranker.explorable?(item("c3", "a1", []), blocked)
+      more = %Settings{topics: %{"food" => %{multiplier: 1.5, hard_off: false}}}
+      assert Ranker.explore_blocked_topic_ids(@feats, more, @taxonomy) == MapSet.new()
+    end
+
+    test "nudging up a topic an explore slot introduced keeps it in the slots" do
+      # The reviewer's case: someone who loves cooking sees Music in a slot,
+      # likes it, and moves Music to 1.25×.
+      feats = %{@feats | topic_affinity: %{"cooking" => 0.95}}
+      cooking = for n <- 1..15, do: item("c#{n}", "cook#{n}", [{"cooking", 1.0}])
+      music = item("m1", "musician", [{"music", 1.0}])
+
+      position = fn m ->
+        s = %Settings{topics: %{"music" => %{multiplier: m, hard_off: false}}}
+        ranked = Ranker.rank([music | cooking], feats, s, @taxonomy)
+
+        {Enum.find_index(ranked, &(&1.content_id == "m1")),
+         Enum.find(ranked, &(&1.content_id == "m1"))}
+      end
+
+      assert {9, %{placement: "explore"}} = position.(1.0)
+
+      # Any boost keeps it at least as early as its slot (before v1.3, a
+      # boost made Music "known" and it fell to the end of the feed).
+      for m <- [1.25, 1.5, 2.0] do
+        assert {index, _} = position.(m)
+        assert index <= 9, "at #{m}×, position #{index}"
+      end
+    end
+
+    test "no slots while the user knows no topic (cold start)" do
+      cands = for n <- 1..15, do: item("c#{n}", "a#{n}", [{"cooking", 1.0}])
+      ranked = Ranker.rank(cands, @feats, %Settings{}, @taxonomy)
+      assert Enum.all?(ranked, &(&1.placement == nil))
     end
 
     test "diversity carries over from items already shown" do

@@ -23,12 +23,21 @@ export const sourceControlLabel = (source: string) =>
     ? 'Something new to explore (how often: at 1×, every 10th post)'
     : sourceLabel(source);
 
-/** Why the item sits where it does beyond its score, if a slot placed it. */
-export const placementNote = (e: Explanation): string | null =>
-  e.placement === 'explore'
-    ? "Shown to broaden your feed: this spot is kept for a topic you haven't watched. " +
-      'Its score is unchanged.'
-    : null;
+/**
+ * Why the item sits where it does beyond its score, if a slot placed it.
+ * A topic you boosted can still be new to you (ADR 0015); the stored trace
+ * says so with a positive `topic_preference` row, so nothing is recomputed.
+ */
+export function placementNote(e: Explanation): string | null {
+  if (e.placement !== 'explore') return null;
+
+  const boosted = e.contributions.some((c) => c.feature === 'topic_preference' && c.weight > 0);
+  const topic = boosted
+    ? "a topic you boosted but haven't watched lately"
+    : "a topic that's new to you";
+
+  return `Shown to broaden your feed: this spot is kept for ${topic}. Its score is unchanged.`;
+}
 
 export type ExplanationRow = {
   key: string;

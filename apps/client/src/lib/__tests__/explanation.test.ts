@@ -1,6 +1,7 @@
 import {
   explanationRows,
   labelSources,
+  placementNote,
   sourceControlLabel,
   sourceLabel,
   type Explanation,
@@ -118,5 +119,27 @@ describe('sourceControlLabel', () => {
   it('says the Explore slider sets how often, and leaves other sources as they are', () => {
     expect(sourceControlLabel('explore')).toMatch(/how often/);
     expect(sourceControlLabel('trending')).toBe(sourceLabel('trending'));
+  });
+});
+
+describe('placementNote', () => {
+  const placed = (contributions: Explanation['contributions']) => ({
+    ...explanation(contributions),
+    placement: 'explore' as const,
+  });
+
+  it('says why an explore slot placed the item, from the stored trace', () => {
+    expect(placementNote(placed([]))).toBe(
+      "Shown to broaden your feed: this spot is kept for a topic that's new to you. " +
+        'Its score is unchanged.',
+    );
+    const boosted = placed([
+      c({ feature: 'topic_preference', topic: 'cooking', weight: 0.375, user_multiplier: 1.25 }),
+    ]);
+    expect(placementNote(boosted)).toMatch(/a topic you boosted but haven't watched lately/);
+  });
+
+  it('says nothing for an ordinary placement', () => {
+    expect(placementNote(explanation([]))).toBeNull();
   });
 });

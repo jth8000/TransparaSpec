@@ -1,6 +1,6 @@
 defmodule TSpec.Feed.Ranker do
   @moduledoc """
-  Ranker v1.2: a decomposable, explainable scorer (ADR 0006).
+  Ranker v1.3: a decomposable, explainable scorer (ADR 0006).
 
       final_score = Σ contribution,   contribution = weight × value
 
@@ -35,11 +35,12 @@ defmodule TSpec.Feed.Ranker do
 
   Every `explore_every/1`-th position of the feed (counted across the whole
   session, from `opts[:start_position]`) is reserved for the best
-  *explorable* item: one whose topics are all new to the user. The slot is
-  filled inside the greedy diversity pass, so the diversity window sees it.
-  A slot changes where an item goes, never its score: the item is marked
-  `placement: "explore"` and its trace still sums to its score. With no
-  explorable item left, the slot is filled normally.
+  *explorable* item: one whose topics are all in areas new to the user. The
+  slot is filled inside the greedy diversity pass, so the diversity window
+  sees it. A slot changes where an item goes, never its score: the item is
+  marked `placement: "explore"` and its trace still sums to its score. With
+  no explorable item left, the slot is filled normally. Until the user
+  knows some topic there are no slots: everything would be "new".
 
   A zero-valued learned feature is omitted rather than listed as 0, to keep
   explanations readable; it changes no sums.
@@ -49,7 +50,7 @@ defmodule TSpec.Feed.Ranker do
   alias TSpec.Feed.Ranker.Defaults
   alias TSpec.Feed.Settings
 
-  @version "v1.2"
+  @version "v1.3"
   @hard_off_threshold 0.5
   @diversity_depth 50
   @creator_window 5
@@ -121,14 +122,23 @@ defmodule TSpec.Feed.Ranker do
   end
 
   @doc """
-  Topic ids that make an item *not* explorable: topics the user knows (a
-  learned value at least `explore_known_value/0` from 0, a recent forget,
-  or a slider moved off 1×), and the children of each. An item is
-  explorable when none of its labels is in this set.
+  Topic ids that make an item *not* explorable (ADR 0015): every topic in a
+  tier-1 *family* (a tier-1 topic and its subtopics) where the user knows
+  some topic. An item is explorable when none of its labels is in this set.
 
-  `features.known_topic_ids` holds the user's known topics by history (see
-  `TSpec.Feed.Ranking.features/3`); without it, they're read off
-  `features.topic_affinity`.
+  The user knows a topic when:
+
+    * it's in `features.known_topic_ids`: a learned value at least
+      `explore_known_value/0` from 0, a recent forget, or (in a feed
+      session) a topic of an item the client has already shown. Without
+      that key, known topics are read off `features.topic_affinity`.
+    * its slider, or its parent's, is **below** 1×. A boosted topic stays
+      explorable: "a bit more Travel" must never take Travel out of the
+      slots that brought it.
+
+  Whole families, because learning credits a parent only half of what its
+  child gets: the parent fades first, and someone who loves Fitness would
+  otherwise be offered Healthy Living as new.
   """
   def explore_blocked_topic_ids(features, %Settings{} = settings, taxonomy) do
     by_history =
@@ -143,16 +153,29 @@ defmodule TSpec.Feed.Ranker do
       taxonomy
       |> Enum.filter(fn {_id, t} ->
         parent_slug = t.parent_id && taxonomy[t.parent_id].slug
-        Settings.topic_multiplier(settings, t.slug, parent_slug) != 1.0
+        Settings.topic_multiplier(settings, t.slug, parent_slug) < 1.0
       end)
-      |> MapSet.new(&elem(&1, 0))
+      |> Enum.map(&elem(&1, 0))
 
-    known = MapSet.union(MapSet.new(by_history), by_slider)
+    known_families =
+      by_history
+      |> Enum.concat(by_slider)
+      |> Enum.flat_map(&List.wrap(family(&1, taxonomy)))
+      |> MapSet.new()
 
-    for {id, t} <- taxonomy,
-        MapSet.member?(known, id) or (t.parent_id != nil and MapSet.member?(known, t.parent_id)),
+    for {id, _t} <- taxonomy,
+        MapSet.member?(known_families, family(id, taxonomy)),
         into: MapSet.new(),
         do: id
+  end
+
+  # A topic's tier-1 root: itself for a tier-1 topic, else its parent.
+  defp family(id, taxonomy) do
+    case taxonomy[id] do
+      nil -> nil
+      %{parent_id: nil} -> id
+      %{parent_id: parent} -> parent
+    end
   end
 
   @doc "Whether an item is explorable: it has labels, and none is blocked."
@@ -203,20 +226,25 @@ defmodule TSpec.Feed.Ranker do
     depth = Keyword.get(opts, :diversity_depth, @diversity_depth)
     start = Keyword.get(opts, :start_position, length(recent))
 
-    explorable? =
-      if features.personalized and explore_every(settings) do
-        blocked = explore_blocked_topic_ids(features, settings, taxonomy)
-        &explorable?(&1, blocked)
+    # No slots in non-personalized mode, at an Explore slider of 0, or while
+    # the user knows no topic (everything would be "new": cold start).
+    {every, blocked} =
+      with true <- features.personalized,
+           every when every != nil <- explore_every(settings),
+           blocked <- explore_blocked_topic_ids(features, settings, taxonomy),
+           false <- MapSet.size(blocked) == 0 do
+        {every, blocked}
       else
-        fn _ -> false end
+        _ -> {nil, nil}
       end
 
     scored =
       for c <- candidates, eligible?(c, settings, taxonomy) do
-        %{score(c, features, settings, taxonomy) | explorable: explorable?.(c)}
+        explorable = blocked != nil and explorable?(c, blocked)
+        %{score(c, features, settings, taxonomy) | explorable: explorable}
       end
 
-    {greedy, rest} = greedy(scored, recent, depth, {start, explore_every(settings)})
+    {greedy, rest} = greedy(scored, recent, depth, {start, every})
     greedy ++ Enum.sort_by(rest, &{-&1.final_score, &1.content_id})
   end
 

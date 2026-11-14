@@ -98,8 +98,24 @@ defmodule TSpec.Feed.SessionTest do
   end
 
   describe "explore slots (ADR 0015)" do
-    # Cooking and fitness are on moved sliders, so only travel is new.
-    setup %{scope: scope} do
+    # Cooking and fitness are known (learned) and boosted, so they outscore
+    # everything else; travel and music are new to the viewer.
+    setup %{viewer: viewer, scope: scope, items: items} do
+      now = DateTime.utc_now()
+
+      Repo.insert_all(
+        TSpec.Feed.TopicAffinity,
+        for slug <- ~w(cooking fitness-and-exercise) do
+          %{
+            user_id: viewer.id,
+            topic_id: Content.topics_by_slug()[slug].id,
+            score: 9.0,
+            evidence_count: 9,
+            as_of: now
+          }
+        end
+      )
+
       {:ok, _} =
         Transparency.update_settings(scope, %{
           topics: %{
@@ -108,12 +124,32 @@ defmodule TSpec.Feed.SessionTest do
           }
         })
 
-      :ok
+      creators = for _ <- 1..3, do: onboarded_user_fixture()
+      %{items: Map.put(items, :music, bulk_items(creators, 5, "music"))}
     end
 
     defp placement(scope, impression_id) do
       {:ok, i} = Events.get_impression(scope, impression_id)
       {i.position, i.placement}
+    end
+
+    defp new_topic(content_id, items) do
+      Enum.find([:travel, :music], &labeled?(content_id, items, &1))
+    end
+
+    defp show!(scope, pid, {scored, impression_id}) do
+      {:ok, _} =
+        Events.record(scope, [
+          %{
+            content_id: scored.content_id,
+            type: "view_start",
+            occurred_at: DateTime.utc_now(),
+            impression_id: impression_id
+          }
+        ])
+
+      Session.at(pid, impression_id, 0)
+      _ = Session.state(pid)
     end
 
     test "every 10th item is new to the viewer, across pages", %{scope: scope, items: items} do
@@ -123,10 +159,10 @@ defmodule TSpec.Feed.SessionTest do
 
       for {{scored, impression_id}, position} <- Enum.with_index(p1 ++ p2) do
         if position in [9, 19] do
-          assert labeled?(scored.content_id, items, :travel)
+          assert new_topic(scored.content_id, items)
           assert placement(scope, impression_id) == {position, "explore"}
         else
-          refute labeled?(scored.content_id, items, :travel)
+          refute new_topic(scored.content_id, items)
           assert placement(scope, impression_id) == {position, nil}
         end
       end
@@ -151,10 +187,90 @@ defmodule TSpec.Feed.SessionTest do
 
       assert_receive {:feed_reranked, %{rev: 1, items: [{first, i18}, {second, i19} | _]}}, 2_000
 
-      refute labeled?(first.content_id, items, :travel)
+      refute new_topic(first.content_id, items)
       assert placement(scope, i18) == {18, nil}
-      assert labeled?(second.content_id, items, :travel)
+      assert new_topic(second.content_id, items)
       assert placement(scope, i19) == {19, "explore"}
+    end
+
+    test "refills and a restarted session's first gather use the shown topics too", %{
+      scope: scope,
+      items: items
+    } do
+      test = self()
+
+      # The real gather, reporting which topics it was told are known.
+      gather = fn user_id, settings, features, opts ->
+        send(test, {:gathered, opts[:refill] == true, features.known_topic_ids})
+        Candidates.gather(user_id, settings, features, opts)
+      end
+
+      {sid, pid} = start!(scope, gather: gather)
+      {:ok, %{items: p1}} = Session.next_page(pid, 10)
+      {slotted, _} = Enum.at(p1, 9)
+      first_new = new_topic(slotted.content_id, items)
+      topic_id = Content.topics_by_slug()[to_string(first_new)].id
+      show!(scope, pid, Enum.at(p1, 9))
+
+      # Boosting a topic the cache lacks starts a targeted refill.
+      flush_gathered()
+
+      {:ok, _} =
+        Transparency.update_settings(scope, %{topics: %{"video-gaming" => %{multiplier: 2.0}}})
+
+      assert_receive {:gathered, true, known}, 2_000
+      assert MapSet.member?(known, topic_id)
+
+      # The process goes away; its replacement gathers with them as well.
+      ref = Process.monitor(pid)
+      Process.exit(pid, :kill)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
+      flush_gathered()
+      {:ok, _pid2} = Session.ensure(scope, sid, gather: gather)
+      assert_receive {:gathered, false, known}, 2_000
+      assert MapSet.member?(known, topic_id)
+    end
+
+    defp flush_gathered do
+      receive do
+        {:gathered, _, _} -> flush_gathered()
+      after
+        0 -> :ok
+      end
+    end
+
+    test "a topic this feed has shown isn't offered as new again, even after a restart", %{
+      scope: scope,
+      items: items
+    } do
+      {sid, pid} = start!(scope)
+      {:ok, %{items: p1}} = Session.next_page(pid, 10)
+      {slotted, _} = Enum.at(p1, 9)
+      first_new = new_topic(slotted.content_id, items)
+      assert first_new
+
+      # The client shows the explore item. The learned profile hasn't caught
+      # up (no features recomputed), but the session knows.
+      show!(scope, pid, Enum.at(p1, 9))
+
+      {:ok, %{items: p2}} = Session.next_page(pid, 10)
+      {second, i19} = Enum.at(p2, 9)
+      assert placement(scope, i19) == {19, "explore"}
+      assert new_topic(second.content_id, items) not in [nil, first_new]
+
+      # The process goes away and rebuilds from the stored exposures.
+      ref = Process.monitor(pid)
+      Process.exit(pid, :kill)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
+      {:ok, pid2} = Session.ensure(scope, sid)
+      first_topic_id = Content.topics_by_slug()[to_string(first_new)].id
+      assert MapSet.member?(Session.state(pid2).seen_topic_ids, first_topic_id)
+
+      {:ok, %{items: p3}} = Session.next_page(pid2, 10)
+
+      for {s, _} <- p3,
+          s.placement == "explore",
+          do: refute(labeled?(s.content_id, items, first_new))
     end
   end
 
