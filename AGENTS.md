@@ -64,10 +64,11 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
 ## Commands
 - `make setup` / `make dev` (API :4000) / `make web` (:8081) / `make android`
 - `cd apps/server && mix tspec.seed_demo`: demo creators and topic-labeled content for For You (dev, idempotent)
-- `make test`: `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test --warnings-as-errors`, client `tsc` + `expo lint` + `jest`, and `make api-check`
+- `make test`: `make mutation-patterns`, `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test --warnings-as-errors`, client `tsc` + `expo lint` + `jest`, and `make api-check`
 - `make e2e`: Playwright web flow. It reads sign-in codes from `GET /dev/mailbox/json`.
 - `make security`: `mix hex.audit`, Sobelow and the npm advisory check. Needs the network; CI runs it on every push and weekly.
-- `make mutation-check`: breaks each guard in `docs/review/` (server and client) and checks that its tests fail. Takes a few minutes; not part of `make test`.
+- `make mutation-check`: breaks each guard in `docs/review/` (server and client) and checks that its tests fail. Takes a few minutes; not part of `make test`. Check its exit status rather than counting CAUGHT lines: a pattern that no longer matches prints `PATTERN NOT FOUND` and fails the run.
+- `make mutation-patterns`: only checks that every mutation's pattern still matches its code exactly once (under a second). Part of `make test` and CI, so changing a guarded line means updating its pattern in the same commit.
 - `make expo-check` / `make expo-fix`: check, or move together, the client packages Expo pins for our SDK (`npx expo install --check` / `--fix`). Needs the network; CI runs the check as `expo-deps`.
 - `make api-gen`: run after any API change, and commit the regenerated `packages/api-schema`
 - Shells need mise activated for Erlang/Elixir (`eval "$(mise env -s bash)"`) and Node 24 (`nvm use`).

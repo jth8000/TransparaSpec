@@ -44,6 +44,9 @@ jobs:
             apps/server/deps
             apps/server/_build
           key: mix-${{ runner.os }}-${{ hashFiles('.tool-versions', 'apps/server/mix.lock') }}
+      # A code change that no longer matches a mutation check's pattern would
+      # silently disable that check (docs/review/); this takes under a second.
+      - run: python3 ../../scripts/mutation_checks.py --check-patterns
       - run: mix deps.get
       - run: mix format --check-formatted
       - run: mix compile --warnings-as-errors
