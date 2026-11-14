@@ -7,6 +7,8 @@ defmodule TSpec.Feed.RankerTest do
   alias TSpec.Feed.Ranker.{Candidate, Defaults}
   alias TSpec.Feed.Settings
 
+  doctest Ranker
+
   # health > fitness, food > cooking, plus a parentless "music".
   @taxonomy %{
     "health" => %{id: "health", slug: "health", parent_id: nil},
@@ -269,7 +271,12 @@ defmodule TSpec.Feed.RankerTest do
   end
 
   property "a source multiplier of 0 zeroes exactly that source's prior" do
-    check all(cand <- candidate(), feats <- features(), source <- member_of(Settings.sources())) do
+    # Not explore: its slider sets the explore slot rate instead (ADR 0015).
+    check all(
+            cand <- candidate(),
+            feats <- features(),
+            source <- member_of(Settings.sources() -- ["explore"])
+          ) do
       cand = %{cand | sources: [source]}
       base = Ranker.score(cand, feats, %Settings{}, @taxonomy)
       zeroed = Ranker.score(cand, feats, %Settings{sources: %{source => 0.0}}, @taxonomy)
@@ -279,6 +286,74 @@ defmodule TSpec.Feed.RankerTest do
           do: assert(z.contribution == 0.0),
           else: assert(z == b)
       end
+    end
+  end
+
+  property "the Explore slider never changes a score, only where explore slots fall" do
+    check all(cand <- candidate(), feats <- features(), m <- multiplier()) do
+      cand = %{cand | sources: ["explore"]}
+      base = Ranker.score(cand, feats, %Settings{}, @taxonomy)
+      moved = Ranker.score(cand, feats, %Settings{sources: %{"explore" => m}}, @taxonomy)
+      assert moved == base
+    end
+  end
+
+  describe "explore slots" do
+    defp slot?(position, every), do: every != nil and rem(position + 1, every) == 0
+
+    property "a slot holds an explorable item whenever one is left, and only slots are marked" do
+      check all(
+              cands <- candidates(),
+              feats <- features(),
+              s <- settings(),
+              start <- integer(0..25)
+            ) do
+        every = if feats.personalized, do: Ranker.explore_every(s)
+        ranked = rank(cands, feats, s, start_position: start)
+        explorable_total = Enum.count(ranked, & &1.explorable)
+
+        ranked
+        |> Enum.take(50)
+        |> Enum.with_index(start)
+        |> Enum.reduce(0, fn {item, position}, explorable_before ->
+          if slot?(position, every) and explorable_total > explorable_before do
+            assert item.placement == "explore"
+            assert item.explorable
+          else
+            assert item.placement == nil
+          end
+
+          explorable_before + if(item.explorable, do: 1, else: 0)
+        end)
+
+        # Beyond the diversity depth, nothing is placed.
+        for item <- Enum.drop(ranked, 50), do: assert(item.placement == nil)
+      end
+    end
+
+    property "no slots when the Explore slider is at 0 or the feed isn't personalized" do
+      check all(cands <- candidates(), feats <- features(), s <- settings()) do
+        off = %{s | sources: Map.put(s.sources, "explore", 0.0)}
+        for item <- rank(cands, feats, off), do: assert(item.placement == nil)
+
+        for item <- rank(cands, %{feats | personalized: false}, s),
+            do: assert(item.placement == nil)
+      end
+    end
+
+    property "a slot changes an item's position, never its trace or score" do
+      check all(cands <- candidates(), feats <- features(), s <- settings()) do
+        for item <- rank(cands, feats, s), item.placement == "explore" do
+          assert item.final_score === Ranker.sum(item.contributions)
+          refute Enum.any?(item.contributions, &(&1.feature == "explore"))
+        end
+      end
+    end
+
+    test "the slider sets the spacing" do
+      every = fn m -> Ranker.explore_every(%Settings{sources: %{"explore" => m}}) end
+      assert Enum.map([0.0, 0.25, 0.5, 1.0, 1.5, 2.0], every) == [nil, 40, 20, 10, 7, 5]
+      assert Ranker.explore_every(%Settings{non_personalized: true}) == nil
     end
   end
 
@@ -394,6 +469,76 @@ defmodule TSpec.Feed.RankerTest do
 
       third = Enum.at(Ranker.rank(a1 ++ [a2], @feats, %Settings{}, @taxonomy), 2)
       assert %{feature: "diversity", value: -1.0} = List.last(third.contributions)
+    end
+
+    test "a mature profile still sees a new topic every 10th item" do
+      feats = %{@feats | topic_affinity: %{"cooking" => 0.95}}
+      # Fifteen strong cooking items from distinct creators, one weak music item.
+      cooking = for n <- 1..15, do: item("c#{n}", "cook#{n}", [{"cooking", 1.0}])
+      music = item("m1", "musician", [{"music", 1.0}], sources: ["explore"])
+
+      ranked = Ranker.rank([music | cooking], feats, %Settings{}, @taxonomy)
+
+      assert %{content_id: "m1", placement: "explore"} = Enum.at(ranked, 9)
+      assert Enum.count(ranked, &(&1.placement == "explore")) == 1
+
+      # Without the slot it would come last.
+      off = %Settings{sources: %{"explore" => 0.0}}
+
+      assert %{content_id: "m1", placement: nil} =
+               List.last(Ranker.rank([music | cooking], feats, off, @taxonomy))
+    end
+
+    test "slots count from the feed's position, so a later page or re-rank keeps the spacing" do
+      feats = %{@feats | topic_affinity: %{"cooking" => 0.95}}
+      cooking = for n <- 1..15, do: item("c#{n}", "cook#{n}", [{"cooking", 1.0}])
+      music = item("m1", "musician", [{"music", 1.0}])
+
+      # Seven items already sent: the next slot is the 3rd item of this page.
+      ranked = Ranker.rank([music | cooking], feats, %Settings{}, @taxonomy, start_position: 7)
+      assert %{content_id: "m1", placement: "explore"} = Enum.at(ranked, 2)
+    end
+
+    test "the diversity window sees the explore pick" do
+      feats = %{@feats | topic_affinity: %{"cooking" => 0.95}}
+      cooking = for n <- 1..9, do: item("c#{n}", "cook#{n}", [{"cooking", 1.0}])
+      music = item("m1", "musician", [{"music", 1.0}])
+      # The musician again, on cooking: as good as c1..c9 (it loses their
+      # ties on id), and fresher than c10.
+      encore = item("m2", "musician", [{"cooking", 1.0}])
+      older = item("c10", "cook10", [{"cooking", 1.0}], published_at: DateTime.add(@now, -3600))
+
+      ranked = Ranker.rank([music, encore, older | cooking], feats, %Settings{}, @taxonomy)
+      assert Enum.map(Enum.slice(ranked, 9..11), & &1.content_id) == ["m1", "c10", "m2"]
+
+      # Only the musician just placed in the slot puts c10 ahead of m2.
+      m2 = Enum.at(ranked, 11)
+      assert %{feature: "diversity", value: value} = List.last(m2.contributions)
+      assert value <= -1.0
+    end
+
+    test "known topics, their children, and topics on a moved slider aren't explorable" do
+      feats = %{@feats | topic_affinity: %{"health" => 0.4, "music" => 0.01}}
+      blocked = Ranker.explore_blocked_topic_ids(feats, %Settings{}, @taxonomy)
+
+      # Health is known, and so is its child Fitness; a faded Music isn't.
+      assert MapSet.equal?(blocked, MapSet.new(["health", "fitness"]))
+
+      boosted = %Settings{topics: %{"food" => %{multiplier: 1.5, hard_off: false}}}
+      blocked = Ranker.explore_blocked_topic_ids(feats, boosted, @taxonomy)
+      assert MapSet.subset?(MapSet.new(["food", "cooking"]), blocked)
+
+      # A forget the caller marks as known (Ranking.features) holds too.
+      held = Map.put(feats, :known_topic_ids, MapSet.new(["music"]))
+
+      assert MapSet.member?(
+               Ranker.explore_blocked_topic_ids(held, %Settings{}, @taxonomy),
+               "music"
+             )
+
+      refute Ranker.explorable?(item("c1", "a1", [{"music", 1.0}, {"fitness", 0.2}]), blocked)
+      assert Ranker.explorable?(item("c2", "a1", [{"music", 1.0}]), blocked)
+      refute Ranker.explorable?(item("c3", "a1", []), blocked)
     end
 
     test "diversity carries over from items already shown" do

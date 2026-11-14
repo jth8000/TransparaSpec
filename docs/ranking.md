@@ -1,11 +1,11 @@
 # How the For You ranker works
 
-This is the plain-language specification of T-Spec's recommendation math as it is **actually implemented** (ranker `v1.1`). It's written for three readers:
+This is the plain-language specification of T-Spec's recommendation math as it is **actually implemented** (ranker `v1.2`). It's written for three readers:
 - people working on T-Spec;
 - AI agents working on the repo;
 - eventually, curious users who want more than the "Why?" sheet.
 
-The design decisions behind it are in [ADR 0006](adr/0006-interpretable-ranker-persisted-traces.md) (explainable scores), [ADR 0011](adr/0011-feed-sessions-and-live-rerank.md) (feed sessions and live re-ranking) [ADR 0012](adr/0012-interest-model-and-controls.md) (interest model and controls) and [ADR 0014](adr/0014-label-shares.md) (how an item's topic labels share it).
+The design decisions behind it are in [ADR 0006](adr/0006-interpretable-ranker-persisted-traces.md) (explainable scores), [ADR 0011](adr/0011-feed-sessions-and-live-rerank.md) (feed sessions and live re-ranking) [ADR 0012](adr/0012-interest-model-and-controls.md) (interest model and controls), [ADR 0014](adr/0014-label-shares.md) (how an item's topic labels share it) and [ADR 0015](adr/0015-explore-slots.md) (explore slots).
 
 > **Keep this in sync.** The numbers in the [defaults table](#all-the-tunable-numbers) are checked against the code by `test/tspec/docs/ranking_doc_test.exs`. Change a weight in code without updating this page, and `make test` fails.
 
@@ -30,7 +30,7 @@ what you watch ──► views ──► interest model (topic + creator affinit
                                         │
 candidate sources (SQL) ──► eligibility filters ──► scoring (Σ weight × value)
                                                           │
-                                         diversity re-rank (greedy)
+                         diversity re-rank (greedy), with explore slots
                                                           │
                                   served to you + trace saved (impression)
                                                           │
@@ -131,7 +131,7 @@ Before scoring, cheap database queries nominate a few hundred plausible videos. 
 | `topic` | recent items in your top 5 interest topics, **plus every topic you've boosted** (slider above 1×) | 150 |
 | `trending` | the global trending pool | 150 |
 | `co_engagement` | items finished by people who finished what you finished (last 14 days) | 100 |
-| `explore` | random recent items in topics you have no history with | 50 |
+| `explore` | random recent items whose topics are all new to you (see [Explore slots](#explore-slots)); off when the Explore slider is at 0 | 50 |
 | `fresh` | the newest public items | 100 |
 
 **Trending score** = how many **distinct people** finished the item in the last 24 hours × `0.5 ^ (item age / 48 hours)`. It's refreshed every 5 minutes.
@@ -211,7 +211,7 @@ The explicit part is what lets "more Cooking" work even when you've never watche
 - So moving a slider toward "more" **always** raises that topic's score, even for a topic you've skipped a lot.
 - The code refuses to compile if `topic_preference` isn't larger than `topic_affinity`, and a property test sweeps the slider.
 
-One caveat: this is about the item's *score*. Its final *position* can still shift because of the diversity pass.
+One caveat: this is about the item's *score*. Its final *position* can still shift because of the diversity pass and explore slots.
 
 Example: your learned Cooking value is −0.5 (you skip it), and Cooking is the video's only label, at confidence 1.0 (share 1).
 
@@ -230,6 +230,8 @@ An item found by several sources gets **one** `source_prior` row, for whichever 
 | Source | following | co_engagement | topic | trending | explore | fresh |
 |---|---|---|---|---|---|---|
 | Default prior | 0.3 | 0.25 | 0.2 | 0.2 | 0.1 | 0.1 |
+
+The Explore slider is the exception: it sets how often [explore slots](#explore-slots) come up, so the explore source's prior is always 0.1 × 1.
 
 ### Quality: smoothed completion rate
 ```
@@ -253,6 +255,18 @@ contribution    = 0.5 × diversity value
 ```
 
 The window continues across pages and re-ranks: the items already sent count as "previous picks". Positions after the first 50 are ordered by score alone.
+
+### Explore slots
+Once your profile has formed, items from topics you've never watched would almost never win on score: they have no learned interest by construction. So some positions are **kept for something new**:
+
+- **Every 10th position** in your feed (the 10th, 20th, ...) goes to the best *explorable* item. Positions are counted across the whole feed session, so pages and live re-ranks keep the spacing.
+- **Explorable** means the item has topic labels and none of them is a topic you know, or a subtopic of one. You know a topic when:
+  - your learned interest in it is at least **0.05** away from 0 (either way, so topics you skip count too). One finished video fades below that in about five weeks;
+  - you set its slider (or its parent's) to anything but 1×;
+  - you forgot it in the last **30 days**. A forgotten topic isn't offered back as "new" right away.
+- **The slot is filled inside the diversity pass**, by the explorable item with the best score plus diversity. So the next pick sees it in its window. If no explorable item is left, the position is filled normally.
+- **The slot changes where an item goes, not its score.** Its trace still adds up to its saved score. The impression records `placement: "explore"`, and "Why?" says "Shown to broaden your feed".
+- **The Explore slider sets the spacing**: every `round(10 / m)`-th position, so 2× is every 5th and 0.5× every 20th. **At 0, there are no slots and the explore source doesn't run.** Non-personalized mode has no slots.
 
 ### A worked example (real numbers)
 A Cooking video, computed by the actual ranker:
@@ -285,7 +299,8 @@ The `topic_affinity` weight is 1.5, which is the default 1.0 × your 1.5× slide
 Every item sent to you creates an **impression** row, saved at that moment. It holds:
 - the full contribution list and the score;
 - the candidate sources;
-- the ranker version (`v1.1`; explanations saved under `v1` stay as they were);
+- the ranker version (`v1.2`; explanations saved under earlier versions stay as they were);
+- the item's placement, if an explore slot put it there;
 - your settings version, and a snapshot of your settings at that moment;
 - your consent version.
 
@@ -325,7 +340,7 @@ Measured end to end in the browser test: about 230 ms from tap to re-ranked feed
 | Off | Still on |
 |---|---|
 | learned topic and creator interest (`topic_affinity`, `creator_affinity`) | following (an explicit choice) |
-| the `topic`, `co_engagement` and `explore` sources | the `trending` and `fresh` sources |
+| the `topic`, `co_engagement` and `explore` sources, and explore slots | the `trending` and `fresh` sources |
 | learning from what you watch (views are marked not learnable when they start, and when you switch the mode on) | your explicit settings: off switches, topic preference, source weights |
 | your views in other people's "people like you" recommendations | freshness, quality, diversity |
 
@@ -372,6 +387,9 @@ Checked against the code by `test/tspec/docs/ranking_doc_test.exs`.
 | `interest.squash` | 3.0 | `Feed.Interests.Weights` |
 | `interest.parent_share` | 0.5 | `Feed.Interests.Weights` |
 | `ranker.hard_off_threshold` | 0.5 | `Feed.Ranker` |
+| `explore.every` | 10 | `Feed.Ranker` |
+| `explore.known_value` | 0.05 | `Feed.Ranker` |
+| `explore.forget_hold_days` | 30 | `Feed.Ranking` |
 | `quality.prior_views` | 10 | `Feed.Candidates` |
 | `quality.prior_rate` | 0.3 | `Feed.Candidates` |
 <!-- defaults:end -->
@@ -380,6 +398,7 @@ Fixed in code and described above (not yet tunable):
 - **Freshness:** 24 h half-life.
 - **Trending:** 48 h age half-life over 24 h of completions.
 - **Diversity:** the first 50 positions; previous 5 for creators (−1 each), previous 3 for topics (−0.5 each).
+- **Explore slots:** only within those first 50 positions; spacing `round(10 / m)` for Explore slider *m*.
 - **Topic fallback:** half the parent's affinity.
 - **Candidates:**
   - window: 30 days;
@@ -399,7 +418,7 @@ Fixed in code and described above (not yet tunable):
 |---|---|
 | Views, deltas, decay, forgetting | `TSpec.Feed.Interests` (`apps/server/lib/tspec/feed/interests.ex`) |
 | Candidate sources and filters | `TSpec.Feed.Candidates` |
-| Scoring, traces, diversity | `TSpec.Feed.Ranker` (pure) and `Ranker.Defaults` |
+| Scoring, traces, diversity, explore slots | `TSpec.Feed.Ranker` (pure) and `Ranker.Defaults` |
 | Your controls | `TSpec.Feed.Settings`, stored by `TSpec.Transparency` |
 | Live feeds | `TSpec.Feed.Session` |
 | Saved explanations | `TSpec.Events.Impression`, read by `TSpec.Transparency.explain/2` |

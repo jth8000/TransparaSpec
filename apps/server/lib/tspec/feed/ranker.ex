@@ -1,6 +1,6 @@
 defmodule TSpec.Feed.Ranker do
   @moduledoc """
-  Ranker v1.1: a decomposable, explainable scorer (ADR 0006).
+  Ranker v1.2: a decomposable, explainable scorer (ADR 0006).
 
       final_score = Σ contribution,   contribution = weight × value
 
@@ -31,6 +31,16 @@ defmodule TSpec.Feed.Ranker do
   In non-personalized mode `topic_affinity` and `creator_affinity` are left
   out entirely; explicit settings still apply (ADR 0012).
 
+  ## Explore slots (ADR 0015)
+
+  Every `explore_every/1`-th position of the feed (counted across the whole
+  session, from `opts[:start_position]`) is reserved for the best
+  *explorable* item: one whose topics are all new to the user. The slot is
+  filled inside the greedy diversity pass, so the diversity window sees it.
+  A slot changes where an item goes, never its score: the item is marked
+  `placement: "explore"` and its trace still sums to its score. With no
+  explorable item left, the slot is filled normally.
+
   A zero-valued learned feature is omitted rather than listed as 0, to keep
   explanations readable; it changes no sums.
   """
@@ -39,14 +49,22 @@ defmodule TSpec.Feed.Ranker do
   alias TSpec.Feed.Ranker.Defaults
   alias TSpec.Feed.Settings
 
-  @version "v1.1"
+  @version "v1.2"
   @hard_off_threshold 0.5
   @diversity_depth 50
   @creator_window 5
   @topic_window 3
+  # One explore slot per @explore_every positions at the Explore slider's
+  # default (1×); the slider scales the rate.
+  @explore_every 10
+  # A topic counts as known (not explorable) while its learned value is at
+  # least this far from 0, either way. One finished view fades below it in
+  # about five weeks.
+  @explore_known_value 0.05
 
   def version, do: @version
   def hard_off_threshold, do: @hard_off_threshold
+  def explore_known_value, do: @explore_known_value
 
   defmodule Candidate do
     @moduledoc """
@@ -72,11 +90,76 @@ defmodule TSpec.Feed.Ranker do
       :author_id,
       :candidate_source,
       :primary_topic,
+      # "explore" when an explore slot placed the item (ADR 0015).
+      :placement,
+      explorable: false,
       sources: [],
       contributions: [],
       final_score: 0.0
     ]
   end
+
+  @doc """
+  The spacing of explore slots: every `round(10 / m)`-th position, where `m`
+  is the Explore slider, or `nil` (no slots) at 0 and in non-personalized
+  mode.
+
+      iex> TSpec.Feed.Ranker.explore_every(%TSpec.Feed.Settings{})
+      10
+      iex> TSpec.Feed.Ranker.explore_every(%TSpec.Feed.Settings{sources: %{"explore" => 2.0}})
+      5
+      iex> TSpec.Feed.Ranker.explore_every(%TSpec.Feed.Settings{sources: %{"explore" => 0.0}})
+      nil
+  """
+  def explore_every(%Settings{non_personalized: true}), do: nil
+
+  def explore_every(%Settings{} = settings) do
+    case Settings.source_multiplier(settings, "explore") do
+      m when m <= 0.0 -> nil
+      m -> max(round(@explore_every / m), 1)
+    end
+  end
+
+  @doc """
+  Topic ids that make an item *not* explorable: topics the user knows (a
+  learned value at least `explore_known_value/0` from 0, a recent forget,
+  or a slider moved off 1×), and the children of each. An item is
+  explorable when none of its labels is in this set.
+
+  `features.known_topic_ids` holds the user's known topics by history (see
+  `TSpec.Feed.Ranking.features/3`); without it, they're read off
+  `features.topic_affinity`.
+  """
+  def explore_blocked_topic_ids(features, %Settings{} = settings, taxonomy) do
+    by_history =
+      Map.get_lazy(features, :known_topic_ids, fn ->
+        for {id, v} <- features.topic_affinity,
+            abs(v) >= @explore_known_value,
+            into: MapSet.new(),
+            do: id
+      end)
+
+    by_slider =
+      taxonomy
+      |> Enum.filter(fn {_id, t} ->
+        parent_slug = t.parent_id && taxonomy[t.parent_id].slug
+        Settings.topic_multiplier(settings, t.slug, parent_slug) != 1.0
+      end)
+      |> MapSet.new(&elem(&1, 0))
+
+    known = MapSet.union(MapSet.new(by_history), by_slider)
+
+    for {id, t} <- taxonomy,
+        MapSet.member?(known, id) or (t.parent_id != nil and MapSet.member?(known, t.parent_id)),
+        into: MapSet.new(),
+        do: id
+  end
+
+  @doc "Whether an item is explorable: it has labels, and none is blocked."
+  def explorable?(%Candidate{labels: []}, _blocked), do: false
+
+  def explorable?(%Candidate{labels: labels}, blocked),
+    do: not Enum.any?(labels, &MapSet.member?(blocked, &1.topic_id))
 
   @doc """
   Whether hard-off settings allow the item: no label at confidence ≥ 0.5 on a
@@ -105,20 +188,35 @@ defmodule TSpec.Feed.Ranker do
 
   `features` is `%{now, personalized, topic_affinity: %{topic_id => value},
   creator_affinity: %{creator_id => value}}` with values already squashed
-  into (−1, 1). `opts[:recent]` is the list of items already shown in this
-  feed (oldest first, as `%{author_id, primary_topic}`), so diversity carries
-  across pages and re-ranks.
+  into (−1, 1), plus optionally `known_topic_ids` (see
+  `explore_blocked_topic_ids/3`). Options:
+
+    * `:recent` — the items already sent in this feed (oldest first, as
+      `%{author_id, primary_topic}`), so diversity carries across pages and
+      re-ranks.
+    * `:start_position` — the feed position of the first item returned, so
+      explore slots fall at the same positions across pages and re-ranks.
+      Defaults to `length(recent)`.
   """
   def rank(candidates, features, %Settings{} = settings, taxonomy, opts \\ []) do
     recent = Keyword.get(opts, :recent, [])
     depth = Keyword.get(opts, :diversity_depth, @diversity_depth)
+    start = Keyword.get(opts, :start_position, length(recent))
+
+    explorable? =
+      if features.personalized and explore_every(settings) do
+        blocked = explore_blocked_topic_ids(features, settings, taxonomy)
+        &explorable?(&1, blocked)
+      else
+        fn _ -> false end
+      end
 
     scored =
       for c <- candidates, eligible?(c, settings, taxonomy) do
-        score(c, features, settings, taxonomy)
+        %{score(c, features, settings, taxonomy) | explorable: explorable?.(c)}
       end
 
-    {greedy, rest} = greedy(scored, recent, depth)
+    {greedy, rest} = greedy(scored, recent, depth, {start, explore_every(settings)})
     greedy ++ Enum.sort_by(rest, &{-&1.final_score, &1.content_id})
   end
 
@@ -245,11 +343,16 @@ defmodule TSpec.Feed.Ranker do
     }
   end
 
+  # The Explore slider sets how often explore slots come up, not the explore
+  # source's prior (ADR 0015), so that source's multiplier is always 1.
   defp best_source(%Candidate{sources: sources}, settings) do
     sources
-    |> Enum.map(&{&1, Settings.source_multiplier(settings, &1)})
+    |> Enum.map(&{&1, prior_multiplier(settings, &1)})
     |> Enum.max_by(fn {s, m} -> {Defaults.source_prior(s) * m, s} end)
   end
+
+  defp prior_multiplier(_settings, "explore"), do: 1.0
+  defp prior_multiplier(settings, source), do: Settings.source_multiplier(settings, source)
 
   defp freshness(c, now) do
     hours = max(DateTime.diff(now, c.published_at, :second), 0) / 3600
@@ -288,27 +391,37 @@ defmodule TSpec.Feed.Ranker do
 
   # Picks the best item one at a time, penalizing repeats of a recently
   # shown creator or primary topic. The penalty is part of the item's trace.
-  defp greedy(scored, recent, depth) do
+  # At an explore slot only explorable items compete (if there are any).
+  defp greedy(scored, recent, depth, slots) do
     window = Enum.map(recent, &{&1.author_id, &1.primary_topic})
-    do_greedy(scored, Enum.reverse(window), depth, [])
+    do_greedy(scored, Enum.reverse(window), depth, slots, [])
   end
 
-  defp do_greedy(rest, _window, 0, picked), do: {Enum.reverse(picked), rest}
-  defp do_greedy([], _window, _n, picked), do: {Enum.reverse(picked), []}
+  defp do_greedy(rest, _window, 0, _slots, picked), do: {Enum.reverse(picked), rest}
+  defp do_greedy([], _window, _n, _slots, picked), do: {Enum.reverse(picked), []}
 
-  defp do_greedy(rest, window, n, picked) do
+  defp do_greedy(rest, window, n, {position, every}, picked) do
+    explore_pool = if explore_slot?(position, every), do: Enum.filter(rest, & &1.explorable)
+    pool = if explore_pool in [nil, []], do: rest, else: explore_pool
+
     {best, penalty} =
-      rest
+      pool
       |> Enum.map(&{&1, diversity_value(&1, window)})
       |> Enum.max_by(fn {s, p} ->
         {s.final_score + Defaults.feature(:diversity) * p, invert(s.content_id)}
       end)
 
     best = with_diversity(best, penalty)
+    best = if pool == explore_pool, do: %{best | placement: "explore"}, else: best
     window = [{best.author_id, best.primary_topic} | window]
+    rest = List.delete(rest, elem_by_id(rest, best.content_id))
 
-    do_greedy(List.delete(rest, elem_by_id(rest, best.content_id)), window, n - 1, [best | picked])
+    do_greedy(rest, window, n - 1, {position + 1, every}, [best | picked])
   end
+
+  # Positions are 0-based, so with every = 10 the slots are the 10th, 20th, ...
+  defp explore_slot?(_position, nil), do: false
+  defp explore_slot?(position, every), do: rem(position + 1, every) == 0
 
   defp elem_by_id(list, id), do: Enum.find(list, &(&1.content_id == id))
 

@@ -83,6 +83,28 @@ defmodule TSpecWeb.TransparencyControllerTest do
                Enum.find(body["contributions"], &(&1["feature"] == "topic_preference"))
     end
 
+    test "says when an explore slot placed the item", %{conn: conn, scope: scope} do
+      # Cooking at 2×: strong enough that only the slot brings travel up.
+      {:ok, _} =
+        Transparency.update_settings(scope, %{topics: %{"cooking" => %{multiplier: 2.0}}})
+
+      for _ <- 1..12, do: text_post_fixture(onboarded_user_fixture(), topics: ["cooking"])
+      new = text_post_fixture(onboarded_user_fixture(), topics: ["travel"])
+
+      served = serve!(scope)
+      assert {%{content_id: content_id}, slotted} = Enum.at(served, 9)
+      assert content_id == new.id
+      {_, ordinary} = Enum.at(served, 0)
+
+      body = conn |> get(~p"/api/impressions/#{slotted}") |> json_response(200)
+      assert_schema(body, "Explanation", spec())
+      assert body["placement"] == "explore"
+      assert body["ranker_version"] == "v1.2"
+
+      ordinary = conn |> get(~p"/api/impressions/#{ordinary}") |> json_response(200)
+      assert ordinary["placement"] == nil
+    end
+
     test "is private, and unknown ids are 404", %{scope: scope} do
       _ = text_post_fixture(onboarded_user_fixture())
       [{_, id} | _] = serve!(scope)

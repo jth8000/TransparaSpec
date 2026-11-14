@@ -6,7 +6,7 @@ defmodule TSpec.Docs.RankingDocTest do
   """
   use ExUnit.Case, async: true
 
-  alias TSpec.Feed.{Candidates, Ranker}
+  alias TSpec.Feed.{Candidates, Ranker, Ranking, Settings}
   alias TSpec.Feed.Interests.Weights
   alias TSpec.Feed.Ranker.Defaults
 
@@ -29,6 +29,9 @@ defmodule TSpec.Docs.RankingDocTest do
     |> Map.merge(Map.new(Weights.defaults(), fn {k, v} -> {"interest.#{k}", v / 1} end))
     |> Map.merge(%{
       "ranker.hard_off_threshold" => Ranker.hard_off_threshold() / 1,
+      "explore.every" => Ranker.explore_every(%Settings{}) / 1,
+      "explore.known_value" => Ranker.explore_known_value() / 1,
+      "explore.forget_hold_days" => Ranking.forget_hold_days() / 1,
       "quality.prior_views" => Candidates.prior_views() / 1,
       "quality.prior_rate" => Candidates.prior_rate() / 1
     })

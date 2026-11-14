@@ -402,7 +402,10 @@ defmodule TSpec.Feed.Session do
     state.cache
     |> Map.values()
     |> Enum.reject(&MapSet.member?(served_ids, &1.content_id))
-    |> Ranker.rank(state.features, state.settings, Content.topics_by_id(), recent: state.served)
+    |> Ranker.rank(state.features, state.settings, Content.topics_by_id(),
+      recent: state.served,
+      start_position: length(state.served)
+    )
     |> Enum.take(limit)
   end
 

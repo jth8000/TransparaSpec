@@ -18,3 +18,4 @@ Each ADR captures one decision: its context, the decision itself, its consequenc
 | [0012](0012-interest-model-and-controls.md) | Interest model v1 (per-view deltas, decay) and user controls | Accepted |
 | [0013](0013-single-machine-private-beta.md) | One machine for the private beta; prerequisites for clustering | Accepted |
 | [0014](0014-label-shares.md) | Topic labels share an item (ranker v1.1), in ranking and learning; hard-off keeps raw confidence | Accepted |
+| [0015](0015-explore-slots.md) | Explore slots (ranker v1.2): every 10th position for a topic that's new to you; the Explore slider sets the rate | Accepted |

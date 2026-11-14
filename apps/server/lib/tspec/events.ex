@@ -94,7 +94,7 @@ defmodule TSpec.Events do
   version from the server-side scope (pillar 2). Each entry needs
   `:content_id`, `:feed_session_id`, `:rev`, `:position`, `:ranker_version`,
   `:candidate_source`, `:sources`, `:final_score`, `:contributions`,
-  `:settings_version` and `:settings_snapshot_id`.
+  `:settings_version` and `:settings_snapshot_id`, and may have `:placement`.
 
   Returns `{:ok, ids}` in entry order. Each id is a UUIDv7 whose embedded
   timestamp is the row's `served_at` (the partition key), so
@@ -108,7 +108,8 @@ defmodule TSpec.Events do
 
         entry
         |> Map.take(~w(content_id feed_session_id rev position ranker_version candidate_source
-                       sources final_score contributions settings_version settings_snapshot_id)a)
+                       sources final_score contributions settings_version settings_snapshot_id
+                       placement)a)
         |> Map.merge(%{
           id: id,
           served_at: Impression.served_at_for(id),

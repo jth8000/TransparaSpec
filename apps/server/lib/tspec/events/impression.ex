@@ -24,6 +24,8 @@ defmodule TSpec.Events.Impression do
     field :sources, {:array, :string}
     field :final_score, :float
     field :contributions, {:array, :map}
+    # "explore" when an explore slot placed the item (ADR 0015), else nil.
+    field :placement, :string
     field :settings_version, :integer
     field :settings_snapshot_id, :binary_id
     field :consent_version, :integer

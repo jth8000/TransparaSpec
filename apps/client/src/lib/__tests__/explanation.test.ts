@@ -1,4 +1,10 @@
-import { explanationRows, labelSources, type Explanation } from '../explanation';
+import {
+  explanationRows,
+  labelSources,
+  sourceControlLabel,
+  sourceLabel,
+  type Explanation,
+} from '../explanation';
 
 const c = (o: Partial<Explanation['contributions'][number]>) =>
   ({
@@ -105,5 +111,12 @@ describe('explanationRows', () => {
 
   it('reports who labeled each topic', () => {
     expect(labelSources(e)).toEqual([{ topic: 'Cooking', sources: ['creator'] }]);
+  });
+});
+
+describe('sourceControlLabel', () => {
+  it('says the Explore slider sets how often, and leaves other sources as they are', () => {
+    expect(sourceControlLabel('explore')).toMatch(/how often/);
+    expect(sourceControlLabel('trending')).toBe(sourceLabel('trending'));
   });
 });

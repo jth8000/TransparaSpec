@@ -11,12 +11,13 @@ defmodule TSpec.Feed.Candidates do
   |                 | topic they've explicitly boosted                             |
   | `trending`      | the global trending pool (`TSpec.Feed.TrendingWorker`)       |
   | `co_engagement` | items completed by people who completed what you completed   |
-  | `explore`       | random recent items in topics you have no history with       |
+  | `explore`       | random recent items whose topics are all new to you          |
   | `fresh`         | the newest public items                                      |
 
   Non-personalized mode uses only `following`, `trending` and `fresh`: no
   source that reads the user's inferred profile or viewing history
-  (ADR 0012).
+  (ADR 0012). With the Explore slider at 0, `explore` doesn't run either
+  (ADR 0015).
 
   Every source shares the same eligibility filter: ready and public, not
   the user's own, published within 30 days, not viewed by the user in the
@@ -49,7 +50,11 @@ defmodule TSpec.Feed.Candidates do
 
   @doc "Which sources run for these settings."
   def sources_for(%Settings{non_personalized: true}), do: ~w(following trending fresh)
-  def sources_for(%Settings{}), do: ~w(following topic trending co_engagement explore fresh)
+
+  def sources_for(%Settings{} = settings) do
+    all = ~w(following topic trending co_engagement explore fresh)
+    if Ranker.explore_every(settings), do: all, else: all -- ["explore"]
+  end
 
   @doc """
   Gathers candidates for `user_id`. `features.topic_affinity` (topic id =>
@@ -220,14 +225,21 @@ defmodule TSpec.Feed.Candidates do
     from(i in base, where: i.id in subquery(co), select: i.id) |> Repo.all()
   end
 
-  defp nominate("explore", base, _user_id, _settings, features, _now, _opts) do
-    known = Map.keys(features.topic_affinity)
+  # Items with at least one label and none on a topic the user knows (or
+  # under one): the same rule as the ranker's explore slots
+  # (`Ranker.explore_blocked_topic_ids/3`).
+  defp nominate("explore", base, _user_id, settings, features, _now, _opts) do
+    blocked =
+      features
+      |> Ranker.explore_blocked_topic_ids(settings, Content.topics_by_id())
+      |> MapSet.to_list()
 
     from(i in base,
+      where: exists(from ct in ContentTopic, where: ct.content_id == parent_as(:item).id),
       where:
-        exists(
+        not exists(
           from ct in ContentTopic,
-            where: ct.content_id == parent_as(:item).id and ct.topic_id not in ^known
+            where: ct.content_id == parent_as(:item).id and ct.topic_id in ^blocked
         ),
       order_by: fragment("random()"),
       limit: ^@limits.explore,

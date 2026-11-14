@@ -76,6 +76,14 @@ describe('Explanation', () => {
     expect(screen.getByText(/label from: creator/)).toBeOnTheScreen();
   });
 
+  it('says when an explore slot placed the item, and only then', async () => {
+    await render(<Explanation explanation={{ ...explanation, placement: 'explore' }} />);
+    expect(screen.getByTestId('why-placement')).toHaveTextContent(/Shown to broaden your feed/);
+
+    await render(<Explanation explanation={explanation} />);
+    expect(screen.queryByTestId('why-placement')).toBeNull();
+  });
+
   it('offers Adjust for topic and source rows', async () => {
     const onAdjust = jest.fn();
     await render(<Explanation explanation={explanation} onAdjust={onAdjust} />);

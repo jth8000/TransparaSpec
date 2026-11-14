@@ -97,6 +97,67 @@ defmodule TSpec.Feed.SessionTest do
     assert Enum.map(Session.state(pid).served, & &1.impression_id) == imps(p1 ++ p2)
   end
 
+  describe "explore slots (ADR 0015)" do
+    # Cooking and fitness are on moved sliders, so only travel is new.
+    setup %{scope: scope} do
+      {:ok, _} =
+        Transparency.update_settings(scope, %{
+          topics: %{
+            "cooking" => %{multiplier: 2.0},
+            "fitness-and-exercise" => %{multiplier: 1.5}
+          }
+        })
+
+      :ok
+    end
+
+    defp placement(scope, impression_id) do
+      {:ok, i} = Events.get_impression(scope, impression_id)
+      {i.position, i.placement}
+    end
+
+    test "every 10th item is new to the viewer, across pages", %{scope: scope, items: items} do
+      {_sid, pid} = start!(scope)
+      {:ok, %{items: p1}} = Session.next_page(pid, 10)
+      {:ok, %{items: p2}} = Session.next_page(pid, 10)
+
+      for {{scored, impression_id}, position} <- Enum.with_index(p1 ++ p2) do
+        if position in [9, 19] do
+          assert labeled?(scored.content_id, items, :travel)
+          assert placement(scope, impression_id) == {position, "explore"}
+        else
+          refute labeled?(scored.content_id, items, :travel)
+          assert placement(scope, impression_id) == {position, nil}
+        end
+      end
+    end
+
+    test "a re-rank that lands just before a slot keeps the spacing", %{
+      scope: scope,
+      items: items
+    } do
+      {sid, pid} = start!(scope)
+      {:ok, %{items: p1}} = Session.next_page(pid, 10)
+      {:ok, %{items: p2}} = Session.next_page(pid, 10)
+
+      # The client is on the 18th item; the next slot is the 20th.
+      Session.at(pid, Enum.at(imps(p1 ++ p2), 17), 0)
+      sub(scope, sid)
+
+      {:ok, _} =
+        Transparency.update_settings(scope, %{
+          topics: %{"fitness-and-exercise" => %{multiplier: 1.8}}
+        })
+
+      assert_receive {:feed_reranked, %{rev: 1, items: [{first, i18}, {second, i19} | _]}}, 2_000
+
+      refute labeled?(first.content_id, items, :travel)
+      assert placement(scope, i18) == {18, nil}
+      assert labeled?(second.content_id, items, :travel)
+      assert placement(scope, i19) == {19, "explore"}
+    end
+  end
+
   test "two sessions of one user keep their own positions, and both re-rank on a change",
        %{scope: scope, items: items} do
     {sid1, s1} = start!(scope)

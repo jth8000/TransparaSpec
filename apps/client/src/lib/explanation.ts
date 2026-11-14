@@ -14,6 +14,22 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export const sourceLabel = (source: string) => SOURCE_LABELS[source] ?? source;
 
+/**
+ * A source's label on its slider. The Explore slider sets how often a spot
+ * is kept for a topic you haven't watched (ADR 0015), not a weight.
+ */
+export const sourceControlLabel = (source: string) =>
+  source === 'explore'
+    ? 'Something new to explore (how often: at 1×, every 10th post)'
+    : sourceLabel(source);
+
+/** Why the item sits where it does beyond its score, if a slot placed it. */
+export const placementNote = (e: Explanation): string | null =>
+  e.placement === 'explore'
+    ? "Shown to broaden your feed: this spot is kept for a topic you haven't watched. " +
+      'Its score is unchanged.'
+    : null;
+
 export type ExplanationRow = {
   key: string;
   label: string;

@@ -44,6 +44,7 @@ defmodule TSpecWeb.TransparencyJSON do
       position: i.position,
       final_score: i.final_score,
       contributions: i.contributions,
+      placement: i.placement,
       settings_version: i.settings_version,
       settings: settings(snapshot.settings),
       topic_names: Map.new(slugs, &{&1, (names[&1] && names[&1].name) || &1})
