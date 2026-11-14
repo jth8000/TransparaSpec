@@ -7,8 +7,9 @@ defmodule TSpec.Feed.Candidates do
   | Source          | Nominates                                                    |
   |-----------------|--------------------------------------------------------------|
   | `following`     | recent items from accounts the user follows                  |
-  | `topic`         | recent items in the user's top affinity topics, plus every   |
-  |                 | topic they've explicitly boosted                             |
+  | `topic`         | recent items in the user's top affinity topics; and, with    |
+  |                 | their own budget, every boosted topic and `:topic_slugs`     |
+  |                 | (subtopics included)                                         |
   | `trending`      | the global trending pool (`TSpec.Feed.TrendingWorker`)       |
   | `co_engagement` | items completed by people who completed what you completed   |
   | `explore`       | random recent items whose topics are all new to you          |
@@ -158,31 +159,26 @@ defmodule TSpec.Feed.Candidates do
     |> Repo.all()
   end
 
+  # Two queries, each with its own budget: the user's top learned topics,
+  # and the topics asked for explicitly (boosted, or `:topic_slugs` from a
+  # targeted refill). One shared, newest-first query would let a big
+  # favorite topic crowd out the one the refill was for. Explicit topics
+  # include their subtopics, as sliders do.
   defp nominate("topic", base, _user_id, settings, features, _now, opts) do
+    taxonomy = Content.topics_by_id()
     by_slug = Content.topics_by_slug()
-    top = top_topic_ids(features)
 
-    boosted =
+    explicit =
       (Settings.boosted_slugs(settings) ++ Keyword.get(opts, :topic_slugs, []))
       |> Enum.flat_map(&List.wrap(by_slug[&1] && by_slug[&1].id))
+      |> MapSet.new()
 
-    case Enum.uniq(top ++ boosted) do
-      [] ->
-        []
+    explicit =
+      for {id, t} <- taxonomy,
+          MapSet.member?(explicit, id) or MapSet.member?(explicit, t.parent_id),
+          do: id
 
-      topic_ids ->
-        from(i in base,
-          where:
-            exists(
-              from ct in ContentTopic,
-                where: ct.content_id == parent_as(:item).id and ct.topic_id in ^topic_ids
-            ),
-          order_by: [desc: i.published_at, desc: i.id],
-          limit: ^@limits.topic,
-          select: i.id
-        )
-        |> Repo.all()
-    end
+    Enum.uniq(topic_query(base, top_topic_ids(features)) ++ topic_query(base, explicit))
   end
 
   defp nominate("trending", base, _user_id, _settings, _features, _now, _opts) do
@@ -258,6 +254,22 @@ defmodule TSpec.Feed.Candidates do
     from(i in base,
       order_by: [desc: i.published_at, desc: i.id],
       limit: ^@limits.fresh,
+      select: i.id
+    )
+    |> Repo.all()
+  end
+
+  defp topic_query(_base, []), do: []
+
+  defp topic_query(base, topic_ids) do
+    from(i in base,
+      where:
+        exists(
+          from ct in ContentTopic,
+            where: ct.content_id == parent_as(:item).id and ct.topic_id in ^topic_ids
+        ),
+      order_by: [desc: i.published_at, desc: i.id],
+      limit: ^@limits.topic,
       select: i.id
     )
     |> Repo.all()

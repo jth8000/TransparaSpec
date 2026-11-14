@@ -239,39 +239,48 @@ defmodule TSpec.Feed.SessionTest do
       end
     end
 
-    test "a topic discovered mid-session gets its learned boost once the worker applies the view",
-         %{scope: scope, items: items} do
+    # Six strong interests, so a topic liked from one view never reaches the
+    # top five the `topic` source draws from.
+    defp establish_profile!(viewer) do
+      Repo.insert_all(
+        TSpec.Feed.TopicAffinity,
+        for slug <- ~w(automotive pets science real-estate) do
+          %{
+            user_id: viewer.id,
+            topic_id: Content.topics_by_slug()[slug].id,
+            score: 9.0,
+            evidence_count: 9,
+            as_of: DateTime.utc_now()
+          }
+        end
+      )
+    end
+
+    # The first gather finds only two travel items and no music, so the
+    # cache is thin on the topic about to be discovered. Refills call
+    # `refill`, which by default is the real gather.
+    defp thin_travel_gather(items, refill \\ &Candidates.gather/4) do
       test = self()
 
-      # The first gather finds only two travel items and no music, so the
-      # cache is thin on the topic about to be discovered; refills are real.
-      gather = fn user_id, settings, features, opts ->
+      fn user_id, settings, features, opts ->
         send(test, {:gathered, opts[:refill] == true, opts[:topic_slugs] || []})
-        found = Candidates.gather(user_id, settings, features, opts)
 
         if opts[:refill] do
-          found
+          refill.(user_id, settings, features, opts)
         else
+          found = Candidates.gather(user_id, settings, features, opts)
           travel = Enum.filter(found, &labeled?(&1.content_id, items, :travel)) |> Enum.take(2)
           Enum.reject(found, &(new_topic(&1.content_id, items) != nil)) ++ travel
         end
       end
+    end
 
-      {_sid, pid} = start!(scope, gather: gather)
-      travel_id = Content.topics_by_slug()["travel"].id
-
-      cached_travel = fn ->
-        Enum.count(Session.state(pid).cache, fn {id, _} -> labeled?(id, items, :travel) end)
-      end
-
-      assert cached_travel.() == 2
-
+    # Page 1's explore slot is travel; the client shows it, the view is
+    # recorded and the affinity worker applies it.
+    defp discover_travel!(scope, pid, items) do
       {:ok, %{items: p1}} = Session.next_page(pid, 10)
       {slotted, _} = slot = Enum.at(p1, 9)
       assert labeled?(slotted.content_id, items, :travel)
-
-      # The client shows it, and the view is recorded and applied (as the
-      # affinity worker does after every committed batch).
       show!(scope, pid, slot)
 
       {:ok, _} =
@@ -285,13 +294,27 @@ defmodule TSpec.Feed.SessionTest do
         ])
 
       :ok = TSpec.Feed.AffinityWorker.perform(%Oban.Job{args: %{"user_id" => scope.user.id}})
+    end
+
+    test "a topic discovered mid-session gets its learned boost once the worker applies the view",
+         %{viewer: viewer, scope: scope, items: items} do
+      establish_profile!(viewer)
+      {_sid, pid} = start!(scope, gather: thin_travel_gather(items))
+      travel_id = Content.topics_by_slug()["travel"].id
+
+      cached_travel = fn ->
+        Enum.count(Session.state(pid).cache, fn {id, _} -> labeled?(id, items, :travel) end)
+      end
+
+      assert cached_travel.() == 2
+      discover_travel!(scope, pid, items)
 
       # Lazy: the session only notes that its profile is stale.
       assert %{features_stale: true, features: features} = Session.state(pid)
       refute Map.has_key?(features.topic_affinity, travel_id)
 
-      # The next page re-reads it, and travel, now a top topic with almost
-      # nothing left in the cache, gets a targeted refill.
+      # The next page re-reads it. Travel is liked now, though far from the
+      # top five, and the cache has almost none left: a targeted refill.
       flush_gathered()
       {:ok, _} = Session.next_page(pid, 10)
       assert %{features_stale: false, features: features} = Session.state(pid)
@@ -299,9 +322,12 @@ defmodule TSpec.Feed.SessionTest do
       assert is_float(features.topic_affinity[travel_id]) and
                features.topic_affinity[travel_id] > 0
 
+      refute travel_id in Candidates.top_topic_ids(features)
+
       assert_receive {:gathered, true, ["travel"]}, 2_000
       settle(pid)
       assert cached_travel.() > 2
+      assert MapSet.member?(Session.state(pid).gathered_topic_ids, travel_id)
 
       # Later pages rank travel with what was learned.
       {:ok, %{items: more}} = Session.next_page(pid, 100)
@@ -315,6 +341,29 @@ defmodule TSpec.Feed.SessionTest do
 
       assert learned != []
       assert Enum.all?(learned, &(&1 == "travel"))
+    end
+
+    test "a targeted refill that never lands leaves its topic to be targeted again",
+         %{viewer: viewer, scope: scope, items: items} do
+      establish_profile!(viewer)
+      test = self()
+
+      crash = fn _user_id, _settings, _features, _opts ->
+        send(test, :refill_crashed)
+        raise "simulated database timeout"
+      end
+
+      {_sid, pid} = start!(scope, gather: thin_travel_gather(items, crash))
+      discover_travel!(scope, pid, items)
+      {:ok, _} = Session.next_page(pid, 10)
+      assert_receive {:gathered, true, ["travel"]}, 2_000
+      assert_receive :refill_crashed, 2_000
+      settle(pid)
+
+      refute MapSet.member?(
+               Session.state(pid).gathered_topic_ids,
+               Content.topics_by_slug()["travel"].id
+             )
     end
 
     test "forgetting an interest re-ranks the live feed without it", %{scope: scope} do

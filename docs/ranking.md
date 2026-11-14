@@ -128,7 +128,7 @@ Before scoring, cheap database queries nominate a few hundred plausible videos. 
 | Source | Finds | Limit |
 |---|---|---|
 | `following` | recent items from accounts you follow | 150 |
-| `topic` | recent items in your top 5 interest topics, **plus every topic you've boosted** (slider above 1×) | 150 |
+| `topic` | recent items in your top 5 interest topics; and, with a budget of their own, **every topic you've boosted** (slider above 1×, subtopics included) and any topic a feed asks for by name | 150 + 150 |
 | `trending` | the global trending pool | 150 |
 | `co_engagement` | items finished by people who finished what you finished (last 14 days) | 100 |
 | `explore` | random recent items in areas new to you (see [Explore slots](#explore-slots)); off when the Explore slider is at 0 | 50 |
@@ -338,7 +338,7 @@ When you move a slider or flip a switch:
 Measured end to end in the browser test: about 230 ms from tap to re-ranked feed, including a deliberate 150 ms pause that batches slider movements.
 
 Your learned interests change between settings changes too, and open feeds follow:
-- **As you watch:** once the background worker has applied your new views, every open feed re-reads your interests before its next page. Nothing already sent is replaced. If a topic has just become one of your top interests but the feed has few of its posts left, it fetches more.
+- **As you watch:** once the background worker has applied your new views, every open feed re-reads your interests before its next page. Nothing already sent is replaced. If you've just come to like a topic (say, one an explore slot showed you) and the feed has few of its posts left, it fetches more, however that topic ranks among your interests.
 - **"Forget this interest"** is an explicit control, so it works like a slider: open feeds re-read your interests and re-rank everything after the item you're watching.
 
 ---
@@ -417,7 +417,7 @@ Fixed in code and described above (not yet tunable):
 - **Sessions:**
   - page size 10;
   - idle stop after 10 minutes;
-  - refill below 30 candidates, or when a boosted topic (on a settings change) or a topic that just entered your top topics has fewer than 5 unserved;
+  - refill below 30 candidates, or when a boosted topic (on a settings change) or a newly liked topic (up to 3 per refill) has fewer than 5 unserved;
   - 60 s back-off after an empty or failed refill.
 
 ## Where it lives in the code

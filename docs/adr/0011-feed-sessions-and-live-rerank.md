@@ -55,7 +55,7 @@ Joining sends `{rev}` (the revision the client holds); see "The process is a cac
 2. **Refill in the background** when fewer than 30 eligible candidates remain, or when a topic was boosted but is poorly represented in the cache. The task is monitored: if it dies before reporting (say, a database timeout), the session stops waiting. An empty or failed refill starts a 60 s cooldown before a page can trigger another.
    - The candidate sources run under the new settings, including a targeted query for the boosted topic.
    - The results are merged, and a second push follows with `rev + 1`.
-3. **Breadth:** the `topic` source draws from the user's top affinity topics *plus every topic they've explicitly boosted*, so a slider can surface content the profile has never seen.
+3. **Breadth:** the `topic` source draws from the user's top affinity topics *plus every topic they've explicitly boosted* (with its own budget, subtopics included), so a slider can surface content the profile has never seen.
 
 ### When the learned profile changes (amended 2026-11-13)
 A session computes its features (squashed affinities) when it starts and on every settings change. The learned profile also changes in between, and the session now hears about it on the same per-user topic (`feed_settings:<user_id>`), always after the change has committed:
@@ -64,7 +64,7 @@ A session computes its features (squashed affinities) when it starts and on ever
 
 Order doesn't matter: each read gets the committed profile, so a late or duplicate message just re-reads the same state.
 
-**New top topics get candidates.** Fresher scores alone aren't enough: the cache was gathered from the top topics the user had when it was filled, so a topic discovered since (say, from an explore slot) may have only an item or two in it. The session remembers which top topics its cache was gathered for. After every page, a top topic that's new since then, with fewer than 5 *unserved* cached items, gets a targeted refill, as a boosted topic does after a settings change. (The boosted-topic check counts unserved items too now: items the client already has don't fill the next page.)
+**Newly liked topics get candidates.** Fresher scores alone aren't enough: the cache was gathered from the top topics the user had when it was filled, so a topic discovered since (say, from an explore slot) may have only an item or two in it. And one view won't lift it into an established user's top five, so the `topic` source won't fetch it either. The session remembers which topics its cache was gathered for (`gathered_topic_ids`: the top five at start, plus every topic already liked then that this session hasn't shown). After every page, up to 3 topics with a positive learned value that aren't covered, and with fewer than 5 *unserved* cached items, get a targeted refill, as a boosted topic does after a settings change. A topic counts as covered only when a refill that targeted it lands under the current settings, so a refill that crashed or went stale leaves it to be targeted again. Targeted and boosted topics get their own query and budget in the `topic` source (subtopics included), so a big favorite topic can't crowd them out. (The boosted-topic check counts unserved items too now: items the client already has don't fill the next page.)
 
 ### Stale work is discarded, not merged
 - Settings broadcasts on `feed_settings:<user_id>` carry their `settings_version`. A session ignores any broadcast older than the one it has, which covers out-of-order PubSub delivery across nodes.

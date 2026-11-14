@@ -172,6 +172,65 @@ defmodule TSpec.Feed.RankingTest do
       assert_in_delta candidate.quality, (1 + 10 * Candidates.prior_rate()) / (1 + 10), 1.0e-9
     end
 
+    test "topics asked for by name get their own budget, subtopics included",
+         %{viewer: viewer, scope: scope} do
+      creator = onboarded_user_fixture()
+      watch!(scope, ready_video_fixture(creator, topics: ["cooking"]))
+
+      # More recent cooking than the topic source's budget, all newer than
+      # the one travel and one fitness item.
+      now = DateTime.utc_now()
+      cooking = Content.topics_by_slug()["cooking"].id
+
+      rows =
+        for n <- 1..160 do
+          %{
+            id: UUIDv7.generate(),
+            author_id: creator.id,
+            kind: "text_post",
+            status: "ready",
+            visibility: "public",
+            published_at: DateTime.add(now, -n, :second),
+            inserted_at: DateTime.truncate(now, :second),
+            updated_at: DateTime.truncate(now, :second)
+          }
+        end
+
+      Repo.insert_all(Content.Item, rows)
+      Repo.insert_all(Content.TextPost, for(r <- rows, do: %{content_id: r.id, body: "cooking"}))
+
+      Repo.insert_all(
+        Content.ContentTopic,
+        for(
+          r <- rows,
+          do: %{content_id: r.id, topic_id: cooking, source: "creator", confidence: 1.0}
+        )
+      )
+
+      travel = ready_video_fixture(creator, topics: ["travel"])
+      fitness = ready_video_fixture(creator, topics: ["fitness-and-exercise"])
+
+      Repo.update_all(
+        from(i in Content.Item, where: i.id in ^[travel.id, fitness.id]),
+        set: [published_at: DateTime.add(now, -1, :day)]
+      )
+
+      topic_ids = fn settings, opts ->
+        for c <- gather(viewer, settings, [sources: ["topic"]] ++ opts),
+            into: MapSet.new(),
+            do: c.content_id
+      end
+
+      # Without asking, the budget goes to cooking.
+      refute MapSet.member?(topic_ids.(%Settings{}, []), travel.id)
+
+      # A targeted refill's topic, and a boosted tier-1 topic's subtopic.
+      assert MapSet.member?(topic_ids.(%Settings{}, topic_slugs: ["travel"]), travel.id)
+
+      boosted = %Settings{topics: %{"healthy-living" => %{multiplier: 1.5, hard_off: false}}}
+      assert MapSet.member?(topic_ids.(boosted, []), fitness.id)
+    end
+
     test "explore nominates only items whose topics are all new to the viewer",
          %{viewer: viewer, scope: scope} do
       creator = onboarded_user_fixture()
