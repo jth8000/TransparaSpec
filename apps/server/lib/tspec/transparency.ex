@@ -15,6 +15,11 @@ defmodule TSpec.Transparency do
   and, after commit, broadcasts the new settings on `feed_settings:<user_id>`
   so every live feed session of that user re-ranks (ADR 0011). Sessions
   ignore broadcasts older than the version they already have.
+
+  The same topic carries `{:interests_changed, reason}` after the learned
+  profile changes (`broadcast_interests_changed/2`): `:learned` when the
+  affinity worker applied views, `:forgot` after "forget this interest".
+  Sessions refresh their features; a forget also re-ranks their tail.
   """
   import Ecto.Query, warn: false
 
@@ -131,7 +136,10 @@ defmodule TSpec.Transparency do
     end
   end
 
-  @doc "Subscribes the caller to `{:settings_changed, %Settings{}}` for a user."
+  @doc """
+  Subscribes the caller to a user's feed controls: `{:settings_changed,
+  %Settings{}}` and `{:interests_changed, :learned | :forgot}`.
+  """
   def subscribe_settings(user_id),
     do: Phoenix.PubSub.subscribe(TSpec.PubSub, settings_topic(user_id))
 
@@ -141,6 +149,19 @@ defmodule TSpec.Transparency do
   end
 
   defp broadcast(error, _user_id), do: error
+
+  @doc """
+  Tells the user's live feed sessions their learned profile changed. Call
+  it only after the change has committed: a session re-reads the profile
+  when the message arrives.
+  """
+  def broadcast_interests_changed(user_id, reason) when reason in [:learned, :forgot] do
+    Phoenix.PubSub.broadcast(
+      TSpec.PubSub,
+      settings_topic(user_id),
+      {:interests_changed, reason}
+    )
+  end
 
   defp settings_topic(user_id), do: "feed_settings:#{user_id}"
 
@@ -379,8 +400,10 @@ defmodule TSpec.Transparency do
   down or off to stop that). See `TSpec.Feed.Interests.forget/4`.
   """
   def forget_interest(%Scope{user: %User{id: user_id}}, slug) do
-    with %{id: topic_id} <- Content.topics_by_slug()[slug] do
-      Interests.forget(user_id, :topic, topic_id)
+    with %{id: topic_id} <- Content.topics_by_slug()[slug],
+         :ok <- Interests.forget(user_id, :topic, topic_id) do
+      broadcast_interests_changed(user_id, :forgot)
+      :ok
     else
       nil -> {:error, :not_found}
     end
@@ -388,8 +411,10 @@ defmodule TSpec.Transparency do
 
   @doc "Forgets a learned creator interest (following is separate)."
   def forget_creator_interest(%Scope{user: %User{id: user_id}}, creator_id) do
-    with {:ok, creator_id} <- Ecto.UUID.cast(creator_id) do
-      Interests.forget(user_id, :creator, creator_id)
+    with {:ok, creator_id} <- Ecto.UUID.cast(creator_id),
+         :ok <- Interests.forget(user_id, :creator, creator_id) do
+      broadcast_interests_changed(user_id, :forgot)
+      :ok
     else
       :error -> {:error, :not_found}
     end

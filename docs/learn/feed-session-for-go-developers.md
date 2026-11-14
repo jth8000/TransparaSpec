@@ -63,7 +63,14 @@ func (s *session) loop(mailbox <-chan any) {
                     s.rerankTail() // replace everything after s.position, push to the client
                     s.maybeRefill()
                 }
-            case refillDone:      // task's reply        → handle_info({ref, {:refill, version, candidates}}, ...)
+            case interestsChanged: // PubSub broadcast   → handle_info({:interests_changed, reason}, ...)
+                if m.reason == learned {
+                    s.featuresStale = true // re-read before the next page, not now
+                } else { // forgot: an explicit control
+                    s.features = loadFeatures(s.user, s.settings)
+                    s.rerankTail()
+                }
+            case refillDone:      // task's reply        → handle_info({ref, {:refill, version, targeted, candidates}}, ...)
                 if m.version == s.settings.Version {
                     s.merge(m.candidates)
                 }
@@ -114,11 +121,17 @@ Each heading names the function to read in [`session.ex`](../../apps/server/lib/
 - **The guard `when v > state.settings.version` drops stale broadcasts.** PubSub across nodes doesn't promise order, and a separate clause swallows the stale ones.
 - **`rerank_tail/1` keeps everything up to the client's position** (`kept_count/1`), bumps `rev`, serves a new page and broadcasts `{:feed_reranked, ...}` on the session's own topic. `FeedChannel` relays that to the client. Exercise 3 watches it happen.
 
-### Refills: `maybe_refill/2`, `start_refill/2`, `apply_refill/3`, the `:DOWN` clause
+### Profile changes: `handle_info({:interests_changed, reason}, ...)`
+- **Same topic, different message.** `AffinityWorker` broadcasts `:learned` after it applied views, and "forget this interest" broadcasts `:forgot`, both after their transactions commit.
+- **Two clauses, matched on the message's second element.** `{:interests_changed, :learned}` only sets `features_stale`; `handle_call({:next_page, ...})` calls `refresh_if_stale/1` first. That's a dirty flag, the same trick as a Go struct with a `stale bool` checked before use: a burst of views costs one database read, and none if nobody scrolls.
+- **`drain_interests_changed/0` empties the mailbox of waiting profile messages** after a forget, with a zero-timeout `receive`: the Elixir version of a non-blocking drain loop over a Go channel (`for { select { case <-ch: ...; default: return } }`).
+- **`maybe_refill/2` also looks for newly liked topics.** `gathered_topic_ids` remembers which topics the cache was gathered for; a liked topic that isn't covered and is thin in the cache gets a targeted refill. The refill's reply carries the topics it targeted, and `apply_refill/4` records them only if the settings version still matches, the same "tag the work with what it was for" pattern as the version check.
+
+### Refills: `maybe_refill/2`, `start_refill/2`, `apply_refill/4`, the `:DOWN` clause
 - **The slow SQL runs in a task,** so the session keeps answering. `Task.Supervisor.async_nolink` starts it and monitors it in one step.
-- **When the task finishes, its result arrives as a message,** `{ref, {:refill, version, candidates}}`. `Process.demonitor(ref, [:flush])` then drops the matching `:DOWN`.
+- **When the task finishes, its result arrives as a message,** `{ref, {:refill, version, targeted, candidates}}`. `Process.demonitor(ref, [:flush])` then drops the matching `:DOWN`.
 - **If the task crashes, only `:DOWN` arrives.** The session clears `refill_ref` and backs off, instead of waiting forever.
-- **`apply_refill/3` merges only if the settings version still matches.** Its first clause pattern-matches the same `version` variable twice (`%{settings: %{version: version}}` and the `version` argument), which is Elixir's way of saying "these must be equal". The second clause discards stale results.
+- **`apply_refill/4` merges only if the settings version still matches.** Its first clause pattern-matches the same `version` variable twice (`%{settings: %{version: version}}` and the `version` argument), which is Elixir's way of saying "these must be equal". The second clause discards stale results.
 
 ### Idle timeout: `handle_info(:timeout, ...)`
 After 10 minutes with no message, the session returns `{:stop, :normal, state}`. The process exits, and `:global` and `:pg` drop it automatically. The next request starts a fresh one, which rebuilds.

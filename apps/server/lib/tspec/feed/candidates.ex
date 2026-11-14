@@ -7,8 +7,9 @@ defmodule TSpec.Feed.Candidates do
   | Source          | Nominates                                                    |
   |-----------------|--------------------------------------------------------------|
   | `following`     | recent items from accounts the user follows                  |
-  | `topic`         | recent items in the user's top affinity topics, plus every   |
-  |                 | topic they've explicitly boosted                             |
+  | `topic`         | recent items in the user's top affinity topics; and, with a  |
+  |                 | budget per topic, every boosted topic and `:topic_slugs`     |
+  |                 | (subtopics included)                                         |
   | `trending`      | the global trending pool (`TSpec.Feed.TrendingWorker`)       |
   | `co_engagement` | items completed by people who completed what you completed   |
   | `explore`       | random recent items whose topics are all new to you          |
@@ -43,6 +44,13 @@ defmodule TSpec.Feed.Candidates do
     explore: 50,
     fresh: 100
   }
+  # The `topic` source's budget for topics asked for explicitly (boosted,
+  # or targeted by a refill): each gets 150 / n but at least 50, and all of
+  # them together at most 300, except that each keeps at least one item: 360
+  # if every topic in the taxonomy is requested. Nothing limits how many
+  # topics a user can boost, so the total must be capped (threat-model.md).
+  @explicit_per_topic_min 50
+  @explicit_total_max 300
   # Bayesian smoothing for completion rate: pretend every item starts with
   # @prior_views views at the @prior_rate completion rate.
   @prior_views 10
@@ -136,6 +144,18 @@ defmodule TSpec.Feed.Candidates do
 
   ## Sources
 
+  @doc """
+  The user's top learned topics, which the `topic` source draws from: the
+  #{@top_topics} with the highest positive value (ties by id).
+  """
+  def top_topic_ids(features) do
+    features.topic_affinity
+    |> Enum.filter(fn {_id, v} -> v > 0 end)
+    |> Enum.sort_by(fn {id, v} -> {-v, id} end)
+    |> Enum.take(@top_topics)
+    |> Enum.map(&elem(&1, 0))
+  end
+
   defp nominate("following", base, user_id, _settings, _features, _now, _opts) do
     from(i in base,
       where: i.author_id in subquery(Social.followee_ids_query(user_id)),
@@ -146,37 +166,31 @@ defmodule TSpec.Feed.Candidates do
     |> Repo.all()
   end
 
+  # The user's top learned topics, newest first; and, separately, the topics
+  # asked for explicitly (boosted, or `:topic_slugs` from a targeted
+  # refill), each with a budget of its own: a big topic, learned or
+  # boosted, can't crowd out a small one a refill was for. Explicit topics
+  # include their subtopics, as sliders do.
   defp nominate("topic", base, _user_id, settings, features, _now, opts) do
+    taxonomy = Content.topics_by_id()
     by_slug = Content.topics_by_slug()
 
-    top =
-      features.topic_affinity
-      |> Enum.filter(fn {_id, v} -> v > 0 end)
-      |> Enum.sort_by(fn {id, v} -> {-v, id} end)
-      |> Enum.take(@top_topics)
-      |> Enum.map(&elem(&1, 0))
-
-    boosted =
+    requested =
       (Settings.boosted_slugs(settings) ++ Keyword.get(opts, :topic_slugs, []))
       |> Enum.flat_map(&List.wrap(by_slug[&1] && by_slug[&1].id))
+      |> MapSet.new()
 
-    case Enum.uniq(top ++ boosted) do
-      [] ->
-        []
+    # Label topic => the requested topic it counts for (itself, or its
+    # parent). A subtopic requested along with its parent counts for itself.
+    groups =
+      for {id, t} <- taxonomy,
+          MapSet.member?(requested, id) or MapSet.member?(requested, t.parent_id),
+          into: %{},
+          do: {id, if(MapSet.member?(requested, id), do: id, else: t.parent_id)}
 
-      topic_ids ->
-        from(i in base,
-          where:
-            exists(
-              from ct in ContentTopic,
-                where: ct.content_id == parent_as(:item).id and ct.topic_id in ^topic_ids
-            ),
-          order_by: [desc: i.published_at, desc: i.id],
-          limit: ^@limits.topic,
-          select: i.id
-        )
-        |> Repo.all()
-    end
+    Enum.uniq(
+      topic_query(base, top_topic_ids(features)) ++ per_topic_query(base, groups, requested)
+    )
   end
 
   defp nominate("trending", base, _user_id, _settings, _features, _now, _opts) do
@@ -255,6 +269,69 @@ defmodule TSpec.Feed.Candidates do
       select: i.id
     )
     |> Repo.all()
+  end
+
+  defp topic_query(_base, []), do: []
+
+  defp topic_query(base, topic_ids) do
+    from(i in base,
+      where:
+        exists(
+          from ct in ContentTopic,
+            where: ct.content_id == parent_as(:item).id and ct.topic_id in ^topic_ids
+        ),
+      order_by: [desc: i.published_at, desc: i.id],
+      limit: ^@limits.topic,
+      select: i.id
+    )
+    |> Repo.all()
+  end
+
+  # The newest items for each requested topic, in one query: `row_number()`
+  # over a window partitioned by requested topic numbers each topic's items
+  # newest first, and the outer query keeps the first `explicit_per_topic/1`
+  # of each.
+  defp per_topic_query(_base, groups, _requested) when groups == %{}, do: []
+
+  defp per_topic_query(base, groups, requested) do
+    per_topic = explicit_per_topic(MapSet.size(requested))
+    {label_ids, group_ids} = Enum.unzip(groups)
+
+    ranked =
+      from(i in base,
+        join: ct in ContentTopic,
+        on: ct.content_id == i.id,
+        join:
+          g in fragment(
+            "SELECT * FROM unnest(?::uuid[], ?::uuid[]) AS g(label_id, group_id)",
+            type(^label_ids, {:array, Ecto.UUID}),
+            type(^group_ids, {:array, Ecto.UUID})
+          ),
+        on: g.label_id == ct.topic_id,
+        windows: [
+          per_topic: [partition_by: g.group_id, order_by: [desc: i.published_at, desc: i.id]]
+        ],
+        select: %{id: i.id, rank: over(row_number(), :per_topic)}
+      )
+
+    from(r in subquery(ranked), where: r.rank <= ^per_topic, distinct: true, select: r.id)
+    |> Repo.all()
+  end
+
+  @doc """
+  Items per explicitly requested topic, for `n` such topics: 150, 75 and 50
+  for one to three, 50 each up to six, then shrinking so the total stays
+  at most #{@explicit_total_max}. Never under one each, so past
+  #{@explicit_total_max} topics the total is `n` (at most the taxonomy's 360).
+
+      iex> Enum.map([1, 2, 3, 6, 7, 10, 400], &TSpec.Feed.Candidates.explicit_per_topic/1)
+      [150, 75, 50, 50, 42, 30, 1]
+  """
+  def explicit_per_topic(n) when n > 0 do
+    min(
+      max(@explicit_per_topic_min, div(@limits.topic, n)),
+      max(1, div(@explicit_total_max, n))
+    )
   end
 
   ## Hydration
