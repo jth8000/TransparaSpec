@@ -84,7 +84,10 @@ defmodule TSpecWeb.TransparencyControllerTest do
     end
 
     test "says when an explore slot placed the item", %{conn: conn, scope: scope} do
-      # Cooking at 2×: strong enough that only the slot brings travel up.
+      # Cooking is known (watched), and at 2× strong enough that only the
+      # slot brings travel up.
+      watch!(scope, ready_video_fixture(onboarded_user_fixture(), topics: ["cooking"]))
+
       {:ok, _} =
         Transparency.update_settings(scope, %{topics: %{"cooking" => %{multiplier: 2.0}}})
 
@@ -99,7 +102,7 @@ defmodule TSpecWeb.TransparencyControllerTest do
       body = conn |> get(~p"/api/impressions/#{slotted}") |> json_response(200)
       assert_schema(body, "Explanation", spec())
       assert body["placement"] == "explore"
-      assert body["ranker_version"] == "v1.2"
+      assert body["ranker_version"] == "v1.3"
 
       ordinary = conn |> get(~p"/api/impressions/#{ordinary}") |> json_response(200)
       assert ordinary["placement"] == nil

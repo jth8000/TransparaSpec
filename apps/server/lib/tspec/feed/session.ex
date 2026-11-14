@@ -12,6 +12,10 @@ defmodule TSpec.Feed.Session do
     * refills its cache in the background when filters drain it or a newly
       boosted topic is missing, and merges the result only if the settings
       haven't changed since the refill started
+    * remembers the topics of items the client has shown, so an explore
+      slot never calls a topic new after this feed has shown it (ADR 0015).
+      The learned profile only catches up when the features are recomputed
+      (session start, settings change), which can be much later.
 
   One process per `{user_id, session_id}` **cluster-wide**: it's registered
   with `:global`, so a request that lands on another node reaches the same
@@ -72,7 +76,10 @@ defmodule TSpec.Feed.Session do
     served_settings_version: nil,
     # Content the client kept on screen after the session re-ranked it away
     # (the client never drops its current item); never served again.
-    client_kept: MapSet.new()
+    client_kept: MapSet.new(),
+    # Topics of items the client has shown in this feed: known, for explore
+    # slots, from the moment they're on screen.
+    seen_topic_ids: MapSet.new()
   ]
 
   ## API
@@ -255,9 +262,17 @@ defmodule TSpec.Feed.Session do
         |> Enum.map(&elem(&1, 1))
         |> Enum.max(fn -> -1 end)
 
+      seen =
+        for s <- served,
+            MapSet.member?(shown, s.impression_id),
+            id <- s.topic_ids,
+            into: MapSet.new(),
+            do: id
+
       %{
         state
         | served: served,
+          seen_topic_ids: seen,
           rev: rows |> Enum.map(& &1.rev) |> Enum.max(),
           position: position,
           served_settings_version: rows |> Enum.map(& &1.settings_version) |> Enum.max()
@@ -270,8 +285,10 @@ defmodule TSpec.Feed.Session do
     labels = Candidates.labels(Enum.map(served, & &1.content_id))
 
     for s <- served do
+      item_labels = Map.get(labels, s.content_id, [])
+
       primary =
-        case Map.get(labels, s.content_id, []) do
+        case item_labels do
           [] ->
             nil
 
@@ -285,7 +302,8 @@ defmodule TSpec.Feed.Session do
         content_id: s.content_id,
         impression_id: s.impression_id,
         author_id: s.author_id,
-        primary_topic: primary
+        primary_topic: primary,
+        topic_ids: Enum.map(item_labels, & &1.topic_id)
       }
     end
   end
@@ -363,8 +381,12 @@ defmodule TSpec.Feed.Session do
     state = %{state | rev: max(state.rev, rev)}
 
     case Enum.find_index(state.served, &(&1.impression_id == impression_id)) do
-      nil -> {:noreply, remember_kept(state, impression_id), @idle_ms}
-      index -> {:noreply, %{state | position: index}, @idle_ms}
+      nil ->
+        {:noreply, remember_kept(state, impression_id), @idle_ms}
+
+      index ->
+        state = seen(state, Enum.at(state.served, index).topic_ids)
+        {:noreply, %{state | position: index}, @idle_ms}
     end
   end
 
@@ -372,6 +394,9 @@ defmodule TSpec.Feed.Session do
     do: {:noreply, %{state | rev: rev}, @idle_ms}
 
   def handle_cast({:sync_rev, _rev}, state), do: {:noreply, state, @idle_ms}
+
+  defp seen(state, topic_ids),
+    do: %{state | seen_topic_ids: MapSet.union(state.seen_topic_ids, MapSet.new(topic_ids))}
 
   defp remember_kept(%{scope: %{user: %{id: user_id}}, id: session_id} = state, impression_id) do
     with {:ok, id} <- Ecto.UUID.cast(impression_id),
@@ -383,7 +408,10 @@ defmodule TSpec.Feed.Session do
                    i.user_id == ^user_id and i.feed_session_id == ^session_id,
                select: %{content_id: i.content_id}
            ) do
+      labels = content_id |> List.wrap() |> Candidates.labels() |> Map.get(content_id, [])
+
       %{state | client_kept: MapSet.put(state.client_kept, content_id)}
+      |> seen(Enum.map(labels, & &1.topic_id))
     else
       _ -> state
     end
@@ -395,14 +423,23 @@ defmodule TSpec.Feed.Session do
   ## Ranking
 
   # The best `limit` unserved candidates, with diversity continuing from
-  # what's already been served.
+  # what's already been served. Topics the client has shown count as known
+  # for explore slots, on top of the learned ones.
   defp next_items(state, limit) do
     served_ids = state.served |> MapSet.new(& &1.content_id) |> MapSet.union(state.client_kept)
+
+    features =
+      Map.update(
+        state.features,
+        :known_topic_ids,
+        state.seen_topic_ids,
+        &MapSet.union(&1, state.seen_topic_ids)
+      )
 
     state.cache
     |> Map.values()
     |> Enum.reject(&MapSet.member?(served_ids, &1.content_id))
-    |> Ranker.rank(state.features, state.settings, Content.topics_by_id(),
+    |> Ranker.rank(features, state.settings, Content.topics_by_id(),
       recent: state.served,
       start_position: length(state.served)
     )
@@ -455,7 +492,8 @@ defmodule TSpec.Feed.Session do
           content_id: s.content_id,
           impression_id: impression_id,
           author_id: s.author_id,
-          primary_topic: s.primary_topic
+          primary_topic: s.primary_topic,
+          topic_ids: Enum.map(state.cache[s.content_id].labels, & &1.topic_id)
         }
       end
 

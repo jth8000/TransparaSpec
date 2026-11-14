@@ -1,6 +1,6 @@
 # How the For You ranker works
 
-This is the plain-language specification of T-Spec's recommendation math as it is **actually implemented** (ranker `v1.2`). It's written for three readers:
+This is the plain-language specification of T-Spec's recommendation math as it is **actually implemented** (ranker `v1.3`). It's written for three readers:
 - people working on T-Spec;
 - AI agents working on the repo;
 - eventually, curious users who want more than the "Why?" sheet.
@@ -131,7 +131,7 @@ Before scoring, cheap database queries nominate a few hundred plausible videos. 
 | `topic` | recent items in your top 5 interest topics, **plus every topic you've boosted** (slider above 1×) | 150 |
 | `trending` | the global trending pool | 150 |
 | `co_engagement` | items finished by people who finished what you finished (last 14 days) | 100 |
-| `explore` | random recent items whose topics are all new to you (see [Explore slots](#explore-slots)); off when the Explore slider is at 0 | 50 |
+| `explore` | random recent items in areas new to you (see [Explore slots](#explore-slots)); off when the Explore slider is at 0 | 50 |
 | `fresh` | the newest public items | 100 |
 
 **Trending score** = how many **distinct people** finished the item in the last 24 hours × `0.5 ^ (item age / 48 hours)`. It's refreshed every 5 minutes.
@@ -260,12 +260,16 @@ The window continues across pages and re-ranks: the items already sent count as 
 Once your profile has formed, items from topics you've never watched would almost never win on score: they have no learned interest by construction. So some positions are **kept for something new**:
 
 - **Every 10th position** in your feed (the 10th, 20th, ...) goes to the best *explorable* item. Positions are counted across the whole feed session, so pages and live re-ranks keep the spacing.
-- **Explorable** means the item has topic labels and none of them is a topic you know, or a subtopic of one. You know a topic when:
+- **Explorable** means the item has topic labels, and none of them is in an *area* you know. An area is a tier-1 topic with its subtopics, like Healthy Living with Fitness and Exercise. You know an area when you know any topic in it, and you know a topic when:
   - your learned interest in it is at least **0.05** away from 0 (either way, so topics you skip count too). One finished video fades below that in about five weeks;
-  - you set its slider (or its parent's) to anything but 1×;
+  - this feed has already shown you an item about it, even before your learned interest catches up;
+  - you set its slider (or its parent's) **below** 1×. A topic you've boosted stays explorable: nudging up a topic an explore slot introduced never takes it out of the slots;
   - you forgot it in the last **30 days**. A forgotten topic isn't offered back as "new" right away.
+
+  Whole areas, because a parent topic is credited half of what its subtopic gets and fades first: without this, someone who loves Fitness would soon be offered Healthy Living as "new".
+- **No slots until you know some topic.** For a brand-new account everything is new, so a slot would say nothing.
 - **The slot is filled inside the diversity pass**, by the explorable item with the best score plus diversity. So the next pick sees it in its window. If no explorable item is left, the position is filled normally.
-- **The slot changes where an item goes, not its score.** Its trace still adds up to its saved score. The impression records `placement: "explore"`, and "Why?" says "Shown to broaden your feed".
+- **The slot changes where an item goes, not its score.** Its trace still adds up to its saved score. The impression records `placement: "explore"`, and "Why?" says "Shown to broaden your feed: this spot is kept for a topic that's new to you" (or "one you boosted but haven't watched lately", when the trace has a boost).
 - **The Explore slider sets the spacing**: every `round(10 / m)`-th position, so 2× is every 5th and 0.5× every 20th. **At 0, there are no slots and the explore source doesn't run.** Non-personalized mode has no slots.
 
 ### A worked example (real numbers)
@@ -299,7 +303,7 @@ The `topic_affinity` weight is 1.5, which is the default 1.0 × your 1.5× slide
 Every item sent to you creates an **impression** row, saved at that moment. It holds:
 - the full contribution list and the score;
 - the candidate sources;
-- the ranker version (`v1.2`; explanations saved under earlier versions stay as they were);
+- the ranker version (`v1.3`; explanations saved under earlier versions stay as they were);
 - the item's placement, if an explore slot put it there;
 - your settings version, and a snapshot of your settings at that moment;
 - your consent version.
