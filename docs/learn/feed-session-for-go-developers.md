@@ -64,8 +64,10 @@ func (s *session) loop(mailbox <-chan any) {
                     s.maybeRefill()
                 }
             case interestsChanged: // PubSub broadcast   → handle_info({:interests_changed, reason}, ...)
-                s.features = loadFeatures(s.user, s.settings) // re-read the committed profile
-                if m.reason == forgot {
+                if m.reason == learned {
+                    s.featuresStale = true // re-read before the next page, not now
+                } else { // forgot: an explicit control
+                    s.features = loadFeatures(s.user, s.settings)
                     s.rerankTail()
                 }
             case refillDone:      // task's reply        → handle_info({ref, {:refill, version, candidates}}, ...)
@@ -121,8 +123,9 @@ Each heading names the function to read in [`session.ex`](../../apps/server/lib/
 
 ### Profile changes: `handle_info({:interests_changed, reason}, ...)`
 - **Same topic, different message.** `AffinityWorker` broadcasts `:learned` after it applied views, and "forget this interest" broadcasts `:forgot`, both after their transactions commit.
-- **`drain_interests_changed/1` empties the mailbox of the same message** with a zero-timeout `receive`, the Elixir version of a non-blocking drain loop over a Go channel (`for { select { case m := <-ch: ...; default: break } }`). A burst of views then costs one database read.
-- **Only a forget re-ranks.** Learned changes just replace `state.features`; the next `next_page` uses them.
+- **Two clauses, matched on the message's second element.** `{:interests_changed, :learned}` only sets `features_stale`; `handle_call({:next_page, ...})` calls `refresh_if_stale/1` first. That's a dirty flag, the same trick as a Go struct with a `stale bool` checked before use: a burst of views costs one database read, and none if nobody scrolls.
+- **`drain_interests_changed/0` empties the mailbox of waiting profile messages** after a forget, with a zero-timeout `receive`: the Elixir version of a non-blocking drain loop over a Go channel (`for { select { case <-ch: ...; default: return } }`).
+- **`maybe_refill/2` also looks for new top topics.** `gathered_top_topic_ids` remembers what the cache was gathered for; a top topic that's new since then and thin in the cache gets a targeted refill.
 
 ### Refills: `maybe_refill/2`, `start_refill/2`, `apply_refill/3`, the `:DOWN` clause
 - **The slow SQL runs in a task,** so the session keeps answering. `Task.Supervisor.async_nolink` starts it and monitors it in one step.

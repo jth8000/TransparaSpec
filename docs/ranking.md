@@ -338,7 +338,7 @@ When you move a slider or flip a switch:
 Measured end to end in the browser test: about 230 ms from tap to re-ranked feed, including a deliberate 150 ms pause that batches slider movements.
 
 Your learned interests change between settings changes too, and open feeds follow:
-- **As you watch:** once the background worker has applied your new views, every open feed re-reads your interests. The next page uses them; nothing already sent is replaced.
+- **As you watch:** once the background worker has applied your new views, every open feed re-reads your interests before its next page. Nothing already sent is replaced. If a topic has just become one of your top interests but the feed has few of its posts left, it fetches more.
 - **"Forget this interest"** is an explicit control, so it works like a slider: open feeds re-read your interests and re-rank everything after the item you're watching.
 
 ---
@@ -417,7 +417,7 @@ Fixed in code and described above (not yet tunable):
 - **Sessions:**
   - page size 10;
   - idle stop after 10 minutes;
-  - refill below 30 candidates, or when a boosted topic has fewer than 5;
+  - refill below 30 candidates, or when a boosted topic (on a settings change) or a topic that just entered your top topics has fewer than 5 unserved;
   - 60 s back-off after an empty or failed refill.
 
 ## Where it lives in the code

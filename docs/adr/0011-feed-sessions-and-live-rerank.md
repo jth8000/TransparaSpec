@@ -59,10 +59,12 @@ Joining sends `{rev}` (the revision the client holds); see "The process is a cac
 
 ### When the learned profile changes (amended 2026-11-13)
 A session computes its features (squashed affinities) when it starts and on every settings change. The learned profile also changes in between, and the session now hears about it on the same per-user topic (`feed_settings:<user_id>`), always after the change has committed:
-- **`{:interests_changed, :learned}`**, from `AffinityWorker` after it applied at least one view. The session re-reads its features, and the next page ranks with them. Nothing is pushed: re-ranking the client's tail on every view would churn the feed.
-- **`{:interests_changed, :forgot}`**, after "forget this interest" (`Transparency.forget_interest/2`, `forget_creator_interest/2`). Forgetting is an explicit control, so it behaves like a settings change: refresh, re-rank the tail, push.
+- **`{:interests_changed, :learned}`**, from `AffinityWorker` after it applied at least one view. The session only marks its features stale, and re-reads them before the next page (or before a refill result re-ranks the tail). A burst of views costs one read, and none at all if no page is asked for. Nothing is pushed: re-ranking the client's tail on every view would churn the feed.
+- **`{:interests_changed, :forgot}`**, after "forget this interest" (`Transparency.forget_interest/2`, `forget_creator_interest/2`). Forgetting is an explicit control, so it behaves like a settings change: re-read now, re-rank the tail, push. Other profile messages already waiting are covered by that read.
 
-Messages already waiting are taken together, so a burst of views costs one refresh. Order doesn't matter: each refresh reads the committed profile, so a late or duplicate message just re-reads the same state.
+Order doesn't matter: each read gets the committed profile, so a late or duplicate message just re-reads the same state.
+
+**New top topics get candidates.** Fresher scores alone aren't enough: the cache was gathered from the top topics the user had when it was filled, so a topic discovered since (say, from an explore slot) may have only an item or two in it. The session remembers which top topics its cache was gathered for. After every page, a top topic that's new since then, with fewer than 5 *unserved* cached items, gets a targeted refill, as a boosted topic does after a settings change. (The boosted-topic check counts unserved items too now: items the client already has don't fill the next page.)
 
 ### Stale work is discarded, not merged
 - Settings broadcasts on `feed_settings:<user_id>` carry their `settings_version`. A session ignores any broadcast older than the one it has, which covers out-of-order PubSub delivery across nodes.

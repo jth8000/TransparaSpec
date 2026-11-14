@@ -403,6 +403,7 @@ defmodule TSpec.Transparency do
     with %{id: topic_id} <- Content.topics_by_slug()[slug],
          :ok <- Interests.forget(user_id, :topic, topic_id) do
       broadcast_interests_changed(user_id, :forgot)
+      :ok
     else
       nil -> {:error, :not_found}
     end
@@ -413,6 +414,7 @@ defmodule TSpec.Transparency do
     with {:ok, creator_id} <- Ecto.UUID.cast(creator_id),
          :ok <- Interests.forget(user_id, :creator, creator_id) do
       broadcast_interests_changed(user_id, :forgot)
+      :ok
     else
       :error -> {:error, :not_found}
     end

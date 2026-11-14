@@ -136,6 +136,18 @@ defmodule TSpec.Feed.Candidates do
 
   ## Sources
 
+  @doc """
+  The user's top learned topics, which the `topic` source draws from: the
+  #{@top_topics} with the highest positive value (ties by id).
+  """
+  def top_topic_ids(features) do
+    features.topic_affinity
+    |> Enum.filter(fn {_id, v} -> v > 0 end)
+    |> Enum.sort_by(fn {id, v} -> {-v, id} end)
+    |> Enum.take(@top_topics)
+    |> Enum.map(&elem(&1, 0))
+  end
+
   defp nominate("following", base, user_id, _settings, _features, _now, _opts) do
     from(i in base,
       where: i.author_id in subquery(Social.followee_ids_query(user_id)),
@@ -148,13 +160,7 @@ defmodule TSpec.Feed.Candidates do
 
   defp nominate("topic", base, _user_id, settings, features, _now, opts) do
     by_slug = Content.topics_by_slug()
-
-    top =
-      features.topic_affinity
-      |> Enum.filter(fn {_id, v} -> v > 0 end)
-      |> Enum.sort_by(fn {id, v} -> {-v, id} end)
-      |> Enum.take(@top_topics)
-      |> Enum.map(&elem(&1, 0))
+    top = top_topic_ids(features)
 
     boosted =
       (Settings.boosted_slugs(settings) ++ Keyword.get(opts, :topic_slugs, []))

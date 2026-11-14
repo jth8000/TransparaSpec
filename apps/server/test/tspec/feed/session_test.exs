@@ -241,12 +241,34 @@ defmodule TSpec.Feed.SessionTest do
 
     test "a topic discovered mid-session gets its learned boost once the worker applies the view",
          %{scope: scope, items: items} do
-      {_sid, pid} = start!(scope)
+      test = self()
+
+      # The first gather finds only two travel items and no music, so the
+      # cache is thin on the topic about to be discovered; refills are real.
+      gather = fn user_id, settings, features, opts ->
+        send(test, {:gathered, opts[:refill] == true, opts[:topic_slugs] || []})
+        found = Candidates.gather(user_id, settings, features, opts)
+
+        if opts[:refill] do
+          found
+        else
+          travel = Enum.filter(found, &labeled?(&1.content_id, items, :travel)) |> Enum.take(2)
+          Enum.reject(found, &(new_topic(&1.content_id, items) != nil)) ++ travel
+        end
+      end
+
+      {_sid, pid} = start!(scope, gather: gather)
+      travel_id = Content.topics_by_slug()["travel"].id
+
+      cached_travel = fn ->
+        Enum.count(Session.state(pid).cache, fn {id, _} -> labeled?(id, items, :travel) end)
+      end
+
+      assert cached_travel.() == 2
+
       {:ok, %{items: p1}} = Session.next_page(pid, 10)
       {slotted, _} = slot = Enum.at(p1, 9)
-      first_new = new_topic(slotted.content_id, items)
-      topic_id = Content.topics_by_slug()[to_string(first_new)].id
-      refute Map.has_key?(Session.state(pid).features.topic_affinity, topic_id)
+      assert labeled?(slotted.content_id, items, :travel)
 
       # The client shows it, and the view is recorded and applied (as the
       # affinity worker does after every committed batch).
@@ -263,22 +285,36 @@ defmodule TSpec.Feed.SessionTest do
         ])
 
       :ok = TSpec.Feed.AffinityWorker.perform(%Oban.Job{args: %{"user_id" => scope.user.id}})
-      _ = Session.state(pid)
 
-      assert Session.state(pid).features.topic_affinity[topic_id] > 0
+      # Lazy: the session only notes that its profile is stale.
+      assert %{features_stale: true, features: features} = Session.state(pid)
+      refute Map.has_key?(features.topic_affinity, travel_id)
 
-      # Later pages rank that topic with what was learned.
+      # The next page re-reads it, and travel, now a top topic with almost
+      # nothing left in the cache, gets a targeted refill.
+      flush_gathered()
+      {:ok, _} = Session.next_page(pid, 10)
+      assert %{features_stale: false, features: features} = Session.state(pid)
+
+      assert is_float(features.topic_affinity[travel_id]) and
+               features.topic_affinity[travel_id] > 0
+
+      assert_receive {:gathered, true, ["travel"]}, 2_000
+      settle(pid)
+      assert cached_travel.() > 2
+
+      # Later pages rank travel with what was learned.
       {:ok, %{items: more}} = Session.next_page(pid, 100)
 
       learned =
         for {s, _} <- more,
-            labeled?(s.content_id, items, first_new),
+            labeled?(s.content_id, items, :travel),
             c <- s.contributions,
             c.feature == "topic_affinity",
             do: c.topic
 
       assert learned != []
-      assert Enum.all?(learned, &(&1 == to_string(first_new)))
+      assert Enum.all?(learned, &(&1 == "travel"))
     end
 
     test "forgetting an interest re-ranks the live feed without it", %{scope: scope} do

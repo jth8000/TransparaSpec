@@ -14,10 +14,12 @@ defmodule TSpec.Feed.Session do
       haven't changed since the refill started
     * remembers the topics of items the client has shown, so an explore
       slot never calls a topic new after this feed has shown it (ADR 0015)
-    * refreshes its learned features when the user's profile changes
-      (`{:interests_changed, _}`): quietly after the affinity worker applied
-      views (the next page uses them), and with a re-rank of the tail after
-      a forget, which is an explicit control
+    * follows the user's learned profile (`{:interests_changed, _}`): after
+      the affinity worker applied views it marks its features stale and
+      re-reads them before the next page (no work if no page is asked for);
+      after a forget, an explicit control, it re-reads them at once and
+      re-ranks the tail. A topic that enters the user's top topics this way
+      gets a targeted refill if the cache has few unserved items of it.
 
   One process per `{user_id, session_id}` **cluster-wide**: it's registered
   with `:global`, so a request that lands on another node reaches the same
@@ -81,7 +83,12 @@ defmodule TSpec.Feed.Session do
     client_kept: MapSet.new(),
     # Topics of items the client has shown in this feed: known, for explore
     # slots, from the moment they're on screen.
-    seen_topic_ids: MapSet.new()
+    seen_topic_ids: MapSet.new(),
+    # The learned profile changed since `features` was read.
+    features_stale: false,
+    # Top learned topics the cache has been gathered for (the `topic`
+    # source's input); a new one with few cached items gets a refill.
+    gathered_top_topic_ids: MapSet.new()
   ]
 
   ## API
@@ -204,11 +211,14 @@ defmodule TSpec.Feed.Session do
 
   @impl true
   def handle_continue(:load, state) do
-    state = rebuild(state)
-    state = %{state | features: Ranking.features(state.scope.user.id, state.settings)}
+    state = state |> rebuild() |> refresh_features()
     candidates = state.gather.(state.scope.user.id, state.settings, ranking_features(state), [])
 
-    state = %{state | cache: Map.new(candidates, &{&1.content_id, &1})}
+    state = %{
+      state
+      | cache: Map.new(candidates, &{&1.content_id, &1}),
+        gathered_top_topic_ids: MapSet.new(Candidates.top_topic_ids(state.features))
+    }
 
     # Settings changed while no process was listening (it had idled out, or
     # the change came from the Algorithm tab): the client's list was ranked
@@ -322,11 +332,22 @@ defmodule TSpec.Feed.Session do
     |> MapSet.new()
   end
 
-  defp drain_interests_changed(reasons) do
+  # Re-reads the learned profile (several queries; see U4).
+  defp refresh_features(state) do
+    features = Ranking.features(state.scope.user.id, state.settings)
+    %{state | features: features, features_stale: false}
+  end
+
+  defp refresh_if_stale(%{features_stale: true} = state), do: refresh_features(state)
+  defp refresh_if_stale(state), do: state
+
+  # Drops every profile-change message already waiting: one refresh covers
+  # them all, since each refresh reads the committed profile.
+  defp drain_interests_changed do
     receive do
-      {:interests_changed, reason} -> drain_interests_changed([reason | reasons])
+      {:interests_changed, _reason} -> drain_interests_changed()
     after
-      0 -> reasons
+      0 -> :ok
     end
   end
 
@@ -336,31 +357,24 @@ defmodule TSpec.Feed.Session do
   # A newer settings version (from any device): re-rank the tail.
   def handle_info({:settings_changed, %Settings{version: v} = settings}, state)
       when v > state.settings.version do
-    state = %{
-      state
-      | settings: settings,
-        features: Ranking.features(state.scope.user.id, settings)
-    }
-
+    state = %{state | settings: settings} |> refresh_features()
     state = state |> rerank_tail() |> maybe_refill(:settings_changed)
     {:noreply, state, @idle_ms}
   end
 
   def handle_info({:settings_changed, _stale}, state), do: {:noreply, state, @idle_ms}
 
-  # The learned profile changed (and committed). Several views can land in
-  # quick succession, so take every such message already waiting and
-  # refresh once. A forget among them also re-ranks the tail.
-  def handle_info({:interests_changed, reason}, state) do
-    reasons = drain_interests_changed([reason])
+  # The affinity worker applied views (committed). Re-read lazily, before
+  # the next page: a burst of views costs nothing until a page is asked for.
+  def handle_info({:interests_changed, :learned}, state),
+    do: {:noreply, %{state | features_stale: true}, @idle_ms}
 
-    state = %{state | features: Ranking.features(state.scope.user.id, state.settings)}
-
-    state =
-      if :forgot in reasons and state.served != [],
-        do: rerank_tail(state),
-        else: state
-
+  # A forget (committed) is an explicit control: re-read now and re-rank the
+  # tail, like a settings change. Waiting profile messages are covered too.
+  def handle_info({:interests_changed, :forgot}, state) do
+    :ok = drain_interests_changed()
+    state = refresh_features(state)
+    state = if state.served != [], do: rerank_tail(state), else: state
     {:noreply, state, @idle_ms}
   end
 
@@ -392,6 +406,7 @@ defmodule TSpec.Feed.Session do
 
   @impl true
   def handle_call({:next_page, limit}, _from, state) do
+    state = refresh_if_stale(state)
     page = next_items(state, limit)
     {pairs, state} = serve(state, page)
     state = maybe_refill(state, :page)
@@ -537,6 +552,9 @@ defmodule TSpec.Feed.Session do
   defp apply_refill(%{settings: %{version: version}} = state, version, candidates) do
     new = Enum.reject(candidates, &Map.has_key?(state.cache, &1.content_id))
 
+    # It may re-rank the tail below: with the current profile.
+    state = refresh_if_stale(state)
+
     state = %{
       state
       | cache: Map.merge(state.cache, Map.new(new, &{&1.content_id, &1})),
@@ -564,8 +582,11 @@ defmodule TSpec.Feed.Session do
 
   # Refills run in the background, tagged with the settings version they
   # ran under. A newer version may always start its own; results for an
-  # older one are discarded on arrival. On a settings change, every boosted
-  # topic that's barely in the cache gets a targeted query.
+  # older one are discarded on arrival. Targeted queries go to topics with
+  # few unserved items in the cache: on a settings change, every boosted
+  # topic; and at any check, a topic that has entered the user's top learned
+  # topics since the cache was last gathered (say, one just discovered from
+  # an explore slot). While a refill is in flight, the next page re-checks.
   defp maybe_refill(%{refilling: version, settings: %{version: version}} = state, :page),
     do: state
 
@@ -576,14 +597,25 @@ defmodule TSpec.Feed.Session do
   end
 
   defp maybe_refill(state, reason) do
-    missing =
+    by_slug = Content.topics_by_slug()
+    by_id = Content.topics_by_id()
+
+    boosted =
       if reason == :settings_changed,
-        do:
-          Enum.filter(
-            Settings.boosted_slugs(state.settings),
-            &(cached_with_topic(state, &1) < @boost_min)
-          ),
+        do: Settings.boosted_slugs(state.settings) |> Enum.flat_map(&List.wrap(by_slug[&1])),
         else: []
+
+    new_top =
+      state.features
+      |> Candidates.top_topic_ids()
+      |> Enum.reject(&MapSet.member?(state.gathered_top_topic_ids, &1))
+      |> Enum.flat_map(&List.wrap(by_id[&1]))
+
+    missing =
+      (boosted ++ new_top)
+      |> Enum.filter(&(unserved_with_topic(state, &1.id) < @boost_min))
+      |> Enum.map(& &1.slug)
+      |> Enum.uniq()
 
     if unserved_eligible(state) < @refill_below or missing != [] do
       start_refill(state, missing)
@@ -601,14 +633,17 @@ defmodule TSpec.Feed.Session do
     end)
   end
 
-  defp cached_with_topic(state, slug) do
+  # Cached items with the topic (or a subtopic of it) that the client
+  # doesn't have yet: what's left to show of it.
+  defp unserved_with_topic(state, topic_id) do
     taxonomy = Content.topics_by_id()
+    served_ids = state.served |> MapSet.new(& &1.content_id) |> MapSet.union(state.client_kept)
 
-    Enum.count(state.cache, fn {_id, c} ->
-      Enum.any?(c.labels, fn %{topic_id: id} ->
-        t = taxonomy[id]
-        t.slug == slug or (t.parent_id != nil and taxonomy[t.parent_id].slug == slug)
-      end)
+    Enum.count(state.cache, fn {id, c} ->
+      not MapSet.member?(served_ids, id) and
+        Enum.any?(c.labels, fn %{topic_id: label} ->
+          label == topic_id or taxonomy[label].parent_id == topic_id
+        end)
     end)
   end
 
@@ -632,6 +667,14 @@ defmodule TSpec.Feed.Session do
         {:refill, settings.version, candidates}
       end)
 
-    %{state | refilling: settings.version, refill_ref: task.ref}
+    # This gather covers the user's current top topics (the `topic` source).
+    covered = MapSet.new(Candidates.top_topic_ids(features))
+
+    %{
+      state
+      | refilling: settings.version,
+        refill_ref: task.ref,
+        gathered_top_topic_ids: MapSet.union(state.gathered_top_topic_ids, covered)
+    }
   end
 end
