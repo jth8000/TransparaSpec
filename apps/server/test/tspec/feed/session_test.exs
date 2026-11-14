@@ -193,6 +193,52 @@ defmodule TSpec.Feed.SessionTest do
       assert placement(scope, i19) == {19, "explore"}
     end
 
+    test "refills and a restarted session's first gather use the shown topics too", %{
+      scope: scope,
+      items: items
+    } do
+      test = self()
+
+      # The real gather, reporting which topics it was told are known.
+      gather = fn user_id, settings, features, opts ->
+        send(test, {:gathered, opts[:refill] == true, features.known_topic_ids})
+        Candidates.gather(user_id, settings, features, opts)
+      end
+
+      {sid, pid} = start!(scope, gather: gather)
+      {:ok, %{items: p1}} = Session.next_page(pid, 10)
+      {slotted, _} = Enum.at(p1, 9)
+      first_new = new_topic(slotted.content_id, items)
+      topic_id = Content.topics_by_slug()[to_string(first_new)].id
+      show!(scope, pid, Enum.at(p1, 9))
+
+      # Boosting a topic the cache lacks starts a targeted refill.
+      flush_gathered()
+
+      {:ok, _} =
+        Transparency.update_settings(scope, %{topics: %{"video-gaming" => %{multiplier: 2.0}}})
+
+      assert_receive {:gathered, true, known}, 2_000
+      assert MapSet.member?(known, topic_id)
+
+      # The process goes away; its replacement gathers with them as well.
+      ref = Process.monitor(pid)
+      Process.exit(pid, :kill)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
+      flush_gathered()
+      {:ok, _pid2} = Session.ensure(scope, sid, gather: gather)
+      assert_receive {:gathered, false, known}, 2_000
+      assert MapSet.member?(known, topic_id)
+    end
+
+    defp flush_gathered do
+      receive do
+        {:gathered, _, _} -> flush_gathered()
+      after
+        0 -> :ok
+      end
+    end
+
     test "a topic this feed has shown isn't offered as new again, even after a restart", %{
       scope: scope,
       items: items

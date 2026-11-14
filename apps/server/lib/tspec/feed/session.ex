@@ -203,10 +203,10 @@ defmodule TSpec.Feed.Session do
   @impl true
   def handle_continue(:load, state) do
     state = rebuild(state)
-    features = Ranking.features(state.scope.user.id, state.settings)
-    candidates = state.gather.(state.scope.user.id, state.settings, features, [])
+    state = %{state | features: Ranking.features(state.scope.user.id, state.settings)}
+    candidates = state.gather.(state.scope.user.id, state.settings, ranking_features(state), [])
 
-    state = %{state | features: features, cache: Map.new(candidates, &{&1.content_id, &1})}
+    state = %{state | cache: Map.new(candidates, &{&1.content_id, &1})}
 
     # Settings changed while no process was listening (it had idled out, or
     # the change came from the Algorithm tab): the client's list was ranked
@@ -422,24 +422,28 @@ defmodule TSpec.Feed.Session do
 
   ## Ranking
 
+  # The features every ranking and gathering in this session uses: the
+  # learned ones, with the topics the client has shown counted as known for
+  # explore (ADR 0015). One helper, so the explore source's query and the
+  # ranker's slots apply the same rule.
+  defp ranking_features(state) do
+    Map.update(
+      state.features,
+      :known_topic_ids,
+      state.seen_topic_ids,
+      &MapSet.union(&1, state.seen_topic_ids)
+    )
+  end
+
   # The best `limit` unserved candidates, with diversity continuing from
-  # what's already been served. Topics the client has shown count as known
-  # for explore slots, on top of the learned ones.
+  # what's already been served.
   defp next_items(state, limit) do
     served_ids = state.served |> MapSet.new(& &1.content_id) |> MapSet.union(state.client_kept)
-
-    features =
-      Map.update(
-        state.features,
-        :known_topic_ids,
-        state.seen_topic_ids,
-        &MapSet.union(&1, state.seen_topic_ids)
-      )
 
     state.cache
     |> Map.values()
     |> Enum.reject(&MapSet.member?(served_ids, &1.content_id))
-    |> Ranker.rank(features, state.settings, Content.topics_by_id(),
+    |> Ranker.rank(ranking_features(state), state.settings, Content.topics_by_id(),
       recent: state.served,
       start_position: length(state.served)
     )
@@ -586,7 +590,8 @@ defmodule TSpec.Feed.Session do
   # task that finishes instantly can't be mistaken for one that crashed, and
   # one that dies before replying is noticed (see the DOWN handler).
   defp start_refill(state, topic_slugs) do
-    %{scope: scope, settings: settings, features: features, gather: gather} = state
+    %{scope: scope, settings: settings, gather: gather} = state
+    features = ranking_features(state)
     exclude = Map.keys(state.cache)
 
     task =

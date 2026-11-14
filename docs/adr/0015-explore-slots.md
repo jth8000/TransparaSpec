@@ -33,7 +33,7 @@ Options considered:
 - its slider, or its parent's, is **below** 1×.
 - it was forgotten within the last **30 days** (`Ranking.features/3`'s `known_topic_ids`). After that it can be offered again.
 
-Blocking whole families is strict on purpose: a Fitness item for someone who loves Healthy Living is nearby, not new. The explore source's SQL uses the same blocked set.
+Blocking whole families is strict on purpose: a Fitness item for someone who loves Healthy Living is nearby, not new. The explore source's SQL uses the same blocked set, including inside a session: its first gather, its refills and its ranking all add the seen topics through one helper (`Session.ranking_features/1`).
 
 **No slots until the user knows some topic** (the blocked set is empty). With the session's seen topics, slots start once the client has shown its first labeled item.
 
@@ -50,6 +50,8 @@ Blocking whole families is strict on purpose: a Fitness item for someone who lov
 - **Order is no longer score order plus diversity alone.** Every position that isn't score-ordered is recorded on its impression, so "Why?" can still say exactly why the item is there.
 - **Cold start:** a user who knows no topic gets no slots (v1.3). Until then every item is effectively exploration.
 - **Other devices:** a session only knows what *its* client has shown. Another device's session picks the topic up when it recomputes its features (start, settings change).
+- **Known limitation: a topic just discovered drops out until the session refreshes.** Once the client shows a Travel item from a slot, Travel's family is blocked from slots. But the session's learned profile is from when its features were last computed, so Travel's affinity there is still 0, and Travel items now compete on score with nothing to lift them. They come back when the session recomputes its features (start, settings change). The fix is for sessions to refresh their features when the affinity worker applies new views; until it lands, this is the behavior.
+- **Whole families are coarse.** Some tier-1 areas are large (Sports has dozens of subtopics), and each shown item can block up to three families. A long session can run out of explorable families, and then slots fall back to normal picks: the rate is "up to" one in ten. How often that happens is measurable from stored impressions (slot positions without an explore placement), and is an open question for beta.
 - **Diversity already explores a little.** In small catalogs the topic-repeat penalty lifts a lone item from another topic well before its slot (a controller test had to account for this). Slots are what guarantees a rate once the catalog is large.
 - **Unlabeled items are never explorable.** They have nothing to be new about. Phase 1b's model labels will make most items labeled.
 - **The numbers are guesses** (every 10th, 0.05, 30 days), listed in `docs/ranking.md`'s defaults table for tuning from beta data.
