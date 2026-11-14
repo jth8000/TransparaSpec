@@ -46,8 +46,9 @@ defmodule TSpec.Feed.Candidates do
   }
   # The `topic` source's budget for topics asked for explicitly (boosted,
   # or targeted by a refill): each gets 150 / n but at least 50, and all of
-  # them together about 300 at most. Nothing limits how many topics a user
-  # can boost, so the total must be capped (threat-model.md).
+  # them together at most 300, except that each keeps at least one item: 360
+  # if every topic in the taxonomy is requested. Nothing limits how many
+  # topics a user can boost, so the total must be capped (threat-model.md).
   @explicit_per_topic_min 50
   @explicit_total_max 300
   # Bayesian smoothing for completion rate: pretend every item starts with
@@ -320,7 +321,8 @@ defmodule TSpec.Feed.Candidates do
   @doc """
   Items per explicitly requested topic, for `n` such topics: 150, 75 and 50
   for one to three, 50 each up to six, then shrinking so the total stays
-  about #{@explicit_total_max} (never under one each).
+  at most #{@explicit_total_max}. Never under one each, so past
+  #{@explicit_total_max} topics the total is `n` (at most the taxonomy's 360).
 
       iex> Enum.map([1, 2, 3, 6, 7, 10, 400], &TSpec.Feed.Candidates.explicit_per_topic/1)
       [150, 75, 50, 50, 42, 30, 1]
