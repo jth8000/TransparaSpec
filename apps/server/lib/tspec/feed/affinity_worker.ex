@@ -10,18 +10,22 @@ defmodule TSpec.Feed.AffinityWorker do
   into one that runs before this transaction commits, leaving the new views
   with no job until the sweep. Extra runs are cheap and idempotent (ADR 0012).
   `TSpec.Feed.AffinitySweepWorker` only covers jobs that were discarded.
+
+  After the views are applied (their transaction has committed), the user's
+  live feed sessions are told to refresh their learned features, so a topic
+  discovered mid-session gets its learned boost on the next page.
   """
   use Oban.Worker, queue: :affinity, max_attempts: 5
 
   alias TSpec.Feed.Interests
+  alias TSpec.Transparency
 
   def new_for_user(user_id), do: new(%{user_id: user_id})
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => user_id}}) do
-    case Interests.apply_dirty_views(user_id) do
-      {:ok, %{more?: true}} -> Interests.enqueue_apply(user_id)
-      {:ok, _} -> :ok
-    end
+    {:ok, result} = Interests.apply_dirty_views(user_id)
+    if result.applied > 0, do: Transparency.broadcast_interests_changed(user_id, :learned)
+    if result.more?, do: Interests.enqueue_apply(user_id), else: :ok
   end
 end

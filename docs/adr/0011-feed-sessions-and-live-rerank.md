@@ -57,6 +57,13 @@ Joining sends `{rev}` (the revision the client holds); see "The process is a cac
    - The results are merged, and a second push follows with `rev + 1`.
 3. **Breadth:** the `topic` source draws from the user's top affinity topics *plus every topic they've explicitly boosted*, so a slider can surface content the profile has never seen.
 
+### When the learned profile changes (amended 2026-11-13)
+A session computes its features (squashed affinities) when it starts and on every settings change. The learned profile also changes in between, and the session now hears about it on the same per-user topic (`feed_settings:<user_id>`), always after the change has committed:
+- **`{:interests_changed, :learned}`**, from `AffinityWorker` after it applied at least one view. The session re-reads its features, and the next page ranks with them. Nothing is pushed: re-ranking the client's tail on every view would churn the feed.
+- **`{:interests_changed, :forgot}`**, after "forget this interest" (`Transparency.forget_interest/2`, `forget_creator_interest/2`). Forgetting is an explicit control, so it behaves like a settings change: refresh, re-rank the tail, push.
+
+Messages already waiting are taken together, so a burst of views costs one refresh. Order doesn't matter: each refresh reads the committed profile, so a late or duplicate message just re-reads the same state.
+
 ### Stale work is discarded, not merged
 - Settings broadcasts on `feed_settings:<user_id>` carry their `settings_version`. A session ignores any broadcast older than the one it has, which covers out-of-order PubSub delivery across nodes.
 - Each refill is tagged with the `settings_version` it ran under. Its result is merged **only if the session is still on that version**; otherwise it's thrown away.

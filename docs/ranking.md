@@ -262,7 +262,7 @@ Once your profile has formed, items from topics you've never watched would almos
 - **Every 10th position** in your feed (the 10th, 20th, ...) goes to the best *explorable* item. Positions are counted across the whole feed session, so pages and live re-ranks keep the spacing.
 - **Explorable** means the item has topic labels, and none of them is in an *area* you know. An area is a tier-1 topic with its subtopics, like Healthy Living with Fitness and Exercise. You know an area when you know any topic in it, and you know a topic when:
   - your learned interest in it is at least **0.05** away from 0 (either way, so topics you skip count too). One finished video fades below that in about five weeks;
-  - this feed has already shown you an item about it, even before your learned interest catches up. (Known limitation: until the feed refreshes your learned interests, at its next start or settings change, a topic you just discovered this way gets neither a slot nor its learned boost.)
+  - this feed has already shown you an item about it, even before your learned interest catches up. Your learned interest follows within seconds: the feed refreshes it whenever new views are applied, so a topic you just discovered keeps coming up on its own merit (see [section 5](#5-changing-settings-live));
   - you set its slider (or its parent's) **below** 1×. A topic you've boosted stays explorable: nudging up a topic an explore slot introduced never takes it out of the slots;
   - you forgot it in the last **30 days**. A forgotten topic isn't offered back as "new" right away.
 
@@ -336,6 +336,10 @@ When you move a slider or flip a switch:
 4. **New explanations:** newly sent items get new impressions with the new settings version.
 
 Measured end to end in the browser test: about 230 ms from tap to re-ranked feed, including a deliberate 150 ms pause that batches slider movements.
+
+Your learned interests change between settings changes too, and open feeds follow:
+- **As you watch:** once the background worker has applied your new views, every open feed re-reads your interests. The next page uses them; nothing already sent is replaced.
+- **"Forget this interest"** is an explicit control, so it works like a slider: open feeds re-read your interests and re-rank everything after the item you're watching.
 
 ---
 

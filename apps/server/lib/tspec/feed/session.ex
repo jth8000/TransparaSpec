@@ -13,9 +13,11 @@ defmodule TSpec.Feed.Session do
       boosted topic is missing, and merges the result only if the settings
       haven't changed since the refill started
     * remembers the topics of items the client has shown, so an explore
-      slot never calls a topic new after this feed has shown it (ADR 0015).
-      The learned profile only catches up when the features are recomputed
-      (session start, settings change), which can be much later.
+      slot never calls a topic new after this feed has shown it (ADR 0015)
+    * refreshes its learned features when the user's profile changes
+      (`{:interests_changed, _}`): quietly after the affinity worker applied
+      views (the next page uses them), and with a re-rank of the tail after
+      a forget, which is an explicit control
 
   One process per `{user_id, session_id}` **cluster-wide**: it's registered
   with `:global`, so a request that lands on another node reaches the same
@@ -320,6 +322,14 @@ defmodule TSpec.Feed.Session do
     |> MapSet.new()
   end
 
+  defp drain_interests_changed(reasons) do
+    receive do
+      {:interests_changed, reason} -> drain_interests_changed([reason | reasons])
+    after
+      0 -> reasons
+    end
+  end
+
   @impl true
   def handle_info(:timeout, state), do: {:stop, :normal, state}
 
@@ -337,6 +347,22 @@ defmodule TSpec.Feed.Session do
   end
 
   def handle_info({:settings_changed, _stale}, state), do: {:noreply, state, @idle_ms}
+
+  # The learned profile changed (and committed). Several views can land in
+  # quick succession, so take every such message already waiting and
+  # refresh once. A forget among them also re-ranks the tail.
+  def handle_info({:interests_changed, reason}, state) do
+    reasons = drain_interests_changed([reason])
+
+    state = %{state | features: Ranking.features(state.scope.user.id, state.settings)}
+
+    state =
+      if :forgot in reasons and state.served != [],
+        do: rerank_tail(state),
+        else: state
+
+    {:noreply, state, @idle_ms}
+  end
 
   # A refill task's reply (async_nolink). Its monitor is dropped with any
   # pending DOWN, so only a task that crashed ever produces one.

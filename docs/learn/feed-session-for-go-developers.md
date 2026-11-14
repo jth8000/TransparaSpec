@@ -63,6 +63,11 @@ func (s *session) loop(mailbox <-chan any) {
                     s.rerankTail() // replace everything after s.position, push to the client
                     s.maybeRefill()
                 }
+            case interestsChanged: // PubSub broadcast   → handle_info({:interests_changed, reason}, ...)
+                s.features = loadFeatures(s.user, s.settings) // re-read the committed profile
+                if m.reason == forgot {
+                    s.rerankTail()
+                }
             case refillDone:      // task's reply        → handle_info({ref, {:refill, version, candidates}}, ...)
                 if m.version == s.settings.Version {
                     s.merge(m.candidates)
@@ -113,6 +118,11 @@ Each heading names the function to read in [`session.ex`](../../apps/server/lib/
 - **This is a `handle_info`, not a call or cast.** It comes from `Phoenix.PubSub`, which `Transparency.update_settings/2` broadcasts after its transaction commits.
 - **The guard `when v > state.settings.version` drops stale broadcasts.** PubSub across nodes doesn't promise order, and a separate clause swallows the stale ones.
 - **`rerank_tail/1` keeps everything up to the client's position** (`kept_count/1`), bumps `rev`, serves a new page and broadcasts `{:feed_reranked, ...}` on the session's own topic. `FeedChannel` relays that to the client. Exercise 3 watches it happen.
+
+### Profile changes: `handle_info({:interests_changed, reason}, ...)`
+- **Same topic, different message.** `AffinityWorker` broadcasts `:learned` after it applied views, and "forget this interest" broadcasts `:forgot`, both after their transactions commit.
+- **`drain_interests_changed/1` empties the mailbox of the same message** with a zero-timeout `receive`, the Elixir version of a non-blocking drain loop over a Go channel (`for { select { case m := <-ch: ...; default: break } }`). A burst of views then costs one database read.
+- **Only a forget re-ranks.** Learned changes just replace `state.features`; the next `next_page` uses them.
 
 ### Refills: `maybe_refill/2`, `start_refill/2`, `apply_refill/3`, the `:DOWN` clause
 - **The slow SQL runs in a task,** so the session keeps answering. `Task.Supervisor.async_nolink` starts it and monitors it in one step.

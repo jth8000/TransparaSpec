@@ -97,7 +97,7 @@ defmodule TSpec.Feed.SessionTest do
     assert Enum.map(Session.state(pid).served, & &1.impression_id) == imps(p1 ++ p2)
   end
 
-  describe "explore slots (ADR 0015)" do
+  describe "explore slots (ADR 0015) and live profile changes" do
     # Cooking and fitness are known (learned) and boosted, so they outscore
     # everything else; travel and music are new to the viewer.
     setup %{viewer: viewer, scope: scope, items: items} do
@@ -236,6 +236,67 @@ defmodule TSpec.Feed.SessionTest do
         {:gathered, _, _} -> flush_gathered()
       after
         0 -> :ok
+      end
+    end
+
+    test "a topic discovered mid-session gets its learned boost once the worker applies the view",
+         %{scope: scope, items: items} do
+      {_sid, pid} = start!(scope)
+      {:ok, %{items: p1}} = Session.next_page(pid, 10)
+      {slotted, _} = slot = Enum.at(p1, 9)
+      first_new = new_topic(slotted.content_id, items)
+      topic_id = Content.topics_by_slug()[to_string(first_new)].id
+      refute Map.has_key?(Session.state(pid).features.topic_affinity, topic_id)
+
+      # The client shows it, and the view is recorded and applied (as the
+      # affinity worker does after every committed batch).
+      show!(scope, pid, slot)
+
+      {:ok, _} =
+        Events.record(scope, [
+          %{
+            content_id: slotted.content_id,
+            view_id: Ecto.UUID.generate(),
+            type: "view_start",
+            occurred_at: DateTime.utc_now()
+          }
+        ])
+
+      :ok = TSpec.Feed.AffinityWorker.perform(%Oban.Job{args: %{"user_id" => scope.user.id}})
+      _ = Session.state(pid)
+
+      assert Session.state(pid).features.topic_affinity[topic_id] > 0
+
+      # Later pages rank that topic with what was learned.
+      {:ok, %{items: more}} = Session.next_page(pid, 100)
+
+      learned =
+        for {s, _} <- more,
+            labeled?(s.content_id, items, first_new),
+            c <- s.contributions,
+            c.feature == "topic_affinity",
+            do: c.topic
+
+      assert learned != []
+      assert Enum.all?(learned, &(&1 == to_string(first_new)))
+    end
+
+    test "forgetting an interest re-ranks the live feed without it", %{scope: scope} do
+      {sid, pid} = start!(scope)
+      {:ok, %{items: page}} = Session.next_page(pid, 10)
+      Session.at(pid, Enum.at(imps(page), 2), 0)
+      sub(scope, sid)
+
+      assert Enum.any?(
+               Enum.at(page, 3) |> elem(0) |> Map.get(:contributions),
+               &(&1.feature == "topic_affinity")
+             )
+
+      :ok = Transparency.forget_interest(scope, "cooking")
+      assert_receive {:feed_reranked, %{rev: 1, items: tail}}, 2_000
+
+      for {s, _} <- tail, c <- s.contributions do
+        refute c.feature == "topic_affinity" and c.topic == "cooking"
       end
     end
 
