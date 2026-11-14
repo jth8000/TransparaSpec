@@ -10,6 +10,8 @@ defmodule TSpec.Feed.RankingTest do
   alias TSpec.Events.Impression
   alias TSpec.Feed.{Candidates, Interests, Ranking, Settings, TrendingWorker}
 
+  doctest Candidates, only: [explicit_per_topic: 1]
+
   setup do
     viewer = onboarded_user_fixture()
     %{viewer: viewer, scope: Accounts.scope_for_user(viewer)}
@@ -36,10 +38,12 @@ defmodule TSpec.Feed.RankingTest do
     Candidates.gather(viewer.id, settings, Ranking.features(viewer.id, settings), opts)
   end
 
-  # `n` text posts labeled cooking, newest a second old: their ids.
-  defp cooking_posts!(creator, n) do
+  defp cooking_posts!(creator, n), do: topic_posts!(creator, "cooking", n)
+
+  # `n` text posts labeled with `slug`, newest a second old: their ids.
+  defp topic_posts!(creator, slug, n) do
     now = DateTime.utc_now()
-    cooking = Content.topics_by_slug()["cooking"].id
+    topic_id = Content.topics_by_slug()[slug].id
 
     rows =
       for i <- 1..n do
@@ -56,13 +60,13 @@ defmodule TSpec.Feed.RankingTest do
       end
 
     Repo.insert_all(Content.Item, rows)
-    Repo.insert_all(Content.TextPost, for(r <- rows, do: %{content_id: r.id, body: "cooking"}))
+    Repo.insert_all(Content.TextPost, for(r <- rows, do: %{content_id: r.id, body: slug}))
 
     Repo.insert_all(
       Content.ContentTopic,
       for(
         r <- rows,
-        do: %{content_id: r.id, topic_id: cooking, source: "creator", confidence: 1.0}
+        do: %{content_id: r.id, topic_id: topic_id, source: "creator", confidence: 1.0}
       )
     )
 
@@ -256,6 +260,23 @@ defmodule TSpec.Feed.RankingTest do
       found = topic_ids(viewer, boosted, topic_slugs: ["travel"])
       assert MapSet.member?(found, travel.id)
       assert MapSet.size(MapSet.intersection(found, cooking)) == 75
+    end
+
+    test "boosting many topics can't grow the topic source past its cap", %{viewer: viewer} do
+      creator = onboarded_user_fixture()
+
+      slugs =
+        ~w(automotive pets science real-estate travel cooking music careers education politics)
+
+      posts = Map.new(slugs, &{&1, topic_posts!(creator, &1, 40)})
+      boosted = %Settings{topics: Map.new(slugs, &{&1, %{multiplier: 2.0, hard_off: false}})}
+
+      # Ten boosted topics, 400 matching items: 30 each, 300 in all.
+      found = topic_ids(viewer, boosted, [])
+      assert MapSet.size(found) == 300
+
+      for {_slug, ids} <- posts,
+          do: assert(MapSet.size(MapSet.intersection(found, ids)) == 30)
     end
 
     test "explore nominates only items whose topics are all new to the viewer",

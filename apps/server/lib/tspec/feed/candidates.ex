@@ -44,9 +44,12 @@ defmodule TSpec.Feed.Candidates do
     explore: 50,
     fresh: 100
   }
-  # Each topic asked for explicitly (boosted, or targeted by a refill) gets
-  # at least this many of the `topic` source's explicit budget.
+  # The `topic` source's budget for topics asked for explicitly (boosted,
+  # or targeted by a refill): each gets 150 / n but at least 50, and all of
+  # them together about 300 at most. Nothing limits how many topics a user
+  # can boost, so the total must be capped (threat-model.md).
   @explicit_per_topic_min 50
+  @explicit_total_max 300
   # Bayesian smoothing for completion rate: pretend every item starts with
   # @prior_views views at the @prior_rate completion rate.
   @prior_views 10
@@ -283,14 +286,14 @@ defmodule TSpec.Feed.Candidates do
     |> Repo.all()
   end
 
-  # The newest items for each requested topic, `max(50, 150 / n)` each, in
-  # one query: `row_number()` over a window partitioned by requested topic
-  # numbers each topic's items newest first, and the outer query keeps the
-  # first few of each.
+  # The newest items for each requested topic, in one query: `row_number()`
+  # over a window partitioned by requested topic numbers each topic's items
+  # newest first, and the outer query keeps the first `explicit_per_topic/1`
+  # of each.
   defp per_topic_query(_base, groups, _requested) when groups == %{}, do: []
 
   defp per_topic_query(base, groups, requested) do
-    per_topic = max(@explicit_per_topic_min, div(@limits.topic, MapSet.size(requested)))
+    per_topic = explicit_per_topic(MapSet.size(requested))
     {label_ids, group_ids} = Enum.unzip(groups)
 
     ranked =
@@ -312,6 +315,21 @@ defmodule TSpec.Feed.Candidates do
 
     from(r in subquery(ranked), where: r.rank <= ^per_topic, distinct: true, select: r.id)
     |> Repo.all()
+  end
+
+  @doc """
+  Items per explicitly requested topic, for `n` such topics: 150, 75 and 50
+  for one to three, 50 each up to six, then shrinking so the total stays
+  about #{@explicit_total_max} (never under one each).
+
+      iex> Enum.map([1, 2, 3, 6, 7, 10, 400], &TSpec.Feed.Candidates.explicit_per_topic/1)
+      [150, 75, 50, 50, 42, 30, 1]
+  """
+  def explicit_per_topic(n) when n > 0 do
+    min(
+      max(@explicit_per_topic_min, div(@limits.topic, n)),
+      max(1, div(@explicit_total_max, n))
+    )
   end
 
   ## Hydration
