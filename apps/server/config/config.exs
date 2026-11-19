@@ -44,6 +44,11 @@ config :tspec, Oban,
   queues: [default: 10, media: 4, affinity: 5, ranking: 2, maintenance: 1],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    # A job still `executing` when its node stopped (a deploy, a crash)
+    # stays that way forever unless something rescues it. Lifeline goes by
+    # time alone, so this must stay longer than any job's `timeout/1`
+    # (oban_config_test).
+    {Oban.Lifeline, rescue_after: :timer.minutes(30)},
     {Oban.Plugins.Cron,
      crontab: [
        {"15 3 * * *", TSpec.Events.PartitionWorker},
