@@ -10,13 +10,14 @@ For experienced Elixir, distributed-systems and security reviewers looking at T-
 |---|---|
 | [threat-model.md](threat-model.md) | Assets, attackers, trust boundaries, every entry point with its auth and limits, and the known gaps. |
 | [concurrency.md](concurrency.md) | The process tree, every lock, the lock order, and an **invariant table**: each invariant with the code that enforces it, the test that proves it, and a mutation that breaks it. |
+| [ml-service.md](ml-service.md) | The Python ML service: its entry points, how it fetches and decodes media from untrusted playlists, its limits, and its invariants. |
 | [client.md](client.md) | The Expo client: where credentials live, the session lifecycle, what the server takes from the client, rendering of untrusted content, deep links, the web build, and its invariants. |
 | [unsure.md](unsure.md) | Where we think a reviewer is most likely to find a problem, and what would settle each question (server and client). **Start here if your time is short.** |
 
 ## Checking the claims
 
-- **`make mutation-check`** ([`scripts/mutation_checks.py`](../../scripts/mutation_checks.py)) breaks each guard in the invariant tables (a lock, a conditional `UPDATE`, a version check, a client-side check), runs the tests that should catch it (ExUnit or Jest), and restores the file. Every row with a mutation id should report CAUGHT. It takes a few minutes. `make mutation-patterns` (part of `make test` and CI) checks in under a second that every pattern still matches its code, so an edit can't quietly disable a check.
-- **`test/tspec/docs/review_packet_test.exs`** runs in `make test`. It fails if this packet links to a file that doesn't exist, cites a test (ExUnit or Jest) that isn't in its file, or the mutation ids cited here and the script's disagree.
+- **`make mutation-check`** ([`scripts/mutation_checks.py`](../../scripts/mutation_checks.py)) breaks each guard in the invariant tables (a lock, a conditional `UPDATE`, a version check, a client-side check), runs the tests that should catch it (ExUnit, Jest or pytest), and restores the file. Every row with a mutation id should report CAUGHT. It takes a few minutes. `make mutation-patterns` (part of `make test` and CI) checks in under a second that every pattern still matches its code, so an edit can't quietly disable a check.
+- **`test/tspec/docs/review_packet_test.exs`** runs in `make test`. It fails if this packet links to a file that doesn't exist, cites a test (ExUnit, Jest or pytest) that isn't in its file, or the mutation ids cited here and the script's disagree.
 - **Running the tests:** `make setup`, then `make test`. `AGENTS.md` lists the gotchas, such as which tests must be `async: false` and why.
 
 ## Where to start reading the code

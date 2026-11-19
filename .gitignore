@@ -19,3 +19,12 @@ node_modules/
 # BEAM crash dumps
 erl_crash.dump
 /e2e/.fixtures/
+
+# Python (services/ml)
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+/services/ml/.audit-requirements.txt
+# Downloaded model weights (Phase 1b M2)
+/services/ml/models/

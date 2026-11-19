@@ -26,10 +26,17 @@ defmodule TSpec.Docs.ReviewPacketTest do
     assert missing == []
   end
 
-  # ExUnit (`test "…"`, `property "…"`) and Jest (`it('…'`, `it("…"`).
+  # ExUnit (`test "…"`, `property "…"`), Jest (`it('…'`, `it("…"`) and
+  # pytest (`def test_…(`).
   defp defines_test?(source, name) do
     Enum.any?(
-      [~s(test "#{name}"), ~s(property "#{name}"), ~s(it('#{name}'), ~s(it("#{name}")],
+      [
+        ~s(test "#{name}"),
+        ~s(property "#{name}"),
+        ~s(it('#{name}'),
+        ~s(it("#{name}"),
+        "def #{name}("
+      ],
       &String.contains?(source, &1)
     )
   end
@@ -38,7 +45,10 @@ defmodule TSpec.Docs.ReviewPacketTest do
     citations =
       for {path, text} <- docs(),
           [_, file, name] <-
-            Regex.scan(~r/\]\(([^)]+(?:_test\.exs|\.test\.tsx?))\):\s*"([^"]+)"/, text),
+            Regex.scan(
+              ~r/\]\(([^)]+(?:_test\.exs|\.test\.tsx?|\/test_[a-z0-9_]+\.py))\):\s*"([^"]+)"/,
+              text
+            ),
           do: {Path.expand(file, Path.dirname(path)), name}
 
     assert length(citations) > 30

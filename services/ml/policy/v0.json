@@ -1,0 +1,8 @@
+{
+  "version": "v0",
+  "about": "Shadow mode: scores are returned and stored, but no topic is enabled, so no label is ever written. A later policy enables topics that passed the eval (ADR 0016), with calibration fitted on clips.",
+  "enabled_topics": [],
+  "floor": 0.35,
+  "max_labels": 3,
+  "calibration": null
+}

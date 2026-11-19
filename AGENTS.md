@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Instructions for AI coding agents working in this repo. This is the canonical file: `CLAUDE.md` imports it for Claude Code, and Codex reads it directly. `apps/server/AGENTS.md` and `apps/client/AGENTS.md` add framework-specific rules.
+Instructions for AI coding agents working in this repo. This is the canonical file: `CLAUDE.md` imports it for Claude Code, and Codex reads it directly. `apps/server/AGENTS.md`, `apps/client/AGENTS.md` and `services/ml/AGENTS.md` add framework-specific rules.
 
 TransparaSpec (T-Spec) is a social/short-video platform. The team is the user plus AI coding agents (Claude Code, Codex). Read `docs/architecture.md` and the ADRs in `docs/adr/` before designing anything new. Before touching ranking, interests or feed sessions, read `docs/ranking.md`: the plain-language spec of the ranker with its real defaults.
 
@@ -29,7 +29,7 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
 ## Layout
 - `apps/client`: Expo + Expo Router (iOS/Android/Web), TypeScript, TanStack Query, generated API client.
 - `apps/server`: Elixir/Phoenix monolith. Contexts: Accounts, Content, Social, Events, Feed, Transparency, Moderation, Ledger, Billing. Uses Oban for jobs and Channels for push. Ranking lives in `TSpec.Feed` (`Candidates` → pure `Ranker` → `Ranking.serve` writes impressions; `Session` per client feed; `Interests` learns per view).
-- `services/ml`: Python FastAPI, stateless. Called only from Oban jobs. Returns scores and topics, never approve/reject booleans.
+- `services/ml`: Python FastAPI, stateless, managed with uv. Called only from Oban jobs. Returns scores and topics, never approve/reject booleans. `extract` fetches and decodes media; `score` works from stored text and embeddings (ADR 0003, amended).
 - `packages/api-schema`: OpenAPI spec exported from the server, plus the generated TS client. Regenerate after any API change.
 - `infra/`: Fly.io configs and scripts. `docs/`: requirements, architecture, ADRs, roadmap, open questions.
 
@@ -64,14 +64,16 @@ TransparaSpec (T-Spec) is a social/short-video platform. The team is the user pl
 ## Commands
 - `make setup` / `make dev` (API :4000) / `make web` (:8081) / `make android`
 - `cd apps/server && mix tspec.seed_demo`: demo creators and topic-labeled content for For You (dev, idempotent)
-- `make test`: `make mutation-patterns`, `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test --warnings-as-errors`, client `tsc` + `expo lint` + `jest`, and `make api-check`
+- `make test`: `make mutation-patterns`, `mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test --warnings-as-errors`, client `tsc` + `expo lint` + `jest`, `make test-ml` (ruff + pytest), and `make api-check`
+- `make ml-setup` / `make ml` (ML service on :8000, fake models, fetching from LocalProvider) / `make test-ml`
+- `cd apps/server && mix tspec.export_taxonomy`: rewrite `services/ml/taxonomy.json` after a taxonomy migration (a test fails until you do)
 - `make e2e`: Playwright web flow. It reads sign-in codes from `GET /dev/mailbox/json`.
-- `make security`: `mix hex.audit`, Sobelow and the npm advisory check. Needs the network; CI runs it on every push and weekly.
+- `make security`: `mix hex.audit`, Sobelow, the npm advisory check and `pip-audit` for the ML service. Needs the network; CI runs it on every push and weekly.
 - `make mutation-check`: breaks each guard in `docs/review/` (server and client) and checks that its tests fail. Takes a few minutes; not part of `make test`. Check its exit status rather than counting CAUGHT lines: a pattern that no longer matches prints `PATTERN NOT FOUND` and fails the run.
 - `make mutation-patterns`: only checks that every mutation's pattern still matches its code exactly once (under a second). Part of `make test` and CI, so changing a guarded line means updating its pattern in the same commit.
 - `make expo-check` / `make expo-fix`: check, or move together, the client packages Expo pins for our SDK (`npx expo install --check` / `--fix`). Needs the network; CI runs the check as `expo-deps`.
 - `make api-gen`: run after any API change, and commit the regenerated `packages/api-schema`
-- Shells need mise activated for Erlang/Elixir (`eval "$(mise env -s bash)"`) and Node 24 (`nvm use`).
+- Shells need mise activated for Erlang/Elixir (`eval "$(mise env -s bash)"`) and Node 24 (`nvm use`). Python comes from uv; run it with `PYTHONPATH` unset (the Makefile does), since a ROS install on this machine sets one.
 
 ## Gotchas learned in Phase 0
 - **Server**:

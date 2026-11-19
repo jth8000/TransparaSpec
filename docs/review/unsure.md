@@ -84,3 +84,7 @@ Where an experienced Elixir or distributed-systems reviewer is most likely to fi
 - **Why we're not sure:** offline or on a slow connection, the last few events of a session are lost. Today that only costs some interest-model signal. Once events drive dividends or creator payouts, lost events are lost money.
 - **What would settle it:** before the Ledger credits engagement, decide whether events must be durable on the device (persisted per account) or whether loss at sign-out is acceptable.
 
+**U15. The ML service trusts allowlisted hosts by name.**
+- **What we believe:** the service fetches only from hosts on `TSPEC_ML_ALLOWED_MEDIA_HOSTS` (I37), which in production will be the video provider's delivery domains. It doesn't check the addresses they resolve to.
+- **Why we're not sure:** if DNS for an allowlisted name pointed inside the private network, the service would fetch from there. That needs control of the provider's DNS, so we've judged it out of scope.
+- **What would settle it:** a reviewer's view, or resolving each host once and refusing private and link-local addresses.
