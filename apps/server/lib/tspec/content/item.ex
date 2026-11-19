@@ -14,6 +14,9 @@ defmodule TSpec.Content.Item do
     field :visibility, :string, default: "public"
     field :caption, :string
     field :published_at, :utc_datetime_usec
+    # Bumped by a database trigger on every `content_topics` write, so feed
+    # sessions can tell their cached labels are stale. Never set it here.
+    field :labels_version, :integer, default: 0
 
     belongs_to :author, TSpec.Accounts.User
     belongs_to :parent, __MODULE__

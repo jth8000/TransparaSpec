@@ -8,6 +8,10 @@ defmodule TSpec.Content.ContentTopic do
     * `moderator` — set during review
 
   An item's effective confidence for a topic is the max over its sources.
+
+  Every insert, update or delete here bumps the item's `labels_version`
+  (a database trigger), which is how a feed session notices that labels it
+  cached have changed.
   """
   use Ecto.Schema
 

@@ -341,6 +341,8 @@ Your learned interests change between settings changes too, and open feeds follo
 - **As you watch:** once the background worker has applied your new views, every open feed re-reads your interests before its next page. Nothing already sent is replaced. If you've just come to like a topic (say, one an explore slot showed you) and the feed has few of its posts left, it fetches more, however that topic ranks among your interests.
 - **"Forget this interest"** is an explicit control, so it works like a slider: open feeds re-read your interests and re-rank everything after the item you're watching.
 
+Items change too. Before each page and re-rank, a feed session re-checks the labels and status of the items it hasn't sent yet. A topic label added after the feed fetched an item reaches your hard-offs, and a removed item is never sent. Items already sent to the app stay.
+
 ---
 
 ## 6. Non-personalized mode
