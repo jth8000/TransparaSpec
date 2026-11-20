@@ -505,6 +505,132 @@ defmodule TSpec.Feed.SessionTest do
     refute kept_content in ids(more)
   end
 
+  describe "labels and status that change after gathering (I34)" do
+    defp author_scope(content_id) do
+      item = Repo.get!(Content.Item, content_id)
+      item.author_id |> Accounts.get_user!() |> Accounts.scope_for_user()
+    end
+
+    defp unserved_cached(pid, served, pred) do
+      Session.state(pid).cache |> Map.keys() |> Enum.find(&(&1 not in served and pred.(&1)))
+    end
+
+    test "a label added after gathering is seen by hard-off on the next page",
+         %{scope: scope, items: items} do
+      {:ok, _} = Transparency.update_settings(scope, %{topics: %{"cooking" => %{hard_off: true}}})
+      {_sid, pid} = start!(scope)
+      {:ok, %{items: first}} = Session.next_page(pid, 5)
+
+      # A cached fitness item the client doesn't have yet gains a Cooking
+      # label (keeping its own: creator labels are replaced as a set).
+      target = unserved_cached(pid, ids(first), &labeled?(&1, items, :fitness))
+
+      {:ok, _} =
+        Content.update_item(author_scope(target), target, %{
+          topics: ["fitness-and-exercise", "cooking"]
+        })
+
+      {:ok, %{items: rest}} = Session.next_page(pid, 100)
+      refute target in ids(rest)
+      assert Enum.any?(ids(rest), &labeled?(&1, items, :fitness))
+    end
+
+    test "a label written while the session gathers is still seen by hard-off",
+         %{scope: scope, items: items} do
+      {:ok, _} = Transparency.update_settings(scope, %{topics: %{"cooking" => %{hard_off: true}}})
+      target = Enum.at(MapSet.to_list(items.fitness), 0)
+
+      # Nomination has already passed `target` (it had no Cooking label then);
+      # the label lands between hydrate's read of the item rows and of the
+      # labels.
+      gather = fn user_id, settings, features, opts ->
+        seam = fn ->
+          {:ok, _} =
+            Content.update_item(author_scope(target), target, %{
+              topics: ["fitness-and-exercise", "cooking"]
+            })
+        end
+
+        opts = if opts[:refill], do: opts, else: Keyword.put(opts, :before_labels, seam)
+        Candidates.gather(user_id, settings, features, opts)
+      end
+
+      {_sid, pid} = start!(scope, gather: gather)
+      assert Map.has_key?(Session.state(pid).cache, target)
+
+      {:ok, %{items: served}} = Session.next_page(pid, 100)
+      refute target in ids(served)
+    end
+
+    test "a removed item is dropped before an impression is written", %{scope: scope} do
+      {_sid, pid} = start!(scope)
+      {:ok, %{items: first}} = Session.next_page(pid, 5)
+      target = unserved_cached(pid, ids(first), fn _ -> true end)
+
+      :ok = Content.remove_item(author_scope(target), target)
+
+      {:ok, %{items: rest}} = Session.next_page(pid, 100)
+      refute target in ids(rest)
+      refute Map.has_key?(Session.state(pid).cache, target)
+      refute Repo.exists?(from i in Events.Impression, where: i.content_id == ^target)
+    end
+
+    test "items the client kept through a re-rank don't count toward the refill threshold",
+         %{scope: scope, items: items} do
+      test_pid = self()
+
+      # 51 candidates: all fitness and travel, and one cooking item.
+      one_cooking = Enum.at(MapSet.to_list(items.cooking), 0)
+
+      gather = fn user_id, settings, features, opts ->
+        all = Candidates.gather(user_id, settings, features, opts)
+
+        if opts[:refill] do
+          send(test_pid, :refill_gathered)
+          all
+        else
+          Enum.filter(
+            all,
+            &(not labeled?(&1.content_id, items, :cooking) or &1.content_id == one_cooking)
+          )
+        end
+      end
+
+      {sid, pid} = start!(scope, gather: gather)
+      assert map_size(Session.state(pid).cache) == 51
+      {:ok, %{items: page}} = Session.next_page(pid, 10)
+      Session.at(pid, Enum.at(imps(page), 0), 0)
+      sub(scope, sid)
+
+      # A re-rank after item 0, which the client crosses and keeps an item
+      # the re-rank dropped (as in the test above).
+      {:ok, _} =
+        Transparency.update_settings(scope, %{topics: %{"travel" => %{multiplier: 2.0}}})
+
+      assert_receive {:feed_reranked, %{rev: 1, items: tail}}, 2_000
+
+      {_kept, kept_imp} =
+        page
+        |> Enum.drop(1)
+        |> Enum.map(fn {s, i} -> {s.content_id, i} end)
+        |> Enum.find(fn {c, _} -> c not in ids(tail) end)
+
+      Session.at(pid, kept_imp, 0)
+      state = Session.state(pid)
+      assert MapSet.size(state.client_kept) == 1
+      assert length(state.served) == 11
+      assert state.refilling == nil
+      refute_received :refill_gathered
+
+      # 51 - 11 served - 1 kept = 39 unserved. Ten more leave 29, below the
+      # threshold of 30, so a refill starts. Counting the kept item would
+      # make it 30, and no refill.
+      {:ok, %{items: more}} = Session.next_page(pid, 10)
+      assert length(more) == 10
+      assert_receive :refill_gathered, 2_000
+    end
+  end
+
   test "settings changed while the session was down: it re-ranks the client's tail on start",
        %{scope: scope} do
     {sid, pid} = start!(scope)
