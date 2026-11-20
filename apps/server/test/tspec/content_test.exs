@@ -231,6 +231,53 @@ defmodule TSpec.ContentTest do
     end
   end
 
+  describe "labels_version (I34)" do
+    defp labels_version(item), do: TSpec.Repo.reload!(item).labels_version
+
+    test "every write to an item's labels bumps it, however it's made",
+         %{author: author, scope: scope} do
+      post = text_post_fixture(author, topics: ["music"])
+      other = text_post_fixture(author)
+      v0 = labels_version(post)
+      assert v0 > 0
+      untouched = labels_version(other)
+
+      # Through the context (delete + insert of creator labels).
+      {:ok, _} = Content.update_item(scope, post.id, %{topics: ["music", "travel"]})
+      v1 = labels_version(post)
+      assert v1 > v0
+
+      # A direct insert, update and delete, as the ML pipeline will write.
+      label = add_model_label(post, "cooking", 0.4)
+      v2 = labels_version(post)
+      assert v2 > v1
+
+      label |> Ecto.Changeset.change(confidence: 0.6) |> TSpec.Repo.update!()
+      v3 = labels_version(post)
+      assert v3 > v2
+
+      TSpec.Repo.delete!(label)
+      assert labels_version(post) > v3
+
+      # A caption edit doesn't touch labels; nor do writes to another item.
+      v4 = labels_version(post)
+      {:ok, _} = Content.update_item(scope, post.id, %{caption: "new"})
+      assert labels_version(post) == v4
+      assert labels_version(other) == untouched
+    end
+
+    test "deleting a labeled item, or its author, cascades through the trigger",
+         %{author: author} do
+      post = text_post_fixture(author, topics: ["music"])
+      add_model_label(post, "cooking", 0.4)
+      TSpec.Repo.delete!(post)
+
+      kept = text_post_fixture(author, topics: ["travel"])
+      TSpec.Repo.delete!(author)
+      refute TSpec.Repo.get(Item, kept.id)
+    end
+  end
+
   defp topic_slugs(item), do: item.content_topics |> Enum.map(& &1.topic.slug) |> Enum.sort()
 
   defp add_model_label(item, slug, confidence) do

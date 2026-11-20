@@ -14,6 +14,10 @@ defmodule TSpec.Feed.Session do
       haven't changed since the refill started
     * remembers the topics of items the client has shown, so an explore
       slot never calls a topic new after this feed has shown it (ADR 0015)
+    * re-reads the labels and status of its unserved items before each page
+      and re-rank (one query on `labels_version`), so a label added after
+      gathering reaches hard-off and a removed item is never served. Items
+      already sent to the client aren't recalled.
     * follows the user's learned profile (`{:interests_changed, _}`): after
       the affinity worker applied views it marks its features stale and
       re-reads them before the next page (no work if no page is asked for);
@@ -425,6 +429,7 @@ defmodule TSpec.Feed.Session do
 
   @impl true
   def handle_call({:next_page, limit}, _from, state) do
+    state = refresh_labels(state)
     state = refresh_if_stale(state)
     page = next_items(state, limit)
     {pairs, state} = serve(state, page)
@@ -498,7 +503,7 @@ defmodule TSpec.Feed.Session do
   # The best `limit` unserved candidates, with diversity continuing from
   # what's already been served.
   defp next_items(state, limit) do
-    served_ids = state.served |> MapSet.new(& &1.content_id) |> MapSet.union(state.client_kept)
+    served_ids = served_ids(state)
 
     state.cache
     |> Map.values()
@@ -508,6 +513,45 @@ defmodule TSpec.Feed.Session do
       start_position: length(state.served)
     )
     |> Enum.take(limit)
+  end
+
+  # Items never to rank again: those served in the client's current list,
+  # and those it kept on screen through a re-rank.
+  defp served_ids(state),
+    do: state.served |> MapSet.new(& &1.content_id) |> MapSet.union(state.client_kept)
+
+  # Labels and status can change after an item was gathered: its creator
+  # edits its topics, or removes it. Before ranking, re-read both for the
+  # unserved cached items, in one primary-key query (I34). Items no longer
+  # ready leave the cache, so they're never served (and no impression is
+  # written for them). Items whose `labels_version` moved get their labels
+  # re-read. Versions are read before labels, so a write in between costs
+  # one extra reload later, never stale labels under a new version. Items
+  # already sent to the client aren't recalled.
+  defp refresh_labels(state) do
+    served_ids = served_ids(state)
+    ids = for {id, _} <- state.cache, not MapSet.member?(served_ids, id), do: id
+    versions = if ids == [], do: %{}, else: Candidates.labels_versions(ids)
+    removed = Enum.reject(ids, &Map.has_key?(versions, &1))
+
+    changed =
+      Enum.filter(ids, fn id ->
+        Map.has_key?(versions, id) and
+          versions[id] != state.cache[id].labels_version
+      end)
+
+    labels = if changed == [], do: %{}, else: Candidates.labels(changed)
+
+    cache =
+      Enum.reduce(changed, Map.drop(state.cache, removed), fn id, cache ->
+        Map.update!(
+          cache,
+          id,
+          &%{&1 | labels: Map.get(labels, id, []), labels_version: versions[id]}
+        )
+      end)
+
+    %{state | cache: cache}
   end
 
   # Items sent after the client's current position.
@@ -520,7 +564,8 @@ defmodule TSpec.Feed.Session do
 
   defp rerank_tail(state) do
     kept = Enum.take(state.served, kept_count(state))
-    state = %{state | served: kept, rev: state.rev + 1}
+    # The tail is ranked again, so refresh it along with the rest.
+    state = refresh_labels(%{state | served: kept, rev: state.rev + 1})
     {pairs, state} = serve(state, next_items(state, @page_size))
 
     Phoenix.PubSub.broadcast(
@@ -647,7 +692,7 @@ defmodule TSpec.Feed.Session do
   end
 
   defp unserved_eligible(state) do
-    served_ids = MapSet.new(state.served, & &1.content_id)
+    served_ids = served_ids(state)
     taxonomy = Content.topics_by_id()
 
     Enum.count(state.cache, fn {id, c} ->
@@ -659,7 +704,7 @@ defmodule TSpec.Feed.Session do
   # doesn't have yet: what's left to show of it.
   defp unserved_with_topic(state, topic_id) do
     taxonomy = Content.topics_by_id()
-    served_ids = state.served |> MapSet.new(& &1.content_id) |> MapSet.union(state.client_kept)
+    served_ids = served_ids(state)
 
     Enum.count(state.cache, fn {id, c} ->
       not MapSet.member?(served_ids, id) and

@@ -71,6 +71,8 @@ defmodule TSpec.Feed.Ranker do
     @moduledoc """
     An item the candidate sources found, with the raw facts the ranker needs.
     `labels` are effective topic labels: `%{topic_id, confidence, sources}`.
+    `labels_version` is the item's version when they were read, so a feed
+    session can tell when they've gone stale.
     """
     @enforce_keys [:content_id, :author_id, :published_at]
     defstruct [
@@ -79,6 +81,7 @@ defmodule TSpec.Feed.Ranker do
       :published_at,
       sources: [],
       labels: [],
+      labels_version: 0,
       quality: 0.0,
       following: false
     ]
