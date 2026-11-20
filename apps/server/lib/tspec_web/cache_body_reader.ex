@@ -4,7 +4,7 @@ defmodule TSpecWeb.CacheBodyReader do
   routes, whose signatures are computed over the exact bytes received.
   Other routes are read normally (no extra memory).
 
-  One `read_body/2` call reads up to the parser's `:length` (8 MB). A
+  One `read_body/2` call reads up to the parser's `:length` (1 MB). A
   longer body comes back as `{:more, ...}`, which the parser turns into a
   413, so an unauthenticated webhook request can't make us buffer more.
   """

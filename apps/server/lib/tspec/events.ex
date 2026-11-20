@@ -22,6 +22,9 @@ defmodule TSpec.Events do
   # Client timestamps are accepted within this window around server time.
   @max_age_seconds 7 * 24 * 60 * 60
   @max_skew_seconds 5 * 60
+  # `session_id` is minted by the client and stored on every event row. The
+  # API's maxLength counts graphemes, which don't bound its size.
+  @max_session_id_bytes 64
 
   def max_batch, do: @max_batch
 
@@ -30,9 +33,9 @@ defmodule TSpec.Events do
 
   Each event is a map with `:content_id`, `:type`, `:occurred_at` and optional
   `:value` / `:session_id` / `:view_id`. Events with an unknown type, a timestamp outside
-  the accepted window, or a content id the caller can't see (same rule as
-  `Content.get_item/2`: public and ready, or their own non-removed item) are
-  dropped.
+  the accepted window, a `session_id` over #{@max_session_id_bytes} bytes, or a content id
+  the caller can't see (same rule as `Content.get_item/2`: public and ready, or their own
+  non-removed item) are dropped.
 
   Returns `{:ok, %{accepted: n, rejected: m}}`, or `{:error, :consent_required}`
   when the caller has no consent on record.
@@ -179,6 +182,7 @@ defmodule TSpec.Events do
        when is_binary(id) and is_binary(type) do
     type in Event.types() and uuid?(id) and optional_uuid?(Map.get(event, :view_id)) and
       optional_uuid?(Map.get(event, :impression_id)) and
+      session_id?(Map.get(event, :session_id)) and
       DateTime.diff(now, at) <= @max_age_seconds and
       DateTime.diff(at, now) <= @max_skew_seconds
   end
@@ -188,6 +192,9 @@ defmodule TSpec.Events do
   defp uuid?(id), do: is_binary(id) and match?({:ok, _}, Ecto.UUID.cast(id))
   defp optional_uuid?(nil), do: true
   defp optional_uuid?(id), do: uuid?(id)
+
+  defp session_id?(nil), do: true
+  defp session_id?(id), do: is_binary(id) and byte_size(id) <= @max_session_id_bytes
 
   # Events may only reference content the caller could have been shown.
   defp viewable_content_ids(_scope, []), do: MapSet.new()

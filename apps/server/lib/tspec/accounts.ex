@@ -278,9 +278,13 @@ defmodule TSpec.Accounts do
 
       true ->
         Repo.transact(fn ->
-          with {:ok, user} <- Repo.update(User.onboarding_changeset(user, %{handle: handle})) do
-            Repo.insert!(%Profile{user_id: user.id, display_name: Map.get(attrs, :display_name)})
-
+          # The profile goes through its changeset, so a display name is
+          # checked here as it is on every later edit.
+          with {:ok, user} <- Repo.update(User.onboarding_changeset(user, %{handle: handle})),
+               {:ok, _profile} <-
+                 %Profile{user_id: user.id}
+                 |> Profile.changeset(Map.take(attrs, [:display_name]))
+                 |> Repo.insert() do
             Repo.insert!(%Consent{
               user_id: user.id,
               version: document.version,

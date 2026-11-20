@@ -8,6 +8,7 @@ The T-Spec server: a Phoenix 1.8 **JSON API** with Channels and Oban jobs. It ha
   - declare their requests and responses with `OpenApiSpex` (`operation ...`), and validate them with `OpenApiSpex.Plug.CastAndValidate`, so request bodies arrive as schema structs;
   - schemas live in `lib/tspec_web/schemas/`;
   - run `make api-gen` after any API change.
+- **Text people write:** limit it with `TSpec.TextLimit.validate/3` (characters, plus a byte cap), not `validate_length/3` alone: one character can carry any number of combining marks. Store it in a `text` column; `varchar(255)` counts code points and turns an accepted value into a 500. Anchor format regexes with `\A…\z`, since `$` also matches before a final newline.
 - **Auth:**
   - the API uses bearer tokens (`TSpecWeb.ApiAuth`: `fetch_api_scope`, `require_api_user`, `require_onboarded`), and sockets use the same token (`TSpecWeb.UserSocket`);
   - contexts take a `%TSpec.Accounts.Scope{}` as their first argument and filter by `scope.user`;

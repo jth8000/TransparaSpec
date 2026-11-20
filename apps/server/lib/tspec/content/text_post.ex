@@ -10,6 +10,6 @@ defmodule TSpec.Content.TextPost do
     post
     |> cast(attrs, [:body])
     |> validate_required([:body])
-    |> validate_length(:body, min: 1, max: 2000)
+    |> TSpec.TextLimit.validate(:body, min: 1, max: 2000)
   end
 end

@@ -841,6 +841,7 @@
             "x-validate": null
           },
           "session_id": {
+            "description": "At most 64 bytes; an event with a longer one is dropped",
             "maxLength": 64,
             "nullable": true,
             "type": "string",
@@ -2797,7 +2798,7 @@
                 }
               }
             },
-            "description": "Invalid handle or consent"
+            "description": "Invalid handle, display name or consent"
           }
         },
         "security": [

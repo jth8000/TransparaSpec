@@ -34,6 +34,6 @@ defmodule TSpec.Content.Item do
   def caption_changeset(item, attrs) do
     item
     |> cast(attrs, [:caption])
-    |> validate_length(:caption, max: 2200)
+    |> TSpec.TextLimit.validate(:caption, max: 2200)
   end
 end
