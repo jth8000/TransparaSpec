@@ -85,7 +85,7 @@ defmodule TSpec.Feed.Candidates do
 
     nominations
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> hydrate(user_id)
+    |> hydrate(user_id, opts)
   end
 
   ## Eligibility
@@ -338,28 +338,60 @@ defmodule TSpec.Feed.Candidates do
 
   @doc false
   # %{content_id => [source]} -> [%Candidate{}]. Public for tests.
-  def hydrate(sources_by_id, _user_id) when sources_by_id == %{}, do: []
+  def hydrate(sources_by_id, user_id, opts \\ [])
 
-  def hydrate(sources_by_id, user_id) do
+  def hydrate(sources_by_id, _user_id, _opts) when sources_by_id == %{}, do: []
+
+  # The item rows, with `labels_version`, are read *before* the labels. A
+  # label written in between is then cached under the older version, and the
+  # session's next refresh reloads it. The other order would cache the old
+  # labels under the new version, and they'd never be reloaded (I34).
+  # `:before_labels` is a test seam that runs between the two reads.
+  def hydrate(sources_by_id, user_id, opts) do
     ids = Map.keys(sources_by_id)
+    items = item_rows(ids)
+    if seam = opts[:before_labels], do: seam.()
     labels = labels(ids)
     quality = quality(ids)
 
     following = user_id |> Social.followee_ids_query() |> Repo.all() |> MapSet.new()
 
-    from(i in Item, where: i.id in ^ids, select: {i.id, i.author_id, i.published_at})
-    |> Repo.all()
-    |> Enum.map(fn {id, author_id, published_at} ->
+    Enum.map(items, fn {id, author_id, published_at, labels_version} ->
       %Candidate{
         content_id: id,
         author_id: author_id,
         published_at: published_at,
         sources: sources_by_id[id] |> Enum.uniq() |> Enum.sort(),
         labels: Map.get(labels, id, []),
+        labels_version: labels_version,
         quality: Map.get(quality, id, @prior_rate),
         following: MapSet.member?(following, author_id)
       }
     end)
+  end
+
+  defp item_rows(ids) do
+    from(i in Item,
+      where: i.id in ^ids,
+      select: {i.id, i.author_id, i.published_at, i.labels_version}
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  `%{content_id => labels_version}` for the items among `ids` that are still
+  ready. A feed session compares it with what it cached (I34): an item
+  missing from the result was removed, and one whose version moved has new
+  labels. Read it before re-reading labels, for the reason `hydrate/3`
+  gives.
+  """
+  def labels_versions(ids) do
+    from(i in Item,
+      where: i.id in ^ids and i.status == "ready",
+      select: {i.id, i.labels_version}
+    )
+    |> Repo.all()
+    |> Map.new()
   end
 
   @doc false
