@@ -13,7 +13,7 @@ defmodule TSpec.Accounts.Profile do
   def changeset(profile, attrs) do
     profile
     |> cast(attrs, [:display_name, :bio])
-    |> validate_length(:display_name, max: 50)
-    |> validate_length(:bio, max: 300)
+    |> TSpec.TextLimit.validate(:display_name, max: 50)
+    |> TSpec.TextLimit.validate(:bio, max: 300)
   end
 end

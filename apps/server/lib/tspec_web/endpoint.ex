@@ -77,8 +77,13 @@ defmodule TSpecWeb.Endpoint do
              do: [:urlencoded, {:multipart, length: 250_000_000}, :json],
              else: [:urlencoded, :json]
 
+  # 1 MB per body (Plug's default is 8): the largest real request, a full
+  # event batch or a text post at its limits, is well under 100 KB, and a
+  # decoded body takes several times its size in memory. Multipart sets its
+  # own limit above.
   plug Plug.Parsers,
     parsers: @parsers,
+    length: 1_000_000,
     pass: ["*/*"],
     body_reader: {TSpecWeb.CacheBodyReader, :read_body, []},
     json_decoder: Phoenix.json_library()

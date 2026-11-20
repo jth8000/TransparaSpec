@@ -17,7 +17,12 @@ defmodule TSpecWeb.Schemas.EventInput do
           "Seconds played so far in this view (cumulative across loops), where relevant"
       },
       occurred_at: %Schema{type: :string, format: :"date-time"},
-      session_id: %Schema{type: :string, maxLength: 64, nullable: true},
+      session_id: %Schema{
+        type: :string,
+        maxLength: 64,
+        nullable: true,
+        description: "At most 64 bytes; an event with a longer one is dropped"
+      },
       view_id: %Schema{
         type: :string,
         format: :uuid,

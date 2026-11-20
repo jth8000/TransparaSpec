@@ -671,6 +671,7 @@ export interface components {
             impression_id?: string | null;
             /** Format: date-time */
             occurred_at: string;
+            /** @description At most 64 bytes; an event with a longer one is dropped */
             session_id?: string | null;
             /** @enum {string} */
             type: "view_start" | "watch_progress" | "complete" | "skip";
@@ -1645,7 +1646,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Invalid handle or consent */
+            /** @description Invalid handle, display name or consent */
             422: {
                 headers: {
                     [name: string]: unknown;

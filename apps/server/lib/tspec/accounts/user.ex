@@ -25,15 +25,21 @@ defmodule TSpec.Accounts.User do
     user
     |> cast(attrs, [:email])
     |> validate_required([:email])
-    |> validate_format(:email, ~r/^[^@,;\s]+@[^@,;\s]+$/,
+    # \A and \z, not ^ and $, as for handles below.
+    |> validate_format(:email, ~r/\A[^@,;\s]+@[^@,;\s]+\z/,
       message: "must have the @ sign and no spaces"
     )
     |> validate_length(:email, max: 160)
+    # SMTP carries at most 254 bytes of address (RFC 5321), and the
+    # varchar(255) `users_tokens.sent_to` holds it.
+    |> validate_length(:email, max: 254, count: :bytes)
     |> unsafe_validate_unique(:email, TSpec.Repo)
     |> unique_constraint(:email)
   end
 
-  @handle_format ~r/^[a-z0-9_]{3,30}$/
+  # \A and \z, not ^ and $: `$` also matches before a final newline, and
+  # "alice\n" would be a second, distinct "alice".
+  @handle_format ~r/\A[a-z0-9_]{3,30}\z/
 
   @doc """
   Completes onboarding: sets the public handle and records the 13+ attestation.

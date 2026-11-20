@@ -20,7 +20,8 @@ defmodule TSpecWeb.OnboardingController do
       ok: {"Me", "application/json", Schemas.Me},
       forbidden: {"Under 13", "application/json", Schemas.Error},
       conflict: {"Already onboarded", "application/json", Schemas.Error},
-      unprocessable_entity: {"Invalid handle or consent", "application/json", Schemas.Error}
+      unprocessable_entity:
+        {"Invalid handle, display name or consent", "application/json", Schemas.Error}
     ]
 
   def create(conn, _params) do
