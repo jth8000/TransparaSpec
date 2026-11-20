@@ -7,6 +7,8 @@ sine tone), in four layouts:
 * `split/`: a master playlist whose video variants name a separate audio
   playlist (`#EXT-X-MEDIA:TYPE=AUDIO`), as providers with several audio
   tracks serve it;
+* `split/packed.m3u8`: the same video, with "packed audio": raw AAC
+  segments, each behind an ID3 tag;
 * `fmp4/`: fragmented MP4 segments after an init segment (`#EXT-X-MAP`);
 * `silent/`: video with no audio stream at all.
 
@@ -63,6 +65,40 @@ def _hls(out: Path, *inputs_and_codecs: str, segment_type: str = "mpegts") -> No
     )
 
 
+def _id3_tag() -> bytes:
+    """An ID3v2.4 tag with the PRIV frame HLS packed audio carries (its timestamp)."""
+
+    def syncsafe(n: int) -> bytes:
+        return bytes([(n >> 21) & 0x7F, (n >> 14) & 0x7F, (n >> 7) & 0x7F, n & 0x7F])
+
+    body = b"com.apple.streaming.transportStreamTimestamp\x00" + bytes(8)
+    frame = b"PRIV" + syncsafe(len(body)) + b"\x00\x00" + body
+    return b"ID3\x04\x00\x00" + syncsafe(len(frame)) + frame
+
+
+def _packed_aac(out: Path) -> None:
+    """Packed audio: ADTS segments, each behind an ID3 tag. ffmpeg's HLS muxer
+    writes MPEG-TS even for audio, so the segment muxer makes these."""
+    out.mkdir(parents=True)
+    _ffmpeg(
+        *AUDIO_IN,
+        *AAC,
+        "-f",
+        "segment",
+        "-segment_time",
+        "1",
+        "-segment_format",
+        "adts",
+        "-segment_list",
+        str(out / "index.m3u8"),
+        "-segment_list_type",
+        "m3u8",
+        str(out / "seg_%02d.aac"),
+    )
+    for seg in out.glob("seg_*.aac"):
+        seg.write_bytes(_id3_tag() + seg.read_bytes())
+
+
 VIDEO_IN = ["-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=3"]
 AUDIO_IN = ["-f", "lavfi", "-i", "sine=frequency=440:duration=3"]
 H264 = ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-g", "10"]
@@ -84,6 +120,13 @@ def media(tmp_path_factory) -> Path:
         "audio/index.m3u8\n"
         '#EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=640x480,CODECS="avc1.64001f,mp4a.40.2",AUDIO="aud"\n'
         "video/does-not-exist.m3u8\n"
+        '#EXT-X-STREAM-INF:BANDWIDTH=300000,RESOLUTION=320x240,CODECS="avc1.64001f,mp4a.40.2",AUDIO="aud"\n'
+        "video/index.m3u8\n"
+    )
+    _packed_aac(root / "split" / "packed")
+    (root / "split" / "packed.m3u8").write_text(
+        "#EXTM3U\n"
+        '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="English",DEFAULT=YES,URI="packed/index.m3u8"\n'
         '#EXT-X-STREAM-INF:BANDWIDTH=300000,RESOLUTION=320x240,CODECS="avc1.64001f,mp4a.40.2",AUDIO="aud"\n'
         "video/index.m3u8\n"
     )

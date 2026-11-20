@@ -1,0 +1,4 @@
+{
+  "error": "invalid_request",
+  "detail": "body.content_id: uuid_parsing"
+}

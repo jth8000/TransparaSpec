@@ -36,8 +36,10 @@ def _round(scores: np.ndarray, slugs: list[str]) -> dict[str, float]:
 
 
 class Scorer:
-    def __init__(self, backends: Backends, taxonomy: Taxonomy):
+    def __init__(self, backends: Backends, taxonomy: Taxonomy, max_text_chars: int):
         self.backends = backends
+        # Texts are cut to this many code points first (see Settings).
+        self.max_text_chars = max_text_chars
         topics = taxonomy.labelable()
         self.slugs = [t.slug for t in topics]
         self.image_topics = _topic_matrix(backends.image.embed_prompts, topics)
@@ -51,7 +53,7 @@ class Scorer:
     ) -> tuple[dict[str, dict[str, float]], dict[str, list[float]]]:
         raw, embeddings = {}, {}
 
-        present = [(m, t) for m, t in texts.items() if t and t.strip()]
+        present = [(m, t[: self.max_text_chars]) for m, t in texts.items() if t and t.strip()]
         if present:
             vectors = self.backends.text.embed_texts([t for _, t in present])
             for (modality, _), v in zip(present, vectors, strict=True):

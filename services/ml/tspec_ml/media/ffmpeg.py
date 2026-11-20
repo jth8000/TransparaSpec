@@ -5,9 +5,19 @@ execs the tool. Not `preexec_fn`: Python warns that it can deadlock the
 child in a threaded process, and this service has a thread pool (and
 torch's threads, once real models load). The limits:
 
-* `--cpu`: CPU seconds, from the request's remaining deadline;
-* `--as`: address space, generous (ffmpeg reserves much more than it uses);
-* a wall-clock timeout, after which the child is killed.
+* a wall-clock timeout at the request's deadline, after which the child is
+  killed: this is what enforces the deadline (`DeadlineExceeded`, retryable);
+* `--cpu`: CPU seconds, a backstop that bounds an ffmpeg left running if the
+  service itself dies. CPU time adds up across all of ffmpeg's threads, so
+  the limit is the remaining deadline times the CPUs the process may use: no
+  process can spend that before the wall-clock timeout fires. (A limit of
+  just the remaining seconds killed multi-threaded decodes early, and the
+  kill looked like corrupt media.)
+* `--as`: address space, generous (ffmpeg reserves much more than it uses).
+
+A tool killed by a signal (the CPU backstop, the OOM killer, an operator) is
+`MediaToolKilled`, retryable; only a tool that exits with an error is
+`MediaDecodeFailed`, permanent for that input.
 
 Inputs are files `hls.fetch_streams` wrote, read with the protocol allowlist
 `file` and an explicit format, so ffmpeg can neither fetch nor treat a
@@ -15,7 +25,10 @@ Inputs are files `hls.fetch_streams` wrote, read with the protocol allowlist
 """
 
 import json
+import math
+import os
 import shutil
+import signal
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,8 +42,20 @@ class MediaDecodeFailed(Exception):
     """ffmpeg couldn't read the media (corrupt or unsupported)."""
 
 
+class MediaToolKilled(Exception):
+    """ffmpeg or ffprobe was killed by a signal, which says nothing about the media."""
+
+
 class NoVideoStream(Exception):
     """The media has no video stream."""
+
+
+def usable_cpus() -> int:
+    """The CPUs this process may run on (its affinity mask, not the machine's count)."""
+    try:
+        return len(os.sched_getaffinity(0))
+    except AttributeError:  # not Linux
+        return os.cpu_count() or 1
 
 
 @dataclass(frozen=True)
@@ -57,12 +82,13 @@ class Probe:
 
 
 class Runner:
-    def __init__(self, tools: Tools, settings: Settings):
+    def __init__(self, tools: Tools, settings: Settings, cpus: int | None = None):
         self.tools = tools
         self._address_space = settings.ffmpeg_address_space_bytes
+        self._cpus = cpus or usable_cpus()
 
     def command(self, tool: str, args: list[str], deadline: Deadline) -> list[str]:
-        cpu_seconds = max(1, int(deadline.remaining()) + 1)
+        cpu_seconds = math.ceil(deadline.remaining() * self._cpus) + 1
         return [
             self.tools.prlimit,
             f"--cpu={cpu_seconds}",
@@ -82,10 +108,20 @@ class Runner:
             )
         except subprocess.TimeoutExpired as e:
             raise DeadlineExceeded(stage) from e
+        name = Path(tool).name
+        if proc.returncode < 0:
+            raise MediaToolKilled(f"{name} killed by {_signal_name(-proc.returncode)}")
         if proc.returncode != 0:
             tail = proc.stderr.decode("utf-8", "replace").strip().splitlines()[-3:]
-            raise MediaDecodeFailed(f"{Path(tool).name} failed: {' | '.join(tail)}")
+            raise MediaDecodeFailed(f"{name} exited {proc.returncode}: {' | '.join(tail)}")
         return proc.stdout
+
+
+def _signal_name(number: int) -> str:
+    try:
+        return signal.Signals(number).name
+    except ValueError:
+        return f"signal {number}"
 
 
 def _input(stream: Stream) -> list[str]:
@@ -129,7 +165,18 @@ def extract_frames(
     outdir: Path,
     deadline: Deadline,
 ) -> list[tuple[int, bytes]]:
-    """Up to `settings.frames` evenly spaced frames as PNGs: [(timestamp_ms, png)]."""
+    """Up to `settings.frames` frames as PNGs, one from the middle of each of
+    `frames` equal slices of the video: [(timestamp_ms, png)].
+
+    The `fps` filter does the sampling. With its default rounding, output
+    frame i covers input times [(i - 1/2)·interval, (i + 1/2)·interval) and
+    is the last input frame in that range: the frame at the middle of slice
+    i, or the one just before it. (The filter's own output timestamps,
+    i·interval, number the slots; they aren't when the frames were taken.)
+    So neither the first frame, often black or a title card, nor the end of
+    the video is favoured. `test_frames_come_from_the_middle_of_each_slice`
+    pins this down against ffmpeg upgrades.
+    """
     n, side = settings.frames, settings.frame_max_side
     interval = max(duration_s, 0.04) / n
     outdir.mkdir()
@@ -138,7 +185,9 @@ def extract_frames(
         _ffmpeg_args(
             stream,
             "-vf",
-            f"fps=1/{interval:.6f},scale={side}:{side}:force_original_aspect_ratio=decrease",
+            # At most `side` on the longer edge; never scaled up.
+            f"fps=1/{interval:.6f},"
+            f"scale='min({side},iw)':'min({side},ih)':force_original_aspect_ratio=decrease",
             "-frames:v",
             str(n),
             "-f",
@@ -151,7 +200,7 @@ def extract_frames(
     paths = sorted(outdir.glob("frame_*.png"))
     if not paths:
         raise MediaDecodeFailed("no frames decoded")
-    return [(round(i * interval * 1000), p.read_bytes()) for i, p in enumerate(paths)]
+    return [(round((i + 0.5) * interval * 1000), p.read_bytes()) for i, p in enumerate(paths)]
 
 
 def extract_audio(

@@ -66,9 +66,14 @@ class FrameInput(_Model):
 
 class ScoreRequest(_Model):
     content_id: UUID
-    caption: str | None = Field(default=None, max_length=2200)
-    body: str | None = Field(default=None, max_length=2000)
-    transcript: str | None = Field(default=None, max_length=100_000)
+    # No length limits on text. Phoenix limits captions and bodies in
+    # graphemes, and a grapheme can be any number of code points (one family
+    # emoji is seven), so a limit here could refuse what Phoenix accepted,
+    # permanently. The request is capped in bytes instead (`BodyLimit`), and
+    # each text is cut to `max_text_chars` before it's embedded.
+    caption: str | None = None
+    body: str | None = None
+    transcript: str | None = None
     frames: FrameInput | None = None
 
 

@@ -13,6 +13,8 @@ FIXTURES = {
     "score.response.json": schemas.ScoreResponse,
     "error.busy.json": schemas.Error,
     "error.media_url_not_allowed.json": schemas.Error,
+    "error.invalid_request.json": schemas.Error,
+    "error.request_too_large.json": schemas.Error,
 }
 
 

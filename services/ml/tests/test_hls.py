@@ -102,6 +102,21 @@ def test_a_separate_audio_playlist_is_downloaded_too(host, tmp_path):
     assert "https://media.test/split/video/does-not-exist.m3u8" not in host.requests
 
 
+def test_packed_audio_is_read_as_aac(host, tmp_path):
+    streams = _fetch(host, "split/packed.m3u8", tmp_path)
+    assert (streams.video.format, streams.audio.format) == ("mpegts", "aac")
+
+
+def test_packed_audio_is_refused_for_the_video(host, tmp_path):
+    # Only an audio playlist may be packed audio; a video playlist of it has
+    # no video to find, so it's refused before ffmpeg runs.
+    host.routes["https://media.test/z/index.m3u8"] = lambda r: httpx.Response(
+        200, text=media_playlist("#EXTINF:1,", "../split/packed/seg_00.aac")
+    )
+    with pytest.raises(hls.UnsupportedPlaylist, match="not mpegts"):
+        _fetch(host, "z/index.m3u8", tmp_path)
+
+
 def test_fmp4_segments_follow_their_init_segment(host, tmp_path):
     streams = _fetch(host, "fmp4/index.m3u8", tmp_path)
     assert streams.video.format == "mov"

@@ -32,6 +32,13 @@ def test_audio_in_its_own_playlist_is_transcribed(client):
     assert data["transcript"]["text"].startswith("fake transcript of 3.0 s")
 
 
+def test_packed_audio_in_its_own_playlist_is_transcribed(client):
+    # Raw AAC behind ID3 tags, as HLS allows for audio playlists.
+    data = post(client, extract_body("split/packed.m3u8")).json()
+    assert data["has_audio"] is True
+    assert data["transcript"]["text"].startswith("fake transcript of 3.0 s")
+
+
 def test_fragmented_mp4_works(client):
     r = post(client, extract_body("fmp4/index.m3u8"))
     assert r.status_code == 200, r.text
@@ -79,3 +86,7 @@ def test_the_service_gives_up_at_the_clients_deadline(make_client):
 def test_requests_are_validated(client):
     r = post(client, {**extract_body("muxed/index.m3u8"), "duration_ms": 0, "extra": 1})
     assert r.status_code == 422
+    assert r.json() == {
+        "error": "invalid_request",
+        "detail": "body.duration_ms: greater_than; body.extra: extra_forbidden",
+    }

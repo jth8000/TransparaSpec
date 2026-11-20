@@ -30,6 +30,17 @@ class Settings(BaseSettings):
     max_segments: int = 600
     max_redirects: int = 3
 
+    # Request bodies are capped in bytes, before they're parsed (FastAPI
+    # parses a body before the bearer check runs). Well above anything
+    # Phoenix sends: its own JSON bodies are at most 8 MB, and frame
+    # embeddings add under 1 MB.
+    max_request_bytes: int = 16 * 1024**2
+    # Each text (caption, body, transcript) is cut to this many code points
+    # before it's embedded. Past what any of the models reads, so nothing is
+    # lost; it only bounds the work. There's no character limit on requests:
+    # Phoenix counts graphemes, and one grapheme can be many code points.
+    max_text_chars: int = 20_000
+
     frames: int = 8
     frame_max_side: int = 512
 

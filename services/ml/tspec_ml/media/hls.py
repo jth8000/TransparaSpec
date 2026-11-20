@@ -12,6 +12,10 @@ The service parses the playlists itself:
   (`#EXT-X-MAP`, fragmented MP4). LocalProvider serves one media playlist
   with audio and video together.
 
+Segments are MPEG-TS, or fragmented MP4 after an init segment. An audio
+playlist may also use "packed audio": raw AAC (ADTS frames), each segment
+behind an ID3 tag carrying its timestamp.
+
 Rejected: encrypted (`#EXT-X-KEY`) and byte-range playlists, live playlists
 (no `#EXT-X-ENDLIST`), and anything past the segment, duration and size
 limits. Every URL goes through the allowlisted `Fetcher`.
@@ -30,10 +34,12 @@ from .fetch import ByteBudget, Fetcher, MediaTooLarge
 VIDEO_CODECS = ("avc1", "avc3", "hvc1", "hev1", "vp08", "vp09", "av01", "mp4v")
 
 # The container a segment must be: MPEG-TS starts with the sync byte, an
-# fMP4 init segment with an `ftyp` box. Checked before ffmpeg sees the file,
-# and ffmpeg is told the format, so a "segment" that's really a playlist (or
-# anything else) can't make it read other files.
+# fMP4 init segment with an `ftyp` box, packed AAC with an ID3 tag or an
+# ADTS frame. Checked before ffmpeg sees the file, and ffmpeg is told the
+# format, so a "segment" that's really a playlist (or anything else) can't
+# make it read other files.
 TS_SYNC = 0x47
+HEAD_BYTES = 4096
 
 
 class UnsupportedPlaylist(Exception):
@@ -65,7 +71,8 @@ class MediaPlaylist:
 @dataclass
 class Stream:
     path: Path
-    # "mpegts" or "mov" (fragmented MP4): what ffmpeg is told to read.
+    # What ffmpeg is told to read: "mpegts", "mov" (fragmented MP4) or "aac"
+    # (packed audio, audio playlists only).
     format: str
 
 
@@ -215,7 +222,7 @@ def fetch_streams(
 
     return Streams(
         video=_download(fetcher, video, workdir / "video", media_budget, deadline),
-        audio=_download(fetcher, audio, workdir / "audio", media_budget, deadline)
+        audio=_download(fetcher, audio, workdir / "audio", media_budget, deadline, audio=True)
         if audio
         else None,
         duration_s=video.duration_s,
@@ -223,22 +230,37 @@ def fetch_streams(
 
 
 def _download(
-    fetcher: Fetcher, playlist: MediaPlaylist, path: Path, budget: ByteBudget, deadline: Deadline
+    fetcher: Fetcher,
+    playlist: MediaPlaylist,
+    path: Path,
+    budget: ByteBudget,
+    deadline: Deadline,
+    audio: bool = False,
 ) -> Stream:
     urls = ([playlist.init] if playlist.init else []) + playlist.segments
     fetcher.download(urls, path, budget, deadline)
-    fmt = "mov" if playlist.init else "mpegts"
-    _check_container(path, fmt)
-    return Stream(path=path, format=fmt)
+    return Stream(path=path, format=_container(path, bool(playlist.init), audio))
 
 
-def _check_container(path: Path, fmt: str) -> None:
+def _container(path: Path, has_init: bool, audio: bool) -> str:
+    """The format to tell ffmpeg, from the first bytes; anything else is refused."""
     with path.open("rb") as f:
-        head = f.read(12)
-    ok = (
-        (len(head) >= 8 and head[4:8] == b"ftyp")
-        if fmt == "mov"
-        else (len(head) >= 1 and head[0] == TS_SYNC)
-    )
+        head = f.read(HEAD_BYTES)
+    if has_init:
+        fmt, ok = "mov", len(head) >= 8 and head[4:8] == b"ftyp"
+    elif audio and _is_packed_aac(head):
+        fmt, ok = "aac", True
+    else:
+        fmt, ok = "mpegts", len(head) >= 1 and head[0] == TS_SYNC
     if not ok:
         raise UnsupportedPlaylist(f"segments are not {fmt}")
+    return fmt
+
+
+def _is_packed_aac(head: bytes) -> bool:
+    """An ADTS frame, after the ID3 tag if there is one (not MP3: its layer bits aren't 00)."""
+    if head[:3] == b"ID3" and len(head) >= 10:
+        size = (head[6] << 21) | (head[7] << 14) | (head[8] << 7) | head[9]
+        footer = 10 if head[5] & 0x10 else 0
+        head = head[10 + size + footer :]
+    return len(head) >= 2 and head[0] == 0xFF and head[1] & 0xF6 == 0xF0

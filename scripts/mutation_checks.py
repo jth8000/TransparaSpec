@@ -221,7 +221,7 @@ MUTATIONS = [
      "        url = self.check(url)\n",
      "        url = httpx.URL(url)\n",
      ["tests/test_hls.py", "tests/test_extract.py"]),
-    ("M41 ffmpeg only sees segments in the container their playlist declared",
+    ("M41 ffmpeg only sees segments in a container their first bytes show",
      "ml",
      "tspec_ml/media/hls.py",
      "    if not ok:\n",

@@ -4,7 +4,8 @@ Stages, each checked against the request's deadline:
 
 1. fetch: playlists and segments into a temporary directory (`hls`);
 2. probe: which streams the files really have;
-3. frames: evenly spaced stills, embedded by the image model;
+3. frames: one still from the middle of each equal slice of the video,
+   embedded by the image model;
 4. audio and transcript, if there is an audio stream.
 
 The temporary directory is removed when the request ends, whatever happens:

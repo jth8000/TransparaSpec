@@ -1,4 +1,4 @@
-"""One request at a time, and a deadline per request.
+"""One request at a time, a deadline per request, and a cap on request size.
 
 The service runs on one CPU machine with one uvicorn worker, and one
 analysis uses all of it. Phoenix's Oban queue limit is per Phoenix node, and
@@ -12,6 +12,9 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .config import Settings
 
@@ -66,3 +69,52 @@ def deadline_for(
     if client_deadline_ms is not None:
         seconds = min(seconds, client_deadline_ms / 1000)
     return Deadline(seconds)
+
+
+class BodyLimit:
+    """ASGI middleware: a request body over `max_bytes` gets 413 before
+    anything parses it.
+
+    FastAPI reads and parses the JSON body before it runs the bearer check,
+    so without a cap anyone who can reach the port could make the service
+    hold an arbitrarily large document in memory. The body is read here (the
+    app would buffer it anyway) and handed on whole.
+    """
+
+    def __init__(self, app: ASGIApp, max_bytes: int):
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        too_large = JSONResponse({"error": "request_too_large"}, status_code=413)
+        length = dict(scope["headers"]).get(b"content-length")
+        if length is not None and (not length.isdigit() or int(length) > self.max_bytes):
+            await too_large(scope, receive, send)
+            return
+
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":  # the client went away
+                return
+            body += message.get("body", b"")
+            if len(body) > self.max_bytes:
+                await too_large(scope, receive, send)
+                return
+            if not message.get("more_body", False):
+                break
+
+        sent = False
+
+        async def replay() -> Message:
+            nonlocal sent
+            if sent:
+                return await receive()
+            sent = True
+            return {"type": "http.request", "body": bytes(body), "more_body": False}
+
+        await self.app(scope, replay, send)
