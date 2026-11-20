@@ -1,11 +1,5 @@
 [
   {
-    "id": "GHSA-gcqx-w48m-w2h4",
-    "package": "deepmerge",
-    "severity": "low",
-    "reason": "Prototype poisoning in objects returned by deepmerge's mergeObject(). Comes in through @expo/config, which merges app.json at build time, and jest-config (dev only). The app never imports it, and it isn't in the app bundle. Clears when @expo/config drops or patches deepmerge."
-  },
-  {
     "id": "GHSA-3g3m-2fjr-6pw4",
     "package": "glob",
     "severity": "moderate",
