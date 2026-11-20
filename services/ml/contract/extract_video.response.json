@@ -1,0 +1,13 @@
+{
+  "contract": "1",
+  "content_id": "0194f0a2-7c3e-7b8a-9a1d-3f5e6c7d8e9f",
+  "extractor_version": "extract-v1",
+  "has_audio": true,
+  "transcript": {"text": "today we're making a one-pot pasta", "language": "en"},
+  "frames": {
+    "model": "fake-image-v1",
+    "timestamps_ms": [0, 3938],
+    "embeddings": [[0.5, 0.5, 0.5, 0.5], [0.0, 0.6, 0.8, 0.0]]
+  },
+  "timings_ms": {"fetch": 412, "probe": 58, "frames": 230, "transcribe": 5120}
+}

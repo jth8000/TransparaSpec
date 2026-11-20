@@ -1,0 +1,41 @@
+[project]
+name = "tspec-ml"
+version = "0.1.0"
+description = "T-Spec's content-understanding service (ADR 0003): transcripts, embeddings and topic scores."
+requires-python = ">=3.12,<3.13"
+license = "AGPL-3.0-only"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn>=0.32",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  "httpx>=0.28",
+  "numpy>=2.1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.8", "pip-audit>=2.7"]
+
+[tool.uv]
+# Not a distributable package: run from this directory (`make ml`, `uv run pytest`).
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert, use a fixed test secret, and start ffmpeg to make fixture media.
+"tests/**" = ["S101", "S105", "S603"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+filterwarnings = [
+  # Starlette's TestClient now prefers the httpx2 package; httpx still works.
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

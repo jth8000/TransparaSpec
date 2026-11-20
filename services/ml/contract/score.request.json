@@ -1,0 +1,9 @@
+{
+  "content_id": "0194f0a2-7c3e-7b8a-9a1d-3f5e6c7d8e9f",
+  "caption": "One-pot pasta #Cooking",
+  "transcript": "today we're making a one-pot pasta",
+  "frames": {
+    "model": "fake-image-v1",
+    "embeddings": [[0.5, 0.5, 0.5, 0.5], [0.0, 0.6, 0.8, 0.0]]
+  }
+}

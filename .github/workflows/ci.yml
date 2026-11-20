@@ -52,8 +52,25 @@ jobs:
       - run: mix compile --warnings-as-errors
       - run: mix test --warnings-as-errors
 
+  ml:
+    # The ML service with fake models: no model weights are downloaded.
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: services/ml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Install ffmpeg (media fixtures and extraction)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+
   security:
-    # Dependency advisories (Hex and npm) and Sobelow, Phoenix's security scanner.
+    # Dependency advisories (Hex, npm and the ML service's Python packages) and
+    # Sobelow, Phoenix's security scanner.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,6 +82,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - run: npm ci
       - run: cd apps/server && mix deps.get
       - run: make security

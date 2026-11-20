@@ -1,0 +1,18 @@
+{
+  "contract": "1",
+  "content_id": "0194f0a2-7c3e-7b8a-9a1d-3f5e6c7d8e9f",
+  "models": {"image": "fake-image-v1", "text": "fake-text-v1"},
+  "prompts_version": "3f9a1c2b7d4e",
+  "policy_version": "v0",
+  "raw_scores": {
+    "caption": {"cooking": 0.612, "travel": -0.031},
+    "transcript": {"cooking": 0.104, "travel": 0.012},
+    "frames_mean": {"cooking": 0.087, "travel": 0.021},
+    "frames_max": {"cooking": 0.144, "travel": 0.058}
+  },
+  "text_embeddings": {
+    "caption": [0.1, 0.7, 0.7, 0.1],
+    "transcript": [0.5, 0.5, 0.5, 0.5]
+  },
+  "labels": []
+}

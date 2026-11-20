@@ -31,12 +31,12 @@ Birthdates are checked at onboarding and never stored, only the attestation time
 Expo client ──HTTPS/WSS──▶ Phoenix API ──▶ Postgres
   (untrusted)                │  ▲
                              │  └── webhooks (HMAC) ── video provider
-                             └──▶ Oban jobs ──▶ video provider API, ML service (planned, Phase 1b)
+                             └──▶ Oban jobs ──▶ video provider API, ML service (Phase 1b; see ml-service.md)
 ```
 
 - **Everything the client sends is untrusted.** That includes engagement events (see [open-questions](../open-questions.md), "Engagement abuse"), positions on the feed channel, and session ids, which the client mints.
 - **Video bytes never pass through Phoenix in production.** The client uploads straight to the provider. The provider calls back with a signed webhook.
-- **The ML service (Phase 1b) will be called only from Oban jobs,** and returns scores, never decisions (ADR 0003).
+- **The ML service (Phase 1b) will be called only from Oban jobs,** and returns scores, never decisions (ADR 0003). Its own entry points, media fetching and limits are in [ml-service.md](ml-service.md); Phoenix doesn't call it yet.
 
 ## Entry points
 

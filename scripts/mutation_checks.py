@@ -3,11 +3,13 @@
 
 Each entry breaks one guard (a lock, a conditional UPDATE, a version check,
 a client-side check), runs the tests that are supposed to catch it (ExUnit
-for the server, Jest for the client), and restores the file. A guard
+for the server, Jest for the client, pytest for the ML service), and
+restores the file. A guard
 whose tests still pass is NOT CAUGHT: the test doesn't prove what
 docs/review/concurrency.md says it proves.
 
-The ids (M1, M2, ...) are cited in docs/review/ (concurrency.md, client.md), and
+The ids (M1, M2, ...) are cited in docs/review/ (concurrency.md, client.md,
+ml-service.md), and
 test/tspec/docs/review_packet_test.exs keeps the two in sync. When a guard's
 code changes, update its pattern here; a pattern that no longer matches is
 reported, not skipped.
@@ -30,6 +32,12 @@ APPS = {
     # app: (directory, test command)
     "server": (os.path.join(ROOT, "apps", "server"), ["mix", "test"]),
     "client": (os.path.join(ROOT, "apps", "client"), ["npx", "jest"]),
+    # An inherited PYTHONPATH (a ROS install sets one) would load other
+    # packages' pytest plugins.
+    "ml": (
+        os.path.join(ROOT, "services", "ml"),
+        ["env", "-u", "PYTHONPATH", "uv", "run", "pytest", "-q", "-p", "no:cacheprovider"],
+    ),
 }
 
 MUTATIONS = [
@@ -201,6 +209,24 @@ MUTATIONS = [
      "    {Oban.Lifeline, rescue_after: :timer.minutes(30)},\n",
      "",
      ["test/tspec/oban_config_test.exs"]),
+    ("M39 the ML service refuses a second request instead of queueing it",
+     "ml",
+     "tspec_ml/limits.py",
+     "if not self._lock.acquire(blocking=False):",
+     "if not self._lock.acquire(blocking=True):",
+     ["tests/test_busy.py"]),
+    ("M40 the ML service checks every URL it fetches against the allowlist",
+     "ml",
+     "tspec_ml/media/fetch.py",
+     "        url = self.check(url)\n",
+     "        url = httpx.URL(url)\n",
+     ["tests/test_hls.py", "tests/test_extract.py"]),
+    ("M41 ffmpeg only sees segments in a container their first bytes show",
+     "ml",
+     "tspec_ml/media/hls.py",
+     "    if not ok:\n",
+     "    if False:\n",
+     ["tests/test_hls.py"]),
     ("M27 the socket's origin check accepts CLIENT_URL's origin",
      "server",
      "config/runtime.exs",
@@ -301,10 +327,12 @@ def run(selected):
         finally:
             open(path, "w").write(original)
         out = proc.stdout + proc.stderr
-        result = re.findall(r"Result: .*|Tests: .*", out)
+        result = re.findall(r"Result: .*|Tests: .*|^\d+ (?:failed|passed)[^\n]*", out, re.M)
         # ExUnit: "  1) test name (Module)"; Jest: "  ● Suite › name".
         failed = re.findall(r"^\s+\d+\) (?:test|property) (.+?) \(", out, re.M)
         failed += re.findall(r"^\s+● (?!Console)(.+? › .+)$", out, re.M)
+        # pytest: "FAILED tests/test_x.py::test_name - ...".
+        failed += re.findall(r"^FAILED \S+::(\S+)", out, re.M)
         if not failed:
             problems += 1
         caught = "CAUGHT" if failed else "NOT CAUGHT"

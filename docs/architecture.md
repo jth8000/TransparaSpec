@@ -181,14 +181,12 @@ The full explanation, with worked examples and every default, is in [ranking.md]
 Each version bumps `ranker_version`, so old explanations stay true to the algorithm that produced them.
 
 ## Content understanding (Python ML service)
-- **Input**: content id plus the provider's download URL or thumbnails, caption and creator topics.
-- **Pipeline**:
-  - transcript (Whisper)
-  - frame + text embeddings (CLIP or similar)
-  - topic classification against the taxonomy (zero-shot over embeddings, optionally an LLM pass over caption + transcript)
-  - moderation scores
-- **Output**: `{topics: [{slug, confidence}], embedding, moderation: {category: score}}`.
-- **Calling pattern**: Oban jobs call the service over HTTP, so Oban provides retries and durability. The service itself is stateless.
+Two calls (ADR 0003, amended for Phase 1b), so an item can be re-scored without its video:
+- **Extract** (`POST /v1/extract/video`): content id and the provider's playback URL in; transcript (Whisper) and per-frame image embeddings (SigLIP) out. The service fetches the HLS media itself, from allowlisted hosts only, and decodes it with ffmpeg under CPU, memory and time limits.
+- **Score** (`POST /v1/score`): caption, body, transcript and stored frame embeddings in; per-topic raw scores per modality (zero-shot against the taxonomy's prompts), text embeddings, and labels under the current label policy out.
+- **Labels** start in shadow mode: scores are stored, and model labels reach `content_topics` only for topics that passed an evaluation (ADR 0016).
+- **Moderation scores** come in Phase 2.
+- **Calling pattern**: Oban jobs call the service over HTTP, so Oban provides retries and durability. The service is stateless and runs one request at a time; a busy service answers 503 and the job retries.
 
 ## Revenue sharing (creators + data dividend)
 

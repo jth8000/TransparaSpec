@@ -1,0 +1,61 @@
+{
+  "_about": "Per-topic prompt text for the ML service, keyed by slug (see tspec_ml/taxonomy.py). Topics not listed are scored by their name alone. Synonyms are refined against eval clips in Phase 1b's M2.",
+  "topics": {
+    "auto-body-styles": {
+      "model": false,
+      "why": "a container: its subtopics were dropped with tier 3"
+    },
+    "auto-type": {
+      "model": false,
+      "why": "a container: its subtopics were dropped with tier 3"
+    },
+    "business": {
+      "model": false,
+      "why": "too broad to tell apart from its parent, Business and Finance"
+    },
+    "communication": {
+      "model": false,
+      "why": "too broad: says nothing about what an item shows"
+    },
+    "factual": {
+      "model": false,
+      "why": "a broadcast category, not something an item shows"
+    },
+    "genres": {
+      "model": false,
+      "why": "a container for media genres; its subtopics are labeled instead"
+    },
+    "industries": {
+      "model": false,
+      "why": "a container: its subtopics (one per industry) were dropped with tier 3"
+    },
+    "lifestyle": {
+      "model": false,
+      "why": "a broadcast category, not something an item shows"
+    },
+    "spam-or-harmful-content": {
+      "model": false,
+      "why": "a moderation judgment, not a topic (moderation scores are Phase 2)"
+    },
+    "sports-radio": {
+      "model": false,
+      "why": "a broadcast format, not something a video shows"
+    },
+    "talk-radio": {
+      "model": false,
+      "why": "a broadcast format, not something a video shows"
+    },
+    "travel-locations": {
+      "model": false,
+      "why": "a container: its subtopics were dropped with tier 3; Travel covers it"
+    },
+    "travel-type": {
+      "model": false,
+      "why": "a container: its subtopics were dropped with tier 3; Travel covers it"
+    },
+    "video-game-genres": {
+      "model": false,
+      "why": "a container: its subtopics were dropped with tier 3; Video Gaming covers it"
+    }
+  }
+}

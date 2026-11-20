@@ -1,0 +1,2525 @@
+{
+  "source": "IAB Content Taxonomy 3.1, tiers 1-2",
+  "topics": [
+    {
+      "iab_id": "325",
+      "name": "Action/Adventure",
+      "parent": "genres",
+      "slug": "action-adventure",
+      "tier": 2
+    },
+    {
+      "iab_id": "Rm3SiT",
+      "name": "Adult & Explicit Sexual Content",
+      "parent": "sensitive-topics",
+      "slug": "adult-and-explicit-sexual-content",
+      "tier": 2
+    },
+    {
+      "iab_id": "133",
+      "name": "Adult Education",
+      "parent": "education",
+      "slug": "adult-education",
+      "tier": 2
+    },
+    {
+      "iab_id": "454",
+      "name": "Agnosticism",
+      "parent": "religion-and-spirituality",
+      "slug": "agnosticism",
+      "tier": 2
+    },
+    {
+      "iab_id": "211",
+      "name": "Alcoholic Beverages",
+      "parent": "food-and-drink",
+      "slug": "alcoholic-beverages",
+      "tier": 2
+    },
+    {
+      "iab_id": "484",
+      "name": "American Football",
+      "parent": "sports",
+      "slug": "american-football",
+      "tier": 2
+    },
+    {
+      "iab_id": "151",
+      "name": "Amusement and Theme Parks",
+      "parent": "attractions",
+      "slug": "amusement-and-theme-parks",
+      "tier": 2
+    },
+    {
+      "iab_id": "641",
+      "name": "Animation & Anime",
+      "parent": "genres",
+      "slug": "animation-and-anime",
+      "tier": 2
+    },
+    {
+      "iab_id": "164",
+      "name": "Anniversary",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "anniversary",
+      "tier": 2
+    },
+    {
+      "iab_id": "240",
+      "name": "Antiquing and Antiques",
+      "parent": "hobbies-and-interests",
+      "slug": "antiquing-and-antiques",
+      "tier": 2
+    },
+    {
+      "iab_id": "442",
+      "name": "Apartments",
+      "parent": "real-estate",
+      "slug": "apartments",
+      "tier": 2
+    },
+    {
+      "iab_id": "124",
+      "name": "Apprenticeships",
+      "parent": "careers",
+      "slug": "apprenticeships",
+      "tier": 2
+    },
+    {
+      "iab_id": "avbNf2",
+      "name": "Arms & Ammunition",
+      "parent": "sensitive-topics",
+      "slug": "arms-and-ammunition",
+      "tier": 2
+    },
+    {
+      "iab_id": "43",
+      "name": "Art and Photography",
+      "parent": "books-and-literature",
+      "slug": "art-and-photography",
+      "tier": 2
+    },
+    {
+      "iab_id": "597",
+      "name": "Artificial Intelligence",
+      "parent": "technology-and-computing",
+      "slug": "artificial-intelligence",
+      "tier": 2
+    },
+    {
+      "iab_id": "248",
+      "name": "Arts and Crafts",
+      "parent": "hobbies-and-interests",
+      "slug": "arts-and-crafts",
+      "tier": 2
+    },
+    {
+      "iab_id": "456",
+      "name": "Astrology",
+      "parent": "religion-and-spirituality",
+      "slug": "astrology",
+      "tier": 2
+    },
+    {
+      "iab_id": "457",
+      "name": "Atheism",
+      "parent": "religion-and-spirituality",
+      "slug": "atheism",
+      "tier": 2
+    },
+    {
+      "iab_id": "150",
+      "name": "Attractions",
+      "parent": null,
+      "slug": "attractions",
+      "tier": 1
+    },
+    {
+      "iab_id": "598",
+      "name": "Augmented Reality",
+      "parent": "technology-and-computing",
+      "slug": "augmented-reality",
+      "tier": 2
+    },
+    {
+      "iab_id": "507",
+      "name": "Australian Rules Football",
+      "parent": "sports",
+      "slug": "australian-rules-football",
+      "tier": 2
+    },
+    {
+      "iab_id": "2",
+      "name": "Auto Body Styles",
+      "parent": "automotive",
+      "slug": "auto-body-styles",
+      "tier": 2
+    },
+    {
+      "iab_id": "30",
+      "name": "Auto Buying and Selling",
+      "parent": "automotive",
+      "slug": "auto-buying-and-selling",
+      "tier": 2
+    },
+    {
+      "iab_id": "31",
+      "name": "Auto Insurance",
+      "parent": "automotive",
+      "slug": "auto-insurance",
+      "tier": 2
+    },
+    {
+      "iab_id": "32",
+      "name": "Auto Parts",
+      "parent": "automotive",
+      "slug": "auto-parts",
+      "tier": 2
+    },
+    {
+      "iab_id": "518",
+      "name": "Auto Racing",
+      "parent": "sports",
+      "slug": "auto-racing",
+      "tier": 2
+    },
+    {
+      "iab_id": "33",
+      "name": "Auto Recalls",
+      "parent": "automotive",
+      "slug": "auto-recalls",
+      "tier": 2
+    },
+    {
+      "iab_id": "41",
+      "name": "Auto Rentals",
+      "parent": "automotive",
+      "slug": "auto-rentals",
+      "tier": 2
+    },
+    {
+      "iab_id": "34",
+      "name": "Auto Repair",
+      "parent": "automotive",
+      "slug": "auto-repair",
+      "tier": 2
+    },
+    {
+      "iab_id": "35",
+      "name": "Auto Safety",
+      "parent": "automotive",
+      "slug": "auto-safety",
+      "tier": 2
+    },
+    {
+      "iab_id": "36",
+      "name": "Auto Shows",
+      "parent": "automotive",
+      "slug": "auto-shows",
+      "tier": 2
+    },
+    {
+      "iab_id": "37",
+      "name": "Auto Technology",
+      "parent": "automotive",
+      "slug": "auto-technology",
+      "tier": 2
+    },
+    {
+      "iab_id": "16",
+      "name": "Auto Type",
+      "parent": "automotive",
+      "slug": "auto-type",
+      "tier": 2
+    },
+    {
+      "iab_id": "1",
+      "name": "Automotive",
+      "parent": null,
+      "slug": "automotive",
+      "tier": 1
+    },
+    {
+      "iab_id": "162",
+      "name": "Awards Shows",
+      "parent": "events",
+      "slug": "awards-shows",
+      "tier": 2
+    },
+    {
+      "iab_id": "166",
+      "name": "Baby Shower",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "baby-shower",
+      "tier": 2
+    },
+    {
+      "iab_id": "167",
+      "name": "Bachelor Party",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "bachelor-party",
+      "tier": 2
+    },
+    {
+      "iab_id": "168",
+      "name": "Bachelorette Party",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "bachelorette-party",
+      "tier": 2
+    },
+    {
+      "iab_id": "534",
+      "name": "Badminton",
+      "parent": "sports",
+      "slug": "badminton",
+      "tier": 2
+    },
+    {
+      "iab_id": "215",
+      "name": "Barbecues and Grilling",
+      "parent": "food-and-drink",
+      "slug": "barbecues-and-grilling",
+      "tier": 2
+    },
+    {
+      "iab_id": "179",
+      "name": "Bars & Restaurants",
+      "parent": "attractions",
+      "slug": "bars-and-restaurants",
+      "tier": 2
+    },
+    {
+      "iab_id": "545",
+      "name": "Baseball",
+      "parent": "sports",
+      "slug": "baseball",
+      "tier": 2
+    },
+    {
+      "iab_id": "547",
+      "name": "Basketball",
+      "parent": "sports",
+      "slug": "basketball",
+      "tier": 2
+    },
+    {
+      "iab_id": "548",
+      "name": "Beach Volleyball",
+      "parent": "sports",
+      "slug": "beach-volleyball",
+      "tier": 2
+    },
+    {
+      "iab_id": "553",
+      "name": "Beauty",
+      "parent": "style-and-fashion",
+      "slug": "beauty",
+      "tier": 2
+    },
+    {
+      "iab_id": "258",
+      "name": "Beekeeping",
+      "parent": "hobbies-and-interests",
+      "slug": "beekeeping",
+      "tier": 2
+    },
+    {
+      "iab_id": "187",
+      "name": "Bereavement",
+      "parent": "family-and-relationships",
+      "slug": "bereavement",
+      "tier": 2
+    },
+    {
+      "iab_id": "44",
+      "name": "Biographies",
+      "parent": "genres",
+      "slug": "biographies",
+      "tier": 2
+    },
+    {
+      "iab_id": "465",
+      "name": "Biological Sciences",
+      "parent": "science",
+      "slug": "biological-sciences",
+      "tier": 2
+    },
+    {
+      "iab_id": "423",
+      "name": "Birds",
+      "parent": "pets",
+      "slug": "birds",
+      "tier": 2
+    },
+    {
+      "iab_id": "259",
+      "name": "Birdwatching",
+      "parent": "hobbies-and-interests",
+      "slug": "birdwatching",
+      "tier": 2
+    },
+    {
+      "iab_id": "169",
+      "name": "Birth",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "birth",
+      "tier": 2
+    },
+    {
+      "iab_id": "170",
+      "name": "Birthday",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "birthday",
+      "tier": 2
+    },
+    {
+      "iab_id": "574",
+      "name": "Body Art",
+      "parent": "style-and-fashion",
+      "slug": "body-art",
+      "tier": 2
+    },
+    {
+      "iab_id": "549",
+      "name": "Bodybuilding",
+      "parent": "sports",
+      "slug": "bodybuilding",
+      "tier": 2
+    },
+    {
+      "iab_id": "42",
+      "name": "Books and Literature",
+      "parent": null,
+      "slug": "books-and-literature",
+      "tier": 1
+    },
+    {
+      "iab_id": "550",
+      "name": "Bowling",
+      "parent": "sports",
+      "slug": "bowling",
+      "tier": 2
+    },
+    {
+      "iab_id": "485",
+      "name": "Boxing",
+      "parent": "sports",
+      "slug": "boxing",
+      "tier": 2
+    },
+    {
+      "iab_id": "458",
+      "name": "Buddhism",
+      "parent": "religion-and-spirituality",
+      "slug": "buddhism",
+      "tier": 2
+    },
+    {
+      "iab_id": "53",
+      "name": "Business",
+      "parent": "business-and-finance",
+      "slug": "business",
+      "tier": 2
+    },
+    {
+      "iab_id": "52",
+      "name": "Business and Finance",
+      "parent": null,
+      "slug": "business-and-finance",
+      "tier": 1
+    },
+    {
+      "iab_id": "180",
+      "name": "Business Expos & Conferences",
+      "parent": "events",
+      "slug": "business-expos-and-conferences",
+      "tier": 2
+    },
+    {
+      "iab_id": "25",
+      "name": "Car Culture",
+      "parent": "automotive",
+      "slug": "car-culture",
+      "tier": 2
+    },
+    {
+      "iab_id": "125",
+      "name": "Career Advice",
+      "parent": "careers",
+      "slug": "career-advice",
+      "tier": 2
+    },
+    {
+      "iab_id": "126",
+      "name": "Career Planning",
+      "parent": "careers",
+      "slug": "career-planning",
+      "tier": 2
+    },
+    {
+      "iab_id": "123",
+      "name": "Careers",
+      "parent": null,
+      "slug": "careers",
+      "tier": 1
+    },
+    {
+      "iab_id": "181",
+      "name": "Casinos & Gambling",
+      "parent": "attractions",
+      "slug": "casinos-and-gambling",
+      "tier": 2
+    },
+    {
+      "iab_id": "424",
+      "name": "Cats",
+      "parent": "pets",
+      "slug": "cats",
+      "tier": 2
+    },
+    {
+      "iab_id": "433",
+      "name": "Celebrity Deaths",
+      "parent": "pop-culture",
+      "slug": "celebrity-deaths",
+      "tier": 2
+    },
+    {
+      "iab_id": "434",
+      "name": "Celebrity Families",
+      "parent": "pop-culture",
+      "slug": "celebrity-families",
+      "tier": 2
+    },
+    {
+      "iab_id": "435",
+      "name": "Celebrity Homes",
+      "parent": "pop-culture",
+      "slug": "celebrity-homes",
+      "tier": 2
+    },
+    {
+      "iab_id": "436",
+      "name": "Celebrity Pregnancy",
+      "parent": "pop-culture",
+      "slug": "celebrity-pregnancy",
+      "tier": 2
+    },
+    {
+      "iab_id": "437",
+      "name": "Celebrity Relationships",
+      "parent": "pop-culture",
+      "slug": "celebrity-relationships",
+      "tier": 2
+    },
+    {
+      "iab_id": "438",
+      "name": "Celebrity Scandal",
+      "parent": "pop-culture",
+      "slug": "celebrity-scandal",
+      "tier": 2
+    },
+    {
+      "iab_id": "439",
+      "name": "Celebrity Style",
+      "parent": "pop-culture",
+      "slug": "celebrity-style",
+      "tier": 2
+    },
+    {
+      "iab_id": "486",
+      "name": "Cheerleading",
+      "parent": "sports",
+      "slug": "cheerleading",
+      "tier": 2
+    },
+    {
+      "iab_id": "466",
+      "name": "Chemistry",
+      "parent": "science",
+      "slug": "chemistry",
+      "tier": 2
+    },
+    {
+      "iab_id": "575",
+      "name": "Children's Clothing",
+      "parent": "style-and-fashion",
+      "slug": "children-s-clothing",
+      "tier": 2
+    },
+    {
+      "iab_id": "482",
+      "name": "Children's Games and Toys",
+      "parent": "shopping",
+      "slug": "children-s-games-and-toys",
+      "tier": 2
+    },
+    {
+      "iab_id": "224",
+      "name": "Children's Health",
+      "parent": "healthy-living",
+      "slug": "children-s-health",
+      "tier": 2
+    },
+    {
+      "iab_id": "459",
+      "name": "Christianity",
+      "parent": "religion-and-spirituality",
+      "slug": "christianity",
+      "tier": 2
+    },
+    {
+      "iab_id": "260",
+      "name": "Cigars",
+      "parent": "hobbies-and-interests",
+      "slug": "cigars",
+      "tier": 2
+    },
+    {
+      "iab_id": "8YPBBL",
+      "name": "Civic affairs",
+      "parent": "politics",
+      "slug": "civic-affairs",
+      "tier": 2
+    },
+    {
+      "iab_id": "261",
+      "name": "Collecting",
+      "parent": "hobbies-and-interests",
+      "slug": "collecting",
+      "tier": 2
+    },
+    {
+      "iab_id": "137",
+      "name": "College Education",
+      "parent": "education",
+      "slug": "college-education",
+      "tier": 2
+    },
+    {
+      "iab_id": "487",
+      "name": "College Sports",
+      "parent": "sports",
+      "slug": "college-sports",
+      "tier": 2
+    },
+    {
+      "iab_id": "646",
+      "name": "Comedy",
+      "parent": "genres",
+      "slug": "comedy",
+      "tier": 2
+    },
+    {
+      "iab_id": "46",
+      "name": "Comics and Graphic Novels",
+      "parent": "books-and-literature",
+      "slug": "comics-and-graphic-novels",
+      "tier": 2
+    },
+    {
+      "iab_id": "80DV8O",
+      "name": "Communication",
+      "parent": null,
+      "slug": "communication",
+      "tier": 1
+    },
+    {
+      "iab_id": "599",
+      "name": "Computing",
+      "parent": "technology-and-computing",
+      "slug": "computing",
+      "tier": 2
+    },
+    {
+      "iab_id": "681",
+      "name": "Console Games",
+      "parent": "video-gaming",
+      "slug": "console-games",
+      "tier": 2
+    },
+    {
+      "iab_id": "392",
+      "name": "Consumer Banking",
+      "parent": "personal-finance",
+      "slug": "consumer-banking",
+      "tier": 2
+    },
+    {
+      "iab_id": "632",
+      "name": "Consumer Electronics",
+      "parent": "technology-and-computing",
+      "slug": "consumer-electronics",
+      "tier": 2
+    },
+    {
+      "iab_id": "264",
+      "name": "Content Production",
+      "parent": "hobbies-and-interests",
+      "slug": "content-production",
+      "tier": 2
+    },
+    {
+      "iab_id": "216",
+      "name": "Cooking",
+      "parent": "food-and-drink",
+      "slug": "cooking",
+      "tier": 2
+    },
+    {
+      "iab_id": "323",
+      "name": "Cosmetic Medical Services",
+      "parent": "medical-health",
+      "slug": "cosmetic-medical-services",
+      "tier": 2
+    },
+    {
+      "iab_id": "202",
+      "name": "Costume",
+      "parent": "fine-art",
+      "slug": "costume",
+      "tier": 2
+    },
+    {
+      "iab_id": "474",
+      "name": "Coupons and Discounts",
+      "parent": "shopping",
+      "slug": "coupons-and-discounts",
+      "tier": 2
+    },
+    {
+      "iab_id": "491",
+      "name": "Cricket",
+      "parent": "sports",
+      "slug": "cricket",
+      "tier": 2
+    },
+    {
+      "iab_id": "380",
+      "name": "Crime",
+      "parent": null,
+      "slug": "crime",
+      "tier": 1
+    },
+    {
+      "iab_id": "XtODT3",
+      "name": "Crime & Harmful Acts to Individuals, Society & Human Right Violations",
+      "parent": "sensitive-topics",
+      "slug": "crime-and-harmful-acts-to-individuals-society-and-human-right-violations",
+      "tier": 2
+    },
+    {
+      "iab_id": "492",
+      "name": "Cycling",
+      "parent": "sports",
+      "slug": "cycling",
+      "tier": 2
+    },
+    {
+      "iab_id": "203",
+      "name": "Dance",
+      "parent": "fine-art",
+      "slug": "dance",
+      "tier": 2
+    },
+    {
+      "iab_id": "493",
+      "name": "Darts",
+      "parent": "sports",
+      "slug": "darts",
+      "tier": 2
+    },
+    {
+      "iab_id": "26",
+      "name": "Dash Cam Videos",
+      "parent": "automotive",
+      "slug": "dash-cam-videos",
+      "tier": 2
+    },
+    {
+      "iab_id": "188",
+      "name": "Dating",
+      "parent": "family-and-relationships",
+      "slug": "dating",
+      "tier": 2
+    },
+    {
+      "iab_id": "I4GWl6",
+      "name": "Death, Injury, or Military Conflict",
+      "parent": "sensitive-topics",
+      "slug": "death-injury-or-military-conflict",
+      "tier": 2
+    },
+    {
+      "iab_id": "Z7rJBM",
+      "name": "Debated Sensitive Social Issues",
+      "parent": "sensitive-topics",
+      "slug": "debated-sensitive-social-issues",
+      "tier": 2
+    },
+    {
+      "iab_id": "204",
+      "name": "Design",
+      "parent": "fine-art",
+      "slug": "design",
+      "tier": 2
+    },
+    {
+      "iab_id": "576",
+      "name": "Designer Clothing",
+      "parent": "style-and-fashion",
+      "slug": "designer-clothing",
+      "tier": 2
+    },
+    {
+      "iab_id": "217",
+      "name": "Desserts and Baking",
+      "parent": "food-and-drink",
+      "slug": "desserts-and-baking",
+      "tier": 2
+    },
+    {
+      "iab_id": "445",
+      "name": "Developmental Sites",
+      "parent": "real-estate",
+      "slug": "developmental-sites",
+      "tier": 2
+    },
+    {
+      "iab_id": "205",
+      "name": "Digital Arts",
+      "parent": "fine-art",
+      "slug": "digital-arts",
+      "tier": 2
+    },
+    {
+      "iab_id": "218",
+      "name": "Dining Out",
+      "parent": "food-and-drink",
+      "slug": "dining-out",
+      "tier": 2
+    },
+    {
+      "iab_id": "494",
+      "name": "Disabled Sports",
+      "parent": "sports",
+      "slug": "disabled-sports",
+      "tier": 2
+    },
+    {
+      "iab_id": "381",
+      "name": "Disasters",
+      "parent": null,
+      "slug": "disasters",
+      "tier": 1
+    },
+    {
+      "iab_id": "287",
+      "name": "Diseases and Conditions",
+      "parent": "medical-health",
+      "slug": "diseases-and-conditions",
+      "tier": 2
+    },
+    {
+      "iab_id": "495",
+      "name": "Diving",
+      "parent": "sports",
+      "slug": "diving",
+      "tier": 2
+    },
+    {
+      "iab_id": "189",
+      "name": "Divorce",
+      "parent": "family-and-relationships",
+      "slug": "divorce",
+      "tier": 2
+    },
+    {
+      "iab_id": "332",
+      "name": "Documentary",
+      "parent": "genres",
+      "slug": "documentary",
+      "tier": 2
+    },
+    {
+      "iab_id": "425",
+      "name": "Dogs",
+      "parent": "pets",
+      "slug": "dogs",
+      "tier": 2
+    },
+    {
+      "iab_id": "647",
+      "name": "Drama",
+      "parent": "genres",
+      "slug": "drama",
+      "tier": 2
+    },
+    {
+      "iab_id": "142",
+      "name": "Early Childhood Education",
+      "parent": "education",
+      "slug": "early-childhood-education",
+      "tier": 2
+    },
+    {
+      "iab_id": "80",
+      "name": "Economy",
+      "parent": "business-and-finance",
+      "slug": "economy",
+      "tier": 2
+    },
+    {
+      "iab_id": "132",
+      "name": "Education",
+      "parent": null,
+      "slug": "education",
+      "tier": 1
+    },
+    {
+      "iab_id": "143",
+      "name": "Educational Assessment",
+      "parent": "education",
+      "slug": "educational-assessment",
+      "tier": 2
+    },
+    {
+      "iab_id": "190",
+      "name": "Eldercare",
+      "parent": "family-and-relationships",
+      "slug": "eldercare",
+      "tier": 2
+    },
+    {
+      "iab_id": "387",
+      "name": "Elections",
+      "parent": "politics",
+      "slug": "elections",
+      "tier": 2
+    },
+    {
+      "iab_id": "JLBCU7",
+      "name": "Entertainment",
+      "parent": null,
+      "slug": "entertainment",
+      "tier": 1
+    },
+    {
+      "iab_id": "467",
+      "name": "Environment",
+      "parent": "science",
+      "slug": "environment",
+      "tier": 2
+    },
+    {
+      "iab_id": "496",
+      "name": "Equine Sports",
+      "parent": "sports",
+      "slug": "equine-sports",
+      "tier": 2
+    },
+    {
+      "iab_id": "682",
+      "name": "eSports",
+      "parent": "video-gaming",
+      "slug": "esports",
+      "tier": 2
+    },
+    {
+      "iab_id": "8VZQHL",
+      "name": "Events",
+      "parent": null,
+      "slug": "events",
+      "tier": 1
+    },
+    {
+      "iab_id": "498",
+      "name": "Extreme Sports",
+      "parent": "sports",
+      "slug": "extreme-sports",
+      "tier": 2
+    },
+    {
+      "iab_id": "648",
+      "name": "Factual",
+      "parent": "genres",
+      "slug": "factual",
+      "tier": 2
+    },
+    {
+      "iab_id": "186",
+      "name": "Family and Relationships",
+      "parent": null,
+      "slug": "family-and-relationships",
+      "tier": 1
+    },
+    {
+      "iab_id": "645",
+      "name": "Family/Children",
+      "parent": "genres",
+      "slug": "family-children",
+      "tier": 2
+    },
+    {
+      "iab_id": "185",
+      "name": "Fan Conventions",
+      "parent": "events",
+      "slug": "fan-conventions",
+      "tier": 2
+    },
+    {
+      "iab_id": "335",
+      "name": "Fantasy",
+      "parent": "genres",
+      "slug": "fantasy",
+      "tier": 2
+    },
+    {
+      "iab_id": "508",
+      "name": "Fantasy Sports",
+      "parent": "sports",
+      "slug": "fantasy-sports",
+      "tier": 2
+    },
+    {
+      "iab_id": "577",
+      "name": "Fashion Trends",
+      "parent": "style-and-fashion",
+      "slug": "fashion-trends",
+      "tier": 2
+    },
+    {
+      "iab_id": "48",
+      "name": "Fiction",
+      "parent": "books-and-literature",
+      "slug": "fiction",
+      "tier": 2
+    },
+    {
+      "iab_id": "509",
+      "name": "Field Hockey",
+      "parent": "sports",
+      "slug": "field-hockey",
+      "tier": 2
+    },
+    {
+      "iab_id": "510",
+      "name": "Figure Skating",
+      "parent": "sports",
+      "slug": "figure-skating",
+      "tier": 2
+    },
+    {
+      "iab_id": "393",
+      "name": "Financial Assistance",
+      "parent": "personal-finance",
+      "slug": "financial-assistance",
+      "tier": 2
+    },
+    {
+      "iab_id": "396",
+      "name": "Financial Planning",
+      "parent": "personal-finance",
+      "slug": "financial-planning",
+      "tier": 2
+    },
+    {
+      "iab_id": "201",
+      "name": "Fine Art",
+      "parent": null,
+      "slug": "fine-art",
+      "tier": 1
+    },
+    {
+      "iab_id": "206",
+      "name": "Fine Art Photography",
+      "parent": "fine-art",
+      "slug": "fine-art-photography",
+      "tier": 2
+    },
+    {
+      "iab_id": "426",
+      "name": "Fish and Aquariums",
+      "parent": "pets",
+      "slug": "fish-and-aquariums",
+      "tier": 2
+    },
+    {
+      "iab_id": "511",
+      "name": "Fishing Sports",
+      "parent": "sports",
+      "slug": "fishing-sports",
+      "tier": 2
+    },
+    {
+      "iab_id": "225",
+      "name": "Fitness and Exercise",
+      "parent": "healthy-living",
+      "slug": "fitness-and-exercise",
+      "tier": 2
+    },
+    {
+      "iab_id": "475",
+      "name": "Flower Shopping",
+      "parent": "shopping",
+      "slug": "flower-shopping",
+      "tier": 2
+    },
+    {
+      "iab_id": "219",
+      "name": "Food Allergies",
+      "parent": "food-and-drink",
+      "slug": "food-allergies",
+      "tier": 2
+    },
+    {
+      "iab_id": "210",
+      "name": "Food & Drink",
+      "parent": null,
+      "slug": "food-and-drink",
+      "tier": 1
+    },
+    {
+      "iab_id": "220",
+      "name": "Food Movements",
+      "parent": "food-and-drink",
+      "slug": "food-movements",
+      "tier": 2
+    },
+    {
+      "iab_id": "397",
+      "name": "Frugal Living",
+      "parent": "personal-finance",
+      "slug": "frugal-living",
+      "tier": 2
+    },
+    {
+      "iab_id": "171",
+      "name": "Funeral",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "funeral",
+      "tier": 2
+    },
+    {
+      "iab_id": "269",
+      "name": "Games and Puzzles",
+      "parent": "hobbies-and-interests",
+      "slug": "games-and-puzzles",
+      "tier": 2
+    },
+    {
+      "iab_id": "275",
+      "name": "Gardening",
+      "parent": "home-and-garden",
+      "slug": "gardening",
+      "tier": 2
+    },
+    {
+      "iab_id": "273",
+      "name": "Genealogy and Ancestry",
+      "parent": "hobbies-and-interests",
+      "slug": "genealogy-and-ancestry",
+      "tier": 2
+    },
+    {
+      "iab_id": "468",
+      "name": "Genetics",
+      "parent": "science",
+      "slug": "genetics",
+      "tier": 2
+    },
+    {
+      "iab_id": "SPSHQ5",
+      "name": "Genres",
+      "parent": null,
+      "slug": "genres",
+      "tier": 1
+    },
+    {
+      "iab_id": "469",
+      "name": "Geography",
+      "parent": "science",
+      "slug": "geography",
+      "tier": 2
+    },
+    {
+      "iab_id": "470",
+      "name": "Geology",
+      "parent": "science",
+      "slug": "geology",
+      "tier": 2
+    },
+    {
+      "iab_id": "476",
+      "name": "Gifts and Greetings Cards",
+      "parent": "shopping",
+      "slug": "gifts-and-greetings-cards",
+      "tier": 2
+    },
+    {
+      "iab_id": "512",
+      "name": "Golf",
+      "parent": "sports",
+      "slug": "golf",
+      "tier": 2
+    },
+    {
+      "iab_id": "172",
+      "name": "Graduation",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "graduation",
+      "tier": 2
+    },
+    {
+      "iab_id": "477",
+      "name": "Grocery Shopping",
+      "parent": "shopping",
+      "slug": "grocery-shopping",
+      "tier": 2
+    },
+    {
+      "iab_id": "513",
+      "name": "Gymnastics",
+      "parent": "sports",
+      "slug": "gymnastics",
+      "tier": 2
+    },
+    {
+      "iab_id": "HxqYV1",
+      "name": "Hate Speech and Acts of Aggression",
+      "parent": "sensitive-topics",
+      "slug": "hate-speech-and-acts-of-aggression",
+      "tier": 2
+    },
+    {
+      "iab_id": "221",
+      "name": "Healthy Cooking and Eating",
+      "parent": "food-and-drink",
+      "slug": "healthy-cooking-and-eating",
+      "tier": 2
+    },
+    {
+      "iab_id": "223",
+      "name": "Healthy Living",
+      "parent": null,
+      "slug": "healthy-living",
+      "tier": 1
+    },
+    {
+      "iab_id": "578",
+      "name": "High Fashion",
+      "parent": "style-and-fashion",
+      "slug": "high-fashion",
+      "tier": 2
+    },
+    {
+      "iab_id": "460",
+      "name": "Hinduism",
+      "parent": "religion-and-spirituality",
+      "slug": "hinduism",
+      "tier": 2
+    },
+    {
+      "iab_id": "153",
+      "name": "Historic Site and Landmark Tours",
+      "parent": "attractions",
+      "slug": "historic-site-and-landmark-tours",
+      "tier": 2
+    },
+    {
+      "iab_id": "EZWB7V",
+      "name": "History",
+      "parent": "genres",
+      "slug": "history",
+      "tier": 2
+    },
+    {
+      "iab_id": "239",
+      "name": "Hobbies & Interests",
+      "parent": null,
+      "slug": "hobbies-and-interests",
+      "tier": 1
+    },
+    {
+      "iab_id": "649",
+      "name": "Holiday",
+      "parent": "genres",
+      "slug": "holiday",
+      "tier": 2
+    },
+    {
+      "iab_id": "478",
+      "name": "Holiday Shopping",
+      "parent": "shopping",
+      "slug": "holiday-shopping",
+      "tier": 2
+    },
+    {
+      "iab_id": "1KXCLD",
+      "name": "Holidays",
+      "parent": null,
+      "slug": "holidays",
+      "tier": 1
+    },
+    {
+      "iab_id": "274",
+      "name": "Home & Garden",
+      "parent": null,
+      "slug": "home-and-garden",
+      "tier": 1
+    },
+    {
+      "iab_id": "278",
+      "name": "Home Appliances",
+      "parent": "home-and-garden",
+      "slug": "home-appliances",
+      "tier": 2
+    },
+    {
+      "iab_id": "279",
+      "name": "Home Entertaining",
+      "parent": "home-and-garden",
+      "slug": "home-entertaining",
+      "tier": 2
+    },
+    {
+      "iab_id": "280",
+      "name": "Home Improvement",
+      "parent": "home-and-garden",
+      "slug": "home-improvement",
+      "tier": 2
+    },
+    {
+      "iab_id": "281",
+      "name": "Home Security",
+      "parent": "home-and-garden",
+      "slug": "home-security",
+      "tier": 2
+    },
+    {
+      "iab_id": "417",
+      "name": "Home Utilities",
+      "parent": "personal-finance",
+      "slug": "home-utilities",
+      "tier": 2
+    },
+    {
+      "iab_id": "145",
+      "name": "Homeschooling",
+      "parent": "education",
+      "slug": "homeschooling",
+      "tier": 2
+    },
+    {
+      "iab_id": "146",
+      "name": "Homework and Study",
+      "parent": "education",
+      "slug": "homework-and-study",
+      "tier": 2
+    },
+    {
+      "iab_id": "336",
+      "name": "Horror",
+      "parent": "genres",
+      "slug": "horror",
+      "tier": 2
+    },
+    {
+      "iab_id": "446",
+      "name": "Hotel Properties",
+      "parent": "real-estate",
+      "slug": "hotel-properties",
+      "tier": 2
+    },
+    {
+      "iab_id": "479",
+      "name": "Household Supplies",
+      "parent": "shopping",
+      "slug": "household-supplies",
+      "tier": 2
+    },
+    {
+      "iab_id": "447",
+      "name": "Houses",
+      "parent": "real-estate",
+      "slug": "houses",
+      "tier": 2
+    },
+    {
+      "iab_id": "440",
+      "name": "Humor and Satire",
+      "parent": "pop-culture",
+      "slug": "humor-and-satire",
+      "tier": 2
+    },
+    {
+      "iab_id": "514",
+      "name": "Hunting and Shooting",
+      "parent": "sports",
+      "slug": "hunting-and-shooting",
+      "tier": 2
+    },
+    {
+      "iab_id": "515",
+      "name": "Ice Hockey",
+      "parent": "sports",
+      "slug": "ice-hockey",
+      "tier": 2
+    },
+    {
+      "iab_id": "pg0WhF",
+      "name": "Illegal Drugs, Tobacco, eCigarettes, Vaping, Alcohol",
+      "parent": "sensitive-topics",
+      "slug": "illegal-drugs-tobacco-ecigarettes-vaping-alcohol",
+      "tier": 2
+    },
+    {
+      "iab_id": "282",
+      "name": "Indoor Environmental Quality",
+      "parent": "home-and-garden",
+      "slug": "indoor-environmental-quality",
+      "tier": 2
+    },
+    {
+      "iab_id": "448",
+      "name": "Industrial Property",
+      "parent": "real-estate",
+      "slug": "industrial-property",
+      "tier": 2
+    },
+    {
+      "iab_id": "90",
+      "name": "Industries",
+      "parent": "business-and-finance",
+      "slug": "industries",
+      "tier": 2
+    },
+    {
+      "iab_id": "516",
+      "name": "Inline Skating",
+      "parent": "sports",
+      "slug": "inline-skating",
+      "tier": 2
+    },
+    {
+      "iab_id": "398",
+      "name": "Insurance",
+      "parent": "personal-finance",
+      "slug": "insurance",
+      "tier": 2
+    },
+    {
+      "iab_id": "283",
+      "name": "Interior Decorating",
+      "parent": "home-and-garden",
+      "slug": "interior-decorating",
+      "tier": 2
+    },
+    {
+      "iab_id": "461",
+      "name": "Islam",
+      "parent": "religion-and-spirituality",
+      "slug": "islam",
+      "tier": 2
+    },
+    {
+      "iab_id": "127",
+      "name": "Job Search",
+      "parent": "careers",
+      "slug": "job-search",
+      "tier": 2
+    },
+    {
+      "iab_id": "462",
+      "name": "Judaism",
+      "parent": "religion-and-spirituality",
+      "slug": "judaism",
+      "tier": 2
+    },
+    {
+      "iab_id": "517",
+      "name": "Lacrosse",
+      "parent": "sports",
+      "slug": "lacrosse",
+      "tier": 2
+    },
+    {
+      "iab_id": "449",
+      "name": "Land and Farms",
+      "parent": "real-estate",
+      "slug": "land-and-farms",
+      "tier": 2
+    },
+    {
+      "iab_id": "284",
+      "name": "Landscaping",
+      "parent": "home-and-garden",
+      "slug": "landscaping",
+      "tier": 2
+    },
+    {
+      "iab_id": "147",
+      "name": "Language Learning",
+      "parent": "education",
+      "slug": "language-learning",
+      "tier": 2
+    },
+    {
+      "iab_id": "427",
+      "name": "Large Animals",
+      "parent": "pets",
+      "slug": "large-animals",
+      "tier": 2
+    },
+    {
+      "iab_id": "383",
+      "name": "Law",
+      "parent": null,
+      "slug": "law",
+      "tier": 1
+    },
+    {
+      "iab_id": "TIFQA5",
+      "name": "Lifestyle",
+      "parent": "genres",
+      "slug": "lifestyle",
+      "tier": 2
+    },
+    {
+      "iab_id": "480",
+      "name": "Lotteries and Scratchcards",
+      "parent": "shopping",
+      "slug": "lotteries-and-scratchcards",
+      "tier": 2
+    },
+    {
+      "iab_id": "241",
+      "name": "Magic and Illusion",
+      "parent": "hobbies-and-interests",
+      "slug": "magic-and-illusion",
+      "tier": 2
+    },
+    {
+      "iab_id": "154",
+      "name": "Malls & Shopping Centers",
+      "parent": "attractions",
+      "slug": "malls-and-shopping-centers",
+      "tier": 2
+    },
+    {
+      "iab_id": "191",
+      "name": "Marriage and Civil Unions",
+      "parent": "family-and-relationships",
+      "slug": "marriage-and-civil-unions",
+      "tier": 2
+    },
+    {
+      "iab_id": "520",
+      "name": "Martial Arts",
+      "parent": "sports",
+      "slug": "martial-arts",
+      "tier": 2
+    },
+    {
+      "iab_id": "286",
+      "name": "Medical Health",
+      "parent": null,
+      "slug": "medical-health",
+      "tier": 1
+    },
+    {
+      "iab_id": "319",
+      "name": "Medical Tests",
+      "parent": "medical-health",
+      "slug": "medical-tests",
+      "tier": 2
+    },
+    {
+      "iab_id": "579",
+      "name": "Men's Fashion",
+      "parent": "style-and-fashion",
+      "slug": "men-s-fashion",
+      "tier": 2
+    },
+    {
+      "iab_id": "228",
+      "name": "Men's Health",
+      "parent": "healthy-living",
+      "slug": "men-s-health",
+      "tier": 2
+    },
+    {
+      "iab_id": "683",
+      "name": "Mobile Games",
+      "parent": "video-gaming",
+      "slug": "mobile-games",
+      "tier": 2
+    },
+    {
+      "iab_id": "242",
+      "name": "Model Toys",
+      "parent": "hobbies-and-interests",
+      "slug": "model-toys",
+      "tier": 2
+    },
+    {
+      "iab_id": "207",
+      "name": "Modern Art",
+      "parent": "fine-art",
+      "slug": "modern-art",
+      "tier": 2
+    },
+    {
+      "iab_id": "27",
+      "name": "Motorcycles",
+      "parent": "automotive",
+      "slug": "motorcycles",
+      "tier": 2
+    },
+    {
+      "iab_id": "324",
+      "name": "Movies",
+      "parent": "entertainment",
+      "slug": "movies",
+      "tier": 2
+    },
+    {
+      "iab_id": "155",
+      "name": "Museums & Galleries",
+      "parent": "attractions",
+      "slug": "museums-and-galleries",
+      "tier": 2
+    },
+    {
+      "iab_id": "338",
+      "name": "Music",
+      "parent": "entertainment",
+      "slug": "music",
+      "tier": 2
+    },
+    {
+      "iab_id": "650",
+      "name": "Music Video",
+      "parent": "genres",
+      "slug": "music-video",
+      "tier": 2
+    },
+    {
+      "iab_id": "156",
+      "name": "Musical",
+      "parent": "genres",
+      "slug": "musical",
+      "tier": 2
+    },
+    {
+      "iab_id": "243",
+      "name": "Musical Instruments",
+      "parent": "hobbies-and-interests",
+      "slug": "musical-instruments",
+      "tier": 2
+    },
+    {
+      "iab_id": "331",
+      "name": "Mystery",
+      "parent": "genres",
+      "slug": "mystery",
+      "tier": 2
+    },
+    {
+      "iab_id": "157",
+      "name": "National & Civic Holidays",
+      "parent": "holidays",
+      "slug": "national-and-civic-holidays",
+      "tier": 2
+    },
+    {
+      "iab_id": "VKIV56",
+      "name": "Nature",
+      "parent": "genres",
+      "slug": "nature",
+      "tier": 2
+    },
+    {
+      "iab_id": "158",
+      "name": "Nightclubs",
+      "parent": "attractions",
+      "slug": "nightclubs",
+      "tier": 2
+    },
+    {
+      "iab_id": "222",
+      "name": "Non-Alcoholic Beverages",
+      "parent": "food-and-drink",
+      "slug": "non-alcoholic-beverages",
+      "tier": 2
+    },
+    {
+      "iab_id": "229",
+      "name": "Nutrition",
+      "parent": "healthy-living",
+      "slug": "nutrition",
+      "tier": 2
+    },
+    {
+      "iab_id": "j9PaO9",
+      "name": "Obscenity and Profanity",
+      "parent": "sensitive-topics",
+      "slug": "obscenity-and-profanity",
+      "tier": 2
+    },
+    {
+      "iab_id": "450",
+      "name": "Office Property",
+      "parent": "real-estate",
+      "slug": "office-property",
+      "tier": 2
+    },
+    {
+      "iab_id": "521",
+      "name": "Olympic Sports",
+      "parent": "sports",
+      "slug": "olympic-sports",
+      "tier": 2
+    },
+    {
+      "iab_id": "148",
+      "name": "Online Education",
+      "parent": "education",
+      "slug": "online-education",
+      "tier": 2
+    },
+    {
+      "iab_id": "mm3UXx",
+      "name": "Online Piracy",
+      "parent": "sensitive-topics",
+      "slug": "online-piracy",
+      "tier": 2
+    },
+    {
+      "iab_id": "208",
+      "name": "Opera",
+      "parent": "fine-art",
+      "slug": "opera",
+      "tier": 2
+    },
+    {
+      "iab_id": "159",
+      "name": "Outdoor Activities",
+      "parent": "attractions",
+      "slug": "outdoor-activities",
+      "tier": 2
+    },
+    {
+      "iab_id": "285",
+      "name": "Outdoor Decorating",
+      "parent": "home-and-garden",
+      "slug": "outdoor-decorating",
+      "tier": 2
+    },
+    {
+      "iab_id": "244",
+      "name": "Paranormal Phenomena",
+      "parent": "hobbies-and-interests",
+      "slug": "paranormal-phenomena",
+      "tier": 2
+    },
+    {
+      "iab_id": "192",
+      "name": "Parenting",
+      "parent": "family-and-relationships",
+      "slug": "parenting",
+      "tier": 2
+    },
+    {
+      "iab_id": "160",
+      "name": "Parks & Nature",
+      "parent": "attractions",
+      "slug": "parks-and-nature",
+      "tier": 2
+    },
+    {
+      "iab_id": "161",
+      "name": "Party Supplies and Decorations",
+      "parent": "shopping",
+      "slug": "party-supplies-and-decorations",
+      "tier": 2
+    },
+    {
+      "iab_id": "684",
+      "name": "PC Games",
+      "parent": "video-gaming",
+      "slug": "pc-games",
+      "tier": 2
+    },
+    {
+      "iab_id": "590",
+      "name": "Personal Care",
+      "parent": "style-and-fashion",
+      "slug": "personal-care",
+      "tier": 2
+    },
+    {
+      "iab_id": "163",
+      "name": "Personal Celebrations & Life Events",
+      "parent": null,
+      "slug": "personal-celebrations-and-life-events",
+      "tier": 1
+    },
+    {
+      "iab_id": "405",
+      "name": "Personal Debt",
+      "parent": "personal-finance",
+      "slug": "personal-debt",
+      "tier": 2
+    },
+    {
+      "iab_id": "391",
+      "name": "Personal Finance",
+      "parent": null,
+      "slug": "personal-finance",
+      "tier": 1
+    },
+    {
+      "iab_id": "410",
+      "name": "Personal Investing",
+      "parent": "personal-finance",
+      "slug": "personal-investing",
+      "tier": 2
+    },
+    {
+      "iab_id": "415",
+      "name": "Personal Taxes",
+      "parent": "personal-finance",
+      "slug": "personal-taxes",
+      "tier": 2
+    },
+    {
+      "iab_id": "428",
+      "name": "Pet Adoptions",
+      "parent": "pets",
+      "slug": "pet-adoptions",
+      "tier": 2
+    },
+    {
+      "iab_id": "431",
+      "name": "Pet Supplies",
+      "parent": "pets",
+      "slug": "pet-supplies",
+      "tier": 2
+    },
+    {
+      "iab_id": "422",
+      "name": "Pets",
+      "parent": null,
+      "slug": "pets",
+      "tier": 1
+    },
+    {
+      "iab_id": "320",
+      "name": "Pharmaceutical Drugs",
+      "parent": "medical-health",
+      "slug": "pharmaceutical-drugs",
+      "tier": 2
+    },
+    {
+      "iab_id": "471",
+      "name": "Physics",
+      "parent": "science",
+      "slug": "physics",
+      "tier": 2
+    },
+    {
+      "iab_id": "49",
+      "name": "Poetry",
+      "parent": "books-and-literature",
+      "slug": "poetry",
+      "tier": 2
+    },
+    {
+      "iab_id": "524",
+      "name": "Poker and Professional Gambling",
+      "parent": "sports",
+      "slug": "poker-and-professional-gambling",
+      "tier": 2
+    },
+    {
+      "iab_id": "388",
+      "name": "Political Issues & Policy",
+      "parent": "politics",
+      "slug": "political-issues-and-policy",
+      "tier": 2
+    },
+    {
+      "iab_id": "386",
+      "name": "Politics",
+      "parent": null,
+      "slug": "politics",
+      "tier": 1
+    },
+    {
+      "iab_id": "432",
+      "name": "Pop Culture",
+      "parent": null,
+      "slug": "pop-culture",
+      "tier": 1
+    },
+    {
+      "iab_id": "149",
+      "name": "Primary Education",
+      "parent": "education",
+      "slug": "primary-education",
+      "tier": 2
+    },
+    {
+      "iab_id": "134",
+      "name": "Private School",
+      "parent": "education",
+      "slug": "private-school",
+      "tier": 2
+    },
+    {
+      "iab_id": "173",
+      "name": "Prom",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "prom",
+      "tier": 2
+    },
+    {
+      "iab_id": "245",
+      "name": "Radio Control",
+      "parent": "hobbies-and-interests",
+      "slug": "radio-control",
+      "tier": 2
+    },
+    {
+      "iab_id": "441",
+      "name": "Real Estate",
+      "parent": null,
+      "slug": "real-estate",
+      "tier": 1
+    },
+    {
+      "iab_id": "451",
+      "name": "Real Estate Buying and Selling",
+      "parent": "real-estate",
+      "slug": "real-estate-buying-and-selling",
+      "tier": 2
+    },
+    {
+      "iab_id": "452",
+      "name": "Real Estate Renting and Leasing",
+      "parent": "real-estate",
+      "slug": "real-estate-renting-and-leasing",
+      "tier": 2
+    },
+    {
+      "iab_id": "651",
+      "name": "Reality TV",
+      "parent": "genres",
+      "slug": "reality-tv",
+      "tier": 2
+    },
+    {
+      "iab_id": "453",
+      "name": "Religion & Spirituality",
+      "parent": null,
+      "slug": "religion-and-spirituality",
+      "tier": 1
+    },
+    {
+      "iab_id": "276",
+      "name": "Remodeling & Construction",
+      "parent": "home-and-garden",
+      "slug": "remodeling-and-construction",
+      "tier": 2
+    },
+    {
+      "iab_id": "130",
+      "name": "Remote Working",
+      "parent": "careers",
+      "slug": "remote-working",
+      "tier": 2
+    },
+    {
+      "iab_id": "429",
+      "name": "Reptiles",
+      "parent": "pets",
+      "slug": "reptiles",
+      "tier": 2
+    },
+    {
+      "iab_id": "443",
+      "name": "Retail Property",
+      "parent": "real-estate",
+      "slug": "retail-property",
+      "tier": 2
+    },
+    {
+      "iab_id": "416",
+      "name": "Retirement Planning",
+      "parent": "personal-finance",
+      "slug": "retirement-planning",
+      "tier": 2
+    },
+    {
+      "iab_id": "28",
+      "name": "Road-Side Assistance",
+      "parent": "automotive",
+      "slug": "road-side-assistance",
+      "tier": 2
+    },
+    {
+      "iab_id": "638",
+      "name": "Robotics",
+      "parent": "technology-and-computing",
+      "slug": "robotics",
+      "tier": 2
+    },
+    {
+      "iab_id": "525",
+      "name": "Rodeo",
+      "parent": "sports",
+      "slug": "rodeo",
+      "tier": 2
+    },
+    {
+      "iab_id": "326",
+      "name": "Romance",
+      "parent": "genres",
+      "slug": "romance",
+      "tier": 2
+    },
+    {
+      "iab_id": "526",
+      "name": "Rowing",
+      "parent": "sports",
+      "slug": "rowing",
+      "tier": 2
+    },
+    {
+      "iab_id": "527",
+      "name": "Rugby",
+      "parent": "sports",
+      "slug": "rugby",
+      "tier": 2
+    },
+    {
+      "iab_id": "530",
+      "name": "Sailing",
+      "parent": "sports",
+      "slug": "sailing",
+      "tier": 2
+    },
+    {
+      "iab_id": "481",
+      "name": "Sales and Promotions",
+      "parent": "shopping",
+      "slug": "sales-and-promotions",
+      "tier": 2
+    },
+    {
+      "iab_id": "246",
+      "name": "Sci-fi and Fantasy",
+      "parent": "hobbies-and-interests",
+      "slug": "sci-fi-and-fantasy",
+      "tier": 2
+    },
+    {
+      "iab_id": "464",
+      "name": "Science",
+      "parent": null,
+      "slug": "science",
+      "tier": 1
+    },
+    {
+      "iab_id": "652",
+      "name": "Science Fiction",
+      "parent": "genres",
+      "slug": "science-fiction",
+      "tier": 2
+    },
+    {
+      "iab_id": "29",
+      "name": "Scooters",
+      "parent": "automotive",
+      "slug": "scooters",
+      "tier": 2
+    },
+    {
+      "iab_id": "135",
+      "name": "Secondary Education",
+      "parent": "education",
+      "slug": "secondary-education",
+      "tier": 2
+    },
+    {
+      "iab_id": "230",
+      "name": "Senior Health",
+      "parent": "healthy-living",
+      "slug": "senior-health",
+      "tier": 2
+    },
+    {
+      "iab_id": "v9i3On",
+      "name": "Sensitive Topics",
+      "parent": null,
+      "slug": "sensitive-topics",
+      "tier": 1
+    },
+    {
+      "iab_id": "473",
+      "name": "Shopping",
+      "parent": null,
+      "slug": "shopping",
+      "tier": 1
+    },
+    {
+      "iab_id": "463",
+      "name": "Sikhism",
+      "parent": "religion-and-spirituality",
+      "slug": "sikhism",
+      "tier": 2
+    },
+    {
+      "iab_id": "200",
+      "name": "Single Life",
+      "parent": "family-and-relationships",
+      "slug": "single-life",
+      "tier": 2
+    },
+    {
+      "iab_id": "531",
+      "name": "Skiing",
+      "parent": "sports",
+      "slug": "skiing",
+      "tier": 2
+    },
+    {
+      "iab_id": "277",
+      "name": "Smart Home",
+      "parent": "home-and-garden",
+      "slug": "smart-home",
+      "tier": 2
+    },
+    {
+      "iab_id": "532",
+      "name": "Snooker/Pool/Billiards",
+      "parent": "sports",
+      "slug": "snooker-pool-billiards",
+      "tier": 2
+    },
+    {
+      "iab_id": "642",
+      "name": "Soap Opera",
+      "parent": "genres",
+      "slug": "soap-opera",
+      "tier": 2
+    },
+    {
+      "iab_id": "533",
+      "name": "Soccer",
+      "parent": "sports",
+      "slug": "soccer",
+      "tier": 2
+    },
+    {
+      "iab_id": "535",
+      "name": "Softball",
+      "parent": "sports",
+      "slug": "softball",
+      "tier": 2
+    },
+    {
+      "iab_id": "472",
+      "name": "Space and Astronomy",
+      "parent": "science",
+      "slug": "space-and-astronomy",
+      "tier": 2
+    },
+    {
+      "iab_id": "6i4dB6",
+      "name": "Spam or Harmful Content",
+      "parent": "sensitive-topics",
+      "slug": "spam-or-harmful-content",
+      "tier": 2
+    },
+    {
+      "iab_id": "136",
+      "name": "Special Education",
+      "parent": "education",
+      "slug": "special-education",
+      "tier": 2
+    },
+    {
+      "iab_id": "643",
+      "name": "Special Interest (Indie/Art House)",
+      "parent": "genres",
+      "slug": "special-interest-indie-art-house",
+      "tier": 2
+    },
+    {
+      "iab_id": "455",
+      "name": "Spirituality",
+      "parent": "religion-and-spirituality",
+      "slug": "spirituality",
+      "tier": 2
+    },
+    {
+      "iab_id": "483",
+      "name": "Sports",
+      "parent": null,
+      "slug": "sports",
+      "tier": 1
+    },
+    {
+      "iab_id": "551",
+      "name": "Sports Equipment",
+      "parent": "sports",
+      "slug": "sports-equipment",
+      "tier": 2
+    },
+    {
+      "iab_id": "370",
+      "name": "Sports Radio",
+      "parent": "genres",
+      "slug": "sports-radio",
+      "tier": 2
+    },
+    {
+      "iab_id": "536",
+      "name": "Squash",
+      "parent": "sports",
+      "slug": "squash",
+      "tier": 2
+    },
+    {
+      "iab_id": "595",
+      "name": "Street Style",
+      "parent": "style-and-fashion",
+      "slug": "street-style",
+      "tier": 2
+    },
+    {
+      "iab_id": "552",
+      "name": "Style & Fashion",
+      "parent": null,
+      "slug": "style-and-fashion",
+      "tier": 1
+    },
+    {
+      "iab_id": "321",
+      "name": "Surgery",
+      "parent": "medical-health",
+      "slug": "surgery",
+      "tier": 2
+    },
+    {
+      "iab_id": "537",
+      "name": "Swimming",
+      "parent": "sports",
+      "slug": "swimming",
+      "tier": 2
+    },
+    {
+      "iab_id": "538",
+      "name": "Table Tennis",
+      "parent": "sports",
+      "slug": "table-tennis",
+      "tier": 2
+    },
+    {
+      "iab_id": "371",
+      "name": "Talk Radio",
+      "parent": "genres",
+      "slug": "talk-radio",
+      "tier": 2
+    },
+    {
+      "iab_id": "A0AH3G",
+      "name": "Talk Show",
+      "parent": "genres",
+      "slug": "talk-show",
+      "tier": 2
+    },
+    {
+      "iab_id": "596",
+      "name": "Technology & Computing",
+      "parent": null,
+      "slug": "technology-and-computing",
+      "tier": 1
+    },
+    {
+      "iab_id": "640",
+      "name": "Television",
+      "parent": "entertainment",
+      "slug": "television",
+      "tier": 2
+    },
+    {
+      "iab_id": "539",
+      "name": "Tennis",
+      "parent": "sports",
+      "slug": "tennis",
+      "tier": 2
+    },
+    {
+      "iab_id": "8FD8nI",
+      "name": "Terrorism",
+      "parent": "sensitive-topics",
+      "slug": "terrorism",
+      "tier": 2
+    },
+    {
+      "iab_id": "209",
+      "name": "Theater",
+      "parent": "fine-art",
+      "slug": "theater",
+      "tier": 2
+    },
+    {
+      "iab_id": "177",
+      "name": "Theater Venues",
+      "parent": "attractions",
+      "slug": "theater-venues",
+      "tier": 2
+    },
+    {
+      "iab_id": "700",
+      "name": "Thriller",
+      "parent": "genres",
+      "slug": "thriller",
+      "tier": 2
+    },
+    {
+      "iab_id": "540",
+      "name": "Track and Field",
+      "parent": "sports",
+      "slug": "track-and-field",
+      "tier": 2
+    },
+    {
+      "iab_id": "653",
+      "name": "Travel",
+      "parent": null,
+      "slug": "travel",
+      "tier": 1
+    },
+    {
+      "iab_id": "654",
+      "name": "Travel Accessories",
+      "parent": "travel",
+      "slug": "travel-accessories",
+      "tier": 2
+    },
+    {
+      "iab_id": "655",
+      "name": "Travel Locations",
+      "parent": "travel",
+      "slug": "travel-locations",
+      "tier": 2
+    },
+    {
+      "iab_id": "663",
+      "name": "Travel Preparation and Advice",
+      "parent": "travel",
+      "slug": "travel-preparation-and-advice",
+      "tier": 2
+    },
+    {
+      "iab_id": "664",
+      "name": "Travel Type",
+      "parent": "travel",
+      "slug": "travel-type",
+      "tier": 2
+    },
+    {
+      "iab_id": "KHPC5A",
+      "name": "True Crime",
+      "parent": "genres",
+      "slug": "true-crime",
+      "tier": 2
+    },
+    {
+      "iab_id": "444",
+      "name": "Vacation Properties",
+      "parent": "real-estate",
+      "slug": "vacation-properties",
+      "tier": 2
+    },
+    {
+      "iab_id": "322",
+      "name": "Vaccines",
+      "parent": "medical-health",
+      "slug": "vaccines",
+      "tier": 2
+    },
+    {
+      "iab_id": "212",
+      "name": "Vegan Diets",
+      "parent": "food-and-drink",
+      "slug": "vegan-diets",
+      "tier": 2
+    },
+    {
+      "iab_id": "213",
+      "name": "Vegetarian Diets",
+      "parent": "food-and-drink",
+      "slug": "vegetarian-diets",
+      "tier": 2
+    },
+    {
+      "iab_id": "430",
+      "name": "Veterinary Medicine",
+      "parent": "pets",
+      "slug": "veterinary-medicine",
+      "tier": 2
+    },
+    {
+      "iab_id": "685",
+      "name": "Video Game Genres",
+      "parent": "video-gaming",
+      "slug": "video-game-genres",
+      "tier": 2
+    },
+    {
+      "iab_id": "680",
+      "name": "Video Gaming",
+      "parent": null,
+      "slug": "video-gaming",
+      "tier": 1
+    },
+    {
+      "iab_id": "639",
+      "name": "Virtual Reality",
+      "parent": "technology-and-computing",
+      "slug": "virtual-reality",
+      "tier": 2
+    },
+    {
+      "iab_id": "131",
+      "name": "Vocational Training",
+      "parent": "careers",
+      "slug": "vocational-training",
+      "tier": 2
+    },
+    {
+      "iab_id": "541",
+      "name": "Volleyball",
+      "parent": "sports",
+      "slug": "volleyball",
+      "tier": 2
+    },
+    {
+      "iab_id": "542",
+      "name": "Walking",
+      "parent": "sports",
+      "slug": "walking",
+      "tier": 2
+    },
+    {
+      "iab_id": "389",
+      "name": "War and Conflicts",
+      "parent": null,
+      "slug": "war-and-conflicts",
+      "tier": 1
+    },
+    {
+      "iab_id": "543",
+      "name": "Water Polo",
+      "parent": "sports",
+      "slug": "water-polo",
+      "tier": 2
+    },
+    {
+      "iab_id": "390",
+      "name": "Weather",
+      "parent": "science",
+      "slug": "weather",
+      "tier": 2
+    },
+    {
+      "iab_id": "165",
+      "name": "Wedding",
+      "parent": "personal-celebrations-and-life-events",
+      "slug": "wedding",
+      "tier": 2
+    },
+    {
+      "iab_id": "231",
+      "name": "Weight Loss",
+      "parent": "healthy-living",
+      "slug": "weight-loss",
+      "tier": 2
+    },
+    {
+      "iab_id": "544",
+      "name": "Weightlifting",
+      "parent": "sports",
+      "slug": "weightlifting",
+      "tier": 2
+    },
+    {
+      "iab_id": "232",
+      "name": "Wellness",
+      "parent": "healthy-living",
+      "slug": "wellness",
+      "tier": 2
+    },
+    {
+      "iab_id": "KHPC6A",
+      "name": "Western",
+      "parent": "genres",
+      "slug": "western",
+      "tier": 2
+    },
+    {
+      "iab_id": "560",
+      "name": "Women's Fashion",
+      "parent": "style-and-fashion",
+      "slug": "women-s-fashion",
+      "tier": 2
+    },
+    {
+      "iab_id": "238",
+      "name": "Women's Health",
+      "parent": "healthy-living",
+      "slug": "women-s-health",
+      "tier": 2
+    },
+    {
+      "iab_id": "247",
+      "name": "Workshops and Classes",
+      "parent": "hobbies-and-interests",
+      "slug": "workshops-and-classes",
+      "tier": 2
+    },
+    {
+      "iab_id": "214",
+      "name": "World Cuisines",
+      "parent": "food-and-drink",
+      "slug": "world-cuisines",
+      "tier": 2
+    },
+    {
+      "iab_id": "546",
+      "name": "Wrestling",
+      "parent": "sports",
+      "slug": "wrestling",
+      "tier": 2
+    },
+    {
+      "iab_id": "51",
+      "name": "Young Adult",
+      "parent": "genres",
+      "slug": "young-adult",
+      "tier": 2
+    },
+    {
+      "iab_id": "178",
+      "name": "Zoos & Aquariums",
+      "parent": "attractions",
+      "slug": "zoos-and-aquariums",
+      "tier": 2
+    }
+  ]
+}
